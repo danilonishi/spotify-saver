@@ -1,12 +1,13 @@
 """SpotifyAPI: Interface for interacting with the Spotify Web API."""
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import re
 import spotipy
 from urllib.parse import urlparse
-from spotipy.oauth2 import SpotifyClientCredentials
+from spotipy.oauth2 import SpotifyOAuth
 
 from spotifysaver.config import Config
 from spotifysaver.models import Album, Track, Artist, Playlist
@@ -33,11 +34,18 @@ class SpotifyAPI:
             ValueError: If Spotify credentials are missing or invalid
         """
         Config.validate()  # Valida las credenciales
+        cache_path = Path(Config.SPOTIFY_AUTH_CACHE_PATH).expanduser()
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        auth_manager = SpotifyOAuth(
+            client_id=Config.SPOTIFY_CLIENT_ID,
+            client_secret=Config.SPOTIFY_CLIENT_SECRET,
+            redirect_uri=Config.SPOTIFY_REDIRECT_URI,
+            scope=Config.SPOTIFY_SCOPES,
+            cache_path=str(cache_path),
+            open_browser=True,
+        )
         self.sp = spotipy.Spotify(
-            auth_manager=SpotifyClientCredentials(
-                client_id=Config.SPOTIFY_CLIENT_ID,
-                client_secret=Config.SPOTIFY_CLIENT_SECRET,
-            )
+            auth_manager=auth_manager
         )
         self.logger = get_logger(f"{self.__class__.__name__}")
 
@@ -159,19 +167,54 @@ class SpotifyAPI:
             if not playlist_id:
                 raise ValueError("Invalid playlist URL")
             playlist = self.sp.playlist(playlist_id)
-            playlist["tracks"]['items'] = self._get_playlist_tracks(playlist_id)
+            playlist_items = self._get_playlist_tracks(playlist_id)
+            playlist_items_data = playlist.get("items", playlist.get("tracks", {}))
+            playlist["items"] = {
+                "items": playlist_items,
+                "total": playlist_items_data.get("total", len(playlist_items)),
+            }
             return playlist
         except spotipy.exceptions.SpotifyException as e:
             self.logger.error(f"Error fetching playlist data: {e}")
+            if getattr(e, "http_status", None) == 401:
+                raise ValueError(
+                    "Spotify user authorization is required for playlist access. "
+                    "Authorize the app and try again."
+                ) from e
             raise ValueError("Playlist not found or invalid URL") from e
 
-    def _get_playlist_tracks(self, playlist_id) ->list:
+    def _get_playlist_tracks(self, playlist_id) -> list:
+        """Fetch playlist items using the current Spotify API response shape.
+
+        Spotify's current endpoint is `/playlists/{id}/items`. Keep Spotipy
+        fallbacks so older client versions still work.
+        """
+        if hasattr(self.sp, "_get"):
+            results = self.sp._get(f"playlists/{playlist_id}/items")
+        elif hasattr(self.sp, "playlist_items"):
+            results = self.sp.playlist_items(playlist_id)
+        else:
             results = self.sp.playlist_tracks(playlist_id)
-            tracks = results['items']
-            while results['next']:
-                results = self.sp.next(results)
-                tracks.extend(results['items'])
-            return tracks
+
+        tracks = results.get("items", [])
+        while results.get("next"):
+            results = self.sp.next(results)
+            tracks.extend(results.get("items", []))
+        return tracks
+
+    @staticmethod
+    def _playlist_items(raw_data: dict) -> list:
+        """Return playlist entries from current or deprecated Spotify fields."""
+        if isinstance(raw_data.get("items"), dict):
+            return raw_data["items"].get("items", [])
+        if isinstance(raw_data.get("items"), list):
+            return raw_data["items"]
+        return raw_data.get("tracks", {}).get("items", [])
+
+    @staticmethod
+    def _playlist_item_track(item: dict) -> Optional[dict]:
+        """Return the track from a current `item` or deprecated `track` entry."""
+        return item.get("item") or item.get("track")
 
     @lru_cache(maxsize=32)
     def fetch_artist_albums(self, artist_url: str) -> dict:
@@ -316,28 +359,33 @@ class SpotifyAPI:
                 source_type="playlist",
                 playlist_name=raw_data["name"],
                 number=idx + 1,
-                total_tracks=raw_data["tracks"]["total"],
-                name=track["track"]["name"],
-                duration=track["track"]["duration_ms"] // 1000,
-                uri=track["track"]["uri"],
-                artists=[a["name"] for a in track["track"]["artists"]],
-                album_artist=[a["name"] for a in track["track"]["album"]["artists"]],
+                total_tracks=raw_data.get("items", raw_data.get("tracks", {}))["total"],
+                name=self._playlist_item_track(track)["name"],
+                duration=self._playlist_item_track(track)["duration_ms"] // 1000,
+                uri=self._playlist_item_track(track)["uri"],
+                artists=[a["name"] for a in self._playlist_item_track(track)["artists"]],
+                album_artist=[
+                    a["name"]
+                    for a in self._playlist_item_track(track)["album"]["artists"]
+                ],
                 album_name=(
-                    track["track"]["album"]["name"] if track["track"]["album"] else None
+                    self._playlist_item_track(track)["album"]["name"]
+                    if self._playlist_item_track(track)["album"]
+                    else None
                 ),
                 release_date=(
-                    track["track"]["album"]["release_date"]
-                    if track["track"]["album"]
+                    self._playlist_item_track(track)["album"]["release_date"]
+                    if self._playlist_item_track(track)["album"]
                     else "NA"
                 ),
                 cover_url=(
-                    track["track"]["album"]["images"][0]["url"]
-                    if track["track"]["album"]["images"]
+                    self._playlist_item_track(track)["album"]["images"][0]["url"]
+                    if self._playlist_item_track(track)["album"]["images"]
                     else None
                 ),
             )
-            for idx, track in enumerate(raw_data["tracks"]["items"])
-            if track["track"]
+            for idx, track in enumerate(self._playlist_items(raw_data))
+            if self._playlist_item_track(track)
         ]
 
         return Playlist(

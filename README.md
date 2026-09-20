@@ -50,6 +50,8 @@ pip install git+https://github.com/gabrielbaute/spotify-saver.git
 
 ⚠️ IMPORTANT: You must log in to your Spotify account as a developer, create an app, and obtain a "client id" and "client secret." You must place this information in an .env file in the project's root directory.
 
+Playlist access uses Spotify user authorization. Add `http://127.0.0.1:8888/callback` to the app's Redirect URIs in the Spotify Developer Dashboard. The first playlist request opens a Spotify login/authorization page; the resulting token is cached under `~/.spotify-saver`.
+
 ## ⚙️ Configuration
 
 Once in your project directory, run:

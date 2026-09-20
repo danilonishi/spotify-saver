@@ -100,25 +100,32 @@ class ApiClient {
 
     async inspectSpotifyUrl(spotifyUrl) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-        
-        const response = await fetch(`${this.apiUrl}/inspect?spotify_url=${encodeURIComponent(spotifyUrl)}`, {
-            signal: controller.signal,
-            method: 'GET',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // OAuth may require browser authorization
+
+        try {
+            const response = await fetch(`${this.apiUrl}/inspect?spotify_url=${encodeURIComponent(spotifyUrl)}`, {
+                signal: controller.signal,
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+                throw new Error(errorData.detail || 'Error inspecting URL');
             }
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            throw new Error(errorData.detail || 'Error inspecting URL');
+
+            return await response.json();
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('Spotify authorization timed out. Complete the Spotify login and try again.');
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
-        
-        return await response.json();
     }
 
     async startDownload(formData) {

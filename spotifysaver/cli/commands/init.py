@@ -26,7 +26,7 @@ def init():
     )
     spotify_redirect_uri = click.prompt(
         "Enter your Spotify Redirect URI",
-        default="http://localhost:8888/callback",
+        default="http://127.0.0.1:8888/callback",
         type=str,
     )
 

@@ -44,7 +44,15 @@ class Config:
     SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
     SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
     SPOTIFY_REDIRECT_URI = os.getenv(
-        "SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback"
+        "SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8888/callback"
+    )
+    SPOTIFY_AUTH_CACHE_PATH = os.getenv(
+        "SPOTIFY_AUTH_CACHE_PATH",
+        str(Path.home() / ".spotify-saver" / ".spotify-cache"),
+    )
+    SPOTIFY_SCOPES = os.getenv(
+        "SPOTIFY_SCOPES",
+        "playlist-read-private playlist-read-collaborative",
     )
 
     # Logger configuration
