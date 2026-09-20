@@ -181,6 +181,11 @@ class SpotifyAPI:
                     "Spotify user authorization is required for playlist access. "
                     "Authorize the app and try again."
                 ) from e
+            if getattr(e, "http_status", None) == 403:
+                raise ValueError(
+                    "Spotify only allows playlist items for playlists owned by "
+                    "the authorized user or shared with them as a collaborator."
+                ) from e
             raise ValueError("Playlist not found or invalid URL") from e
 
     def _get_playlist_tracks(self, playlist_id) -> list:
