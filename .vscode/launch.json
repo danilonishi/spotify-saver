@@ -1,20 +1,28 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
         {
             "name": "Python Debugger: FastAPI",
             "type": "debugpy",
             "request": "launch",
+            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
             "module": "uvicorn",
             "args": [
                 "spotifysaver.api.main:run_server",
                 "--reload"
             ],
-            "jinja": true
+            "jinja": true,
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "SpotifySaver CLI",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+            "module": "spotifysaver",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
         }
     ]
 }
