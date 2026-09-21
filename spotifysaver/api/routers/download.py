@@ -69,6 +69,19 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
         )
         tasks[task_id] = task_status
 
+        should_overwrite = request.overwrite_existing or bool(request.download_files)
+        if not should_overwrite:
+            task_status.status = "skipped"
+            task_status.error_message = "Download skipped because overwrite is disabled."
+            logger.info(f"Skipped download task {task_id} for {spotify_url}: overwrite_existing is false")
+            return DownloadResponse(
+                task_id=task_id,
+                status="skipped",
+                spotify_url=spotify_url,
+                content_type=content_type,
+                message="Download skipped because overwrite is disabled.",
+            )
+
         # Start background download task
         background_tasks.add_task(download_task, task_id, request)
 
@@ -210,6 +223,12 @@ async def download_task(task_id: str, request: DownloadRequest):
     """Background task for handling downloads."""
     try:
         task = tasks[task_id]
+        should_overwrite = request.overwrite_existing or bool(request.download_files)
+        if not should_overwrite:
+            task.status = "skipped"
+            task.error_message = "Download skipped because overwrite is disabled."
+            return
+
         task.status = "processing"
 
         # Initialize the download service

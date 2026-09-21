@@ -71,19 +71,13 @@ class SpotifySaverUI {
         const state = this.stateManager.loadPersistedState();
         if (!state) return;
 
-        // Restaurar datos del formulario y UI
+        // Restaurar únicamente los datos del formulario; nunca reanudar descargas
+        // automáticamente al cargar la página.
         this.stateManager.restoreFormData(state);
 
-        // Restaurar estado de descarga
         if (state.downloadInProgress && state.currentTaskId) {
-            this.downloadManager.restoreDownloadState(
-                state.downloadInProgress,
-                state.currentTaskId,
-                state.downloadStartTime
-            );
-            this.uiManager.updateUI(true);
-            this.uiManager.updateStatus('Reconnecting to download...', 'info');
-            this.uiManager.addLogEntry('Reconnected - resuming download monitoring', 'info');
+            this.stateManager.clearPersistedState();
+            this.uiManager.updateStatus('Previous download state cleared. Press Start Download to begin a new one.', 'info');
         }
     }
 

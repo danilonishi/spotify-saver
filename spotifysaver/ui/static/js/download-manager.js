@@ -23,7 +23,8 @@ class DownloadManager {
             bit_rate: bitrate,
             download_lyrics: document.getElementById('include-lyrics').checked,
             download_cover: true, // Always download cover
-            generate_nfo: document.getElementById('create-nfo').checked
+            generate_nfo: document.getElementById('create-nfo').checked,
+            overwrite_existing: document.getElementById('overwrite-existing').checked
         };
     }
 
@@ -52,6 +53,13 @@ class DownloadManager {
             return;
         }
 
+        const formData = this.getFormData();
+        if (!formData.overwrite_existing) {
+            this.uiManager.updateStatus('Download skipped: overwrite is disabled. Enable “Overwrite if exists locally” to allow downloads.', 'warning');
+            this.uiManager.addLogEntry('Download skipped because overwrite is disabled.', 'warning');
+            return;
+        }
+
         // Check API connectivity before starting
         this.uiManager.updateStatus('Checking API connection...', 'info');
         const apiAvailable = await this.apiClient.checkApiStatusWithRetry();
@@ -70,9 +78,7 @@ class DownloadManager {
         this.lastLoggedTrack = null;
         this.lastLoggedTrackState = null;
         this.trackStates.clear();
-        
-        const formData = this.getFormData();
-        
+
         try {
             // Paso 1: inspección
             this.uiManager.updateStatus('Inspecting URL...', 'info');

@@ -21,6 +21,14 @@ class DownloadRequest(BaseModel):
     generate_nfo: bool = Field(
         default=False, description="Whether to generate NFO metadata files"
     )
+    overwrite_existing: bool = Field(
+        default=False,
+        description="Whether to overwrite local files. When false, the request is skipped.",
+    )
+    download_files: Optional[bool] = Field(
+        default=None,
+        description="Deprecated alias kept for backwards compatibility.",
+    )
     output_format: str = Field(
         default="m4a",
         description="Audio format for downloaded files",
