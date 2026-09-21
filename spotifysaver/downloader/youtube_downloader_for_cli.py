@@ -46,7 +46,8 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         bitrate: Bitrate = Bitrate.B128,
         album_artist: str = None,
         download_lyrics: bool = False,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
+        overwrite_existing: bool = True,
     ) -> tuple[Optional[Path], Optional[Track]]:
         """
         Download a single track with CLI progress support.
@@ -77,6 +78,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 download_lyrics=download_lyrics,
                 output_format=output_format,
                 bitrate=bitrate,
+                overwrite_existing=overwrite_existing,
             )
 
             if audio_path:
@@ -98,6 +100,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         bitrate: Bitrate = Bitrate.B128,
         nfo: bool = False,  # Generate NFO
         cover: bool = False,  # Download cover art
+        overwrite_existing: bool = True,
         progress_callback: Optional[callable] = None,  # Progress callback
     ) -> tuple[int, int]:  # Returns (success, total)
         """Download a complete album with progress support.
@@ -135,6 +138,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     download_lyrics=download_lyrics,
                     output_format=output_format,
                     bitrate=bitrate,
+                    overwrite_existing=overwrite_existing,
                 )
                 if audio_path:
                     success += 1
@@ -161,6 +165,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         bitrate: Bitrate = Bitrate.B128,
         download_lyrics: bool = False,
         cover: bool = False,
+        overwrite_existing: bool = True,
         progress_callback: Optional[callable] = None,
     ) -> tuple[int, int]:
         """Download a complete playlist with progress bar support.
@@ -181,7 +186,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             self.logger.error("Playlist inválida: sin nombre o tracks vacíos")
             return 0, 0
 
-        output_dir = self.base_dir / playlist.name
+        output_dir = self.base_dir / self._sanitize_filename(playlist.name)
         output_dir.mkdir(parents=True, exist_ok=True)
         success = 0
 
@@ -195,6 +200,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     track,
                     output_format=output_format,
                     bitrate=bitrate,
+                    overwrite_existing=overwrite_existing,
                     download_lyrics=download_lyrics,
                 )
                 if updated_track:
@@ -207,5 +213,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 self._save_cover_album(playlist.cover_url, output_dir / "cover.jpg")
             except Exception as e:
                 self.logger.error(f"Error downloading playlist cover: {str(e)}")
+
+        self.ensure_playlist_m3u(playlist, output_format=output_format)
 
         return success, len(playlist.tracks)

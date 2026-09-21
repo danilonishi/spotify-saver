@@ -24,6 +24,7 @@ class DownloadService:
         generate_nfo: bool = False,
         output_format: str = "m4a",
         bit_rate: int = 128,
+        overwrite_existing: bool = False,
     ):
         """Initialize the download service.
 
@@ -38,6 +39,7 @@ class DownloadService:
         self.download_lyrics = download_lyrics
         self.download_cover = download_cover
         self.generate_nfo = generate_nfo
+        self.overwrite_existing = overwrite_existing
         # Convert string format to enum for internal use
         self.output_format = YouTubeDownloader.string_to_audio_format(output_format)
         self.bit_rate = YouTubeDownloader.int_to_bitrate(bit_rate)
@@ -124,6 +126,7 @@ class DownloadService:
             self.bit_rate,
             self.generate_nfo,
             self.download_cover,
+            self.overwrite_existing,
             sync_progress_callback,
         )
 
@@ -160,10 +163,13 @@ class DownloadService:
             self.bit_rate,
             self.download_lyrics,
             self.download_cover,
+            self.overwrite_existing,
             sync_progress_callback,
         )
 
-        output_dir = Path(self.output_dir) / playlist.name
+        output_dir = Path(self.output_dir) / self.downloader._sanitize_filename(
+            playlist.name
+        )
 
         return {
             "content_type": "playlist",
@@ -179,5 +185,6 @@ class DownloadService:
             track, 
             output_format=self.output_format, 
             bitrate=self.bit_rate,
-            download_lyrics=self.download_lyrics
+            download_lyrics=self.download_lyrics,
+            overwrite_existing=self.overwrite_existing,
         )

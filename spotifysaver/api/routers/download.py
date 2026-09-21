@@ -69,19 +69,6 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
         )
         tasks[task_id] = task_status
 
-        should_overwrite = request.overwrite_existing or bool(request.download_files)
-        if not should_overwrite:
-            task_status.status = "skipped"
-            task_status.error_message = "Download skipped because overwrite is disabled."
-            logger.info(f"Skipped download task {task_id} for {spotify_url}: overwrite_existing is false")
-            return DownloadResponse(
-                task_id=task_id,
-                status="skipped",
-                spotify_url=spotify_url,
-                content_type=content_type,
-                message="Download skipped because overwrite is disabled.",
-            )
-
         # Start background download task
         background_tasks.add_task(download_task, task_id, request)
 
@@ -223,12 +210,6 @@ async def download_task(task_id: str, request: DownloadRequest):
     """Background task for handling downloads."""
     try:
         task = tasks[task_id]
-        should_overwrite = request.overwrite_existing or bool(request.download_files)
-        if not should_overwrite:
-            task.status = "skipped"
-            task.error_message = "Download skipped because overwrite is disabled."
-            return
-
         task.status = "processing"
 
         # Initialize the download service
@@ -239,6 +220,7 @@ async def download_task(task_id: str, request: DownloadRequest):
             generate_nfo=request.generate_nfo,
             output_format=request.output_format,
             bit_rate=request.bit_rate,
+            overwrite_existing=request.overwrite_existing or bool(request.download_files),
         )
 
         # Progress callback
@@ -253,12 +235,16 @@ async def download_task(task_id: str, request: DownloadRequest):
             str(request.spotify_url), progress_callback=progress_callback
         )
 
-        # Update task status
-        task.status = "completed"
+        # A task with no successful tracks is a failure; partial results remain completed.
+        completed_tracks = result.get("completed_tracks", 0)
+        failed_tracks = result.get("failed_tracks", 0)
+        task.status = "failed" if failed_tracks > 0 and completed_tracks == 0 else "completed"
         task.progress = 100
-        task.completed_tracks = result.get("completed_tracks", 0)
-        task.failed_tracks = result.get("failed_tracks", 0)
+        task.completed_tracks = completed_tracks
+        task.failed_tracks = failed_tracks
         task.output_directory = result.get("output_directory")
+        if task.status == "failed":
+            task.error_message = "No tracks were downloaded successfully."
         task.completed_at = datetime.now().isoformat()
 
         logger.info(f"Download task {task_id} completed successfully")

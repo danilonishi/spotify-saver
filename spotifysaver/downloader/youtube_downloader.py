@@ -1,6 +1,7 @@
 """Youtube Downloader Module"""
 
 import logging
+import os
 import re
 import requests
 import yt_dlp
@@ -315,6 +316,7 @@ class YouTubeDownloader:
         bitrate: Bitrate = Bitrate.B128,
         album_artist: str = None,
         download_lyrics: bool = False,
+        overwrite_existing: bool = True,
     ) -> tuple[Optional[Path], Optional[Track]]:
         """Download a track from YouTube Music with Spotify metadata.
 
@@ -330,8 +332,13 @@ class YouTubeDownloader:
             tuple: (Downloaded file path, Updated track) or (None, None) on error
         """
         output_path = self._get_output_path(track, album_artist, output_format)
+        if output_path.exists() and not overwrite_existing:
+            self.logger.info(f"Skipping existing track: {output_path}")
+            return output_path, track
+
         yt_url = self.searcher.search_track(track)
         ydl_opts = self._get_ydl_opts(output_path, output_format, bitrate)
+        ydl_opts["overwrites"] = overwrite_existing
 
         if not yt_url:
             self.logger.error(f"No match found for: {track.name}")
@@ -407,6 +414,54 @@ class YouTubeDownloader:
 
         pass
 
+    def get_playlist_m3u_path(self, playlist: Playlist) -> Path:
+        """Return the playlist M3U file path for a Spotify playlist."""
+        playlist_dir = self.base_dir / self._sanitize_filename(playlist.name)
+        playlist_dir.mkdir(parents=True, exist_ok=True)
+        return playlist_dir / f"{self._sanitize_filename(playlist.name)}.m3u"
+
+    def ensure_playlist_m3u(
+        self,
+        playlist: Playlist,
+        output_format: AudioFormat = AudioFormat.M4A,
+    ) -> Optional[Path]:
+        """Rewrite the playlist M3U file with the current local audio paths."""
+        if not playlist.name:
+            self.logger.error("Playlist name is empty. Cannot create playlist file.")
+            return None
+
+        m3u_path = self.get_playlist_m3u_path(playlist)
+
+        playlist_entries: list[str] = []
+        for track in playlist.tracks:
+            try:
+                artist_name = track.artists[0] if track.artists else "Unknown Artist"
+                album_name = track.album_name or "Unknown Album"
+                year = track.release_date[:4] if track.release_date else "Unknown"
+                album_artist = (
+                    track.album_artist[0]
+                    if getattr(track, "album_artist", None)
+                    and isinstance(track.album_artist, list)
+                    and track.album_artist
+                    else artist_name
+                )
+                local_path = self.base_dir / self._sanitize_filename(album_artist) / (
+                    f"{self._sanitize_filename(album_name)} ({year})"
+                ) / (
+                    f"{track.number} - {self._sanitize_filename(album_artist)} - {self._sanitize_filename(track.name or 'Unknown Track')}.{output_format.value}"
+                )
+                if local_path.exists():
+                    relative_path = os.path.relpath(
+                        local_path, start=m3u_path.parent
+                    )
+                    playlist_entries.append(Path(relative_path).as_posix())
+            except Exception as exc:
+                self.logger.warning(f"Could not resolve local path for track {track.name}: {exc}")
+
+        m3u_path.write_text("\n".join(playlist_entries) + ("\n" if playlist_entries else ""), encoding="utf-8")
+        self.logger.info(f"Updated playlist file: {m3u_path}")
+        return m3u_path
+
     def download_playlist(
         self,
         playlist: Playlist,
@@ -439,7 +494,7 @@ class YouTubeDownloader:
             return False
 
         # Configuración inicial
-        output_dir = self.base_dir / playlist.name
+        output_dir = self.base_dir / self._sanitize_filename(playlist.name)
         output_dir.mkdir(parents=True, exist_ok=True)
         success = False
         failed_tracks = []
@@ -469,6 +524,8 @@ class YouTubeDownloader:
         if success and nfo:
             self.logger.info(f"Generating NFO for playlist: {playlist.name}")
             NFOGenerator.generate(playlist, output_dir)
+
+        self.ensure_playlist_m3u(playlist, output_format=output_format)
 
         # Log results
         if failed_tracks:

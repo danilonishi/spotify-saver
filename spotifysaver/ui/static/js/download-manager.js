@@ -54,11 +54,6 @@ class DownloadManager {
         }
 
         const formData = this.getFormData();
-        if (!formData.overwrite_existing) {
-            this.uiManager.updateStatus('Download skipped: overwrite is disabled. Enable “Overwrite if exists locally” to allow downloads.', 'warning');
-            this.uiManager.addLogEntry('Download skipped because overwrite is disabled.', 'warning');
-            return;
-        }
 
         // Check API connectivity before starting
         this.uiManager.updateStatus('Checking API connection...', 'info');
@@ -133,7 +128,7 @@ class DownloadManager {
                         this.handleDownloadCompleted();
                         return;
                     } else if (status.status === 'failed') {
-                        this.handleDownloadFailed(status.message || 'Download failed', status.current_track_number);
+                        this.handleDownloadFailed(status.error_message || 'Download failed', status.current_track_number);
                         return;
                     } else if (status.status === 'processing') {
                         this.handleDownloadProgress(status);

@@ -23,7 +23,7 @@ class DownloadRequest(BaseModel):
     )
     overwrite_existing: bool = Field(
         default=False,
-        description="Whether to overwrite local files. When false, the request is skipped.",
+        description="Whether to overwrite local files that already exist. Missing files are always downloaded.",
     )
     download_files: Optional[bool] = Field(
         default=None,
