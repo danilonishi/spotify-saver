@@ -31,17 +31,17 @@ def test_download_request_allows_enabling_downloads():
     assert request.overwrite_existing is True
 
 
-def test_download_request_defaults_to_320_kbps_and_accepts_320():
+def test_download_request_defaults_to_256_kbps_and_accepts_256():
     default_request = DownloadRequest(
         spotify_url="https://open.spotify.com/track/2t9DE7p2wx4McTXQm0y2Fe?si=278359903d454ee1",
     )
     explicit_request = DownloadRequest(
         spotify_url="https://open.spotify.com/track/2t9DE7p2wx4McTXQm0y2Fe?si=278359903d454ee1",
-        bit_rate=320,
+        bit_rate=256,
     )
 
-    assert default_request.bit_rate == 320
-    assert explicit_request.bit_rate == 320
+    assert default_request.bit_rate == 256
+    assert explicit_request.bit_rate == 256
 
 
 def _make_track():

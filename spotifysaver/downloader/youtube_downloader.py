@@ -87,7 +87,6 @@ class YouTubeDownloader:
             128: Bitrate.B128,
             192: Bitrate.B192,
             256: Bitrate.B256,
-            320: Bitrate.B320,
         }
 
         if bitrate_int not in bitrate_map:
@@ -101,14 +100,14 @@ class YouTubeDownloader:
         self,
         output_path: Path,
         output_format: AudioFormat = AudioFormat.M4A,
-        bitrate: Bitrate = Bitrate.B128,
+        bitrate: Bitrate = Bitrate.B256,
     ) -> dict:
         """Get robust yt-dlp configuration with cookie support.
 
         Args:
             output_path: Path where the file should be saved
             output_format: Audio format enum (M4A, MP3, OPUS). Default: M4A.
-            bitrate: Bitrate enum (B96, B128, B192, B256, B320). Default: B320.
+            bitrate: Bitrate enum (B96, B128, B192, B256). Default: B256.
 
         Returns:
             dict: yt-dlp configuration options
