@@ -167,9 +167,7 @@ class DownloadService:
             sync_progress_callback,
         )
 
-        output_dir = Path(self.output_dir) / self.downloader._sanitize_filename(
-            playlist.name
-        )
+        output_dir = self.downloader.get_playlist_dir(playlist)
 
         return {
             "content_type": "playlist",

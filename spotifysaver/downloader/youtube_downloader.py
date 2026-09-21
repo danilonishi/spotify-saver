@@ -415,10 +415,19 @@ class YouTubeDownloader:
 
         pass
 
+    def get_playlist_dir(self, playlist: Playlist) -> Path:
+        """Return the dedicated playlist directory beside the music root."""
+        playlist_dir = (
+            self.base_dir.parent
+            / "Playlists"
+            / self._sanitize_filename(playlist.name)
+        )
+        playlist_dir.mkdir(parents=True, exist_ok=True)
+        return playlist_dir
+
     def get_playlist_m3u_path(self, playlist: Playlist) -> Path:
         """Return the playlist M3U file path for a Spotify playlist."""
-        playlist_dir = self.base_dir / self._sanitize_filename(playlist.name)
-        playlist_dir.mkdir(parents=True, exist_ok=True)
+        playlist_dir = self.get_playlist_dir(playlist)
         return playlist_dir / f"{self._sanitize_filename(playlist.name)}.m3u"
 
     def ensure_playlist_m3u(
@@ -495,7 +504,7 @@ class YouTubeDownloader:
             return False
 
         # Configuración inicial
-        output_dir = self.base_dir / self._sanitize_filename(playlist.name)
+        output_dir = self.get_playlist_dir(playlist)
         output_dir.mkdir(parents=True, exist_ok=True)
         success = False
         failed_tracks = []

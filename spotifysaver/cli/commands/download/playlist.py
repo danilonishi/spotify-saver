@@ -107,7 +107,7 @@ def generate_nfo_for_playlist(downloader, playlist, cover=False):
     try:
         from spotifysaver.metadata import NFOGenerator
 
-        playlist_dir = downloader.base_dir / playlist.name
+        playlist_dir = downloader.get_playlist_dir(playlist)
         NFOGenerator.generate_playlist(playlist, playlist_dir)
 
         if cover and playlist.cover_url:

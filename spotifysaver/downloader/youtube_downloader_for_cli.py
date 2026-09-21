@@ -185,7 +185,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             self.logger.error("Playlist inválida: sin nombre o tracks vacíos")
             return 0, 0
 
-        output_dir = self.base_dir / self._sanitize_filename(playlist.name)
+        output_dir = self.get_playlist_dir(playlist)
         output_dir.mkdir(parents=True, exist_ok=True)
         success = 0
 

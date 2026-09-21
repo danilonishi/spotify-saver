@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -185,6 +186,9 @@ def test_playlist_m3u_is_created_with_local_track_paths(tmp_path):
     assert m3u_path is not None
     assert m3u_path.exists()
     playlist_contents = m3u_path.read_text(encoding="utf-8")
-    assert "../Artist One/Album One (2024)/1 - Artist One - Track One.mp3" in playlist_contents
+    expected_relative_path = Path(
+        os.path.relpath(local_file, start=m3u_path.parent)
+    ).as_posix()
+    assert expected_relative_path in playlist_contents
     assert str(local_file.resolve()) not in playlist_contents
     assert m3u_path.name == "My Playlist.m3u"
