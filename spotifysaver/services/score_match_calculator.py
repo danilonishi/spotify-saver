@@ -116,6 +116,28 @@ class ScoreMatchCalculator:
         )
         return 0.1 if sp_album.lower() in album_name else 0
 
+    def _has_strong_metadata_match(
+        self, yt_result: Dict, track: Track
+    ) -> bool:
+        """Return whether non-title metadata identifies the same recording."""
+        duration_matches = abs(
+            yt_result.get("duration_seconds", 0) - track.duration
+        ) <= 2
+        yt_artists = {
+            artist.get("name", "").lower()
+            for artist in yt_result.get("artists", [])
+            if isinstance(artist, dict)
+        }
+        artist_matches = bool(track.artists) and track.artists[0].lower() in yt_artists
+        album_data = yt_result.get("album")
+        yt_album = (
+            album_data.get("name", "")
+            if isinstance(album_data, dict)
+            else str(album_data or "")
+        )
+        album_matches = bool(track.album_name) and track.album_name.lower() in yt_album.lower()
+        return duration_matches and artist_matches and album_matches
+
     def _calculate_match_score(
         self, yt_result: Dict, track: Track, strict: bool
     ) -> float:
@@ -147,7 +169,7 @@ class ScoreMatchCalculator:
             total_score = duration_score + artist_score + title_score + album_bonus
 
             # Early exit for very low title similarity (experimental)
-            if title_score < 0.1:
+            if title_score < 0.1 and not self._has_strong_metadata_match(yt_result, track):
                 total_score = min(total_score, 0.5)
 
             # Logging breakdown
