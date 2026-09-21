@@ -128,10 +128,9 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 if progress_callback:
                     progress_callback(idx, len(album.tracks), track.name)
 
-                yt_url = self.searcher.search_track(track)
-                if not yt_url:
-                    raise ValueError(f"No se encontró en YouTube Music: {track.name}")
-
+                expected_path = self._get_output_path(
+                    track, album_artist=album.artists[0], output_format=output_format
+                )
                 audio_path, _ = self.download_track(
                     track=track,
                     album_artist=album.artists[0],
@@ -140,7 +139,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     bitrate=bitrate,
                     overwrite_existing=overwrite_existing,
                 )
-                if audio_path:
+                if audio_path or expected_path.exists():
                     success += 1
             except Exception as e:
                 self.logger.error(f"Error en track {track.name}: {str(e)}")

@@ -7,3 +7,4 @@ class Bitrate(Enum):
     B128 = 128
     B192 = 192
     B256 = 256
+    B320 = 320

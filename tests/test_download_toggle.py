@@ -4,7 +4,9 @@ import pytest
 
 from spotifysaver.api.schemas import DownloadRequest
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
+from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
 from spotifysaver.enums import AudioFormat
+from spotifysaver.models.album import Album
 from spotifysaver.models.playlist import Playlist
 from spotifysaver.models.track import Track
 
@@ -26,6 +28,19 @@ def test_download_request_allows_enabling_downloads():
     )
 
     assert request.overwrite_existing is True
+
+
+def test_download_request_defaults_to_320_kbps_and_accepts_320():
+    default_request = DownloadRequest(
+        spotify_url="https://open.spotify.com/track/2t9DE7p2wx4McTXQm0y2Fe?si=278359903d454ee1",
+    )
+    explicit_request = DownloadRequest(
+        spotify_url="https://open.spotify.com/track/2t9DE7p2wx4McTXQm0y2Fe?si=278359903d454ee1",
+        bit_rate=320,
+    )
+
+    assert default_request.bit_rate == 320
+    assert explicit_request.bit_rate == 320
 
 
 def _make_track():
@@ -97,6 +112,37 @@ def test_missing_track_is_attempted_when_overwrite_is_disabled(tmp_path, monkeyp
     )
 
     assert searched == [track]
+
+
+def test_album_counts_existing_output_when_download_returns_no_path(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    track = _make_track()
+    album = Album(
+        name="Album One",
+        artists=["Artist One"],
+        release_date="2024-01-01",
+        genres=[],
+        cover_url="",
+        tracks=[track],
+    )
+    expected_path = downloader._get_output_path(
+        track, album_artist="Artist One", output_format=AudioFormat.MP3
+    )
+    expected_path.write_text("downloaded audio", encoding="utf-8")
+
+    monkeypatch.setattr(
+        downloader,
+        "download_track",
+        lambda **kwargs: (None, None),
+    )
+
+    success, total = downloader.download_album_cli(
+        album,
+        output_format=AudioFormat.MP3,
+        overwrite_existing=False,
+    )
+
+    assert (success, total) == (1, 1)
 
 
 def test_playlist_m3u_is_created_with_local_track_paths(tmp_path):

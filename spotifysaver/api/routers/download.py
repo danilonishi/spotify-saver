@@ -252,8 +252,15 @@ async def download_task(task_id: str, request: DownloadRequest):
     except Exception as e:
         logger.error(f"Download task {task_id} failed: {str(e)}")
         task = tasks[task_id]
-        task.status = "failed"
-        task.error_message = str(e)
+        if task.completed_tracks > 0:
+            task.status = "completed"
+            task.error_message = (
+                f"Download finished with an error after {task.completed_tracks} "
+                f"track(s): {e}"
+            )
+        else:
+            task.status = "failed"
+            task.error_message = str(e)
         task.completed_at = datetime.now().isoformat()
 
 

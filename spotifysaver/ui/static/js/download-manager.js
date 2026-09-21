@@ -14,7 +14,7 @@ class DownloadManager {
 
     getFormData() {
         const bitrateValue = document.getElementById('bitrate').value;
-        const bitrate = bitrateValue === 'best' ? 256 : parseInt(bitrateValue);
+        const bitrate = bitrateValue === 'best' ? 320 : parseInt(bitrateValue);
         
         return {
             spotify_url: document.getElementById('spotify-url').value,

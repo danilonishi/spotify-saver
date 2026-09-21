@@ -87,6 +87,7 @@ class YouTubeDownloader:
             128: Bitrate.B128,
             192: Bitrate.B192,
             256: Bitrate.B256,
+            320: Bitrate.B320,
         }
 
         if bitrate_int not in bitrate_map:
@@ -107,7 +108,7 @@ class YouTubeDownloader:
         Args:
             output_path: Path where the file should be saved
             output_format: Audio format enum (M4A, MP3, OPUS). Default: M4A.
-            bitrate: Bitrate enum (B96, B128, B192, B256). Default: B128.
+            bitrate: Bitrate enum (B96, B128, B192, B256, B320). Default: B320.
 
         Returns:
             dict: yt-dlp configuration options
