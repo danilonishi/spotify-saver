@@ -81,6 +81,28 @@ def test_existing_track_is_skipped_when_overwrite_is_disabled(tmp_path, monkeypa
     assert existing_path.read_text(encoding="utf-8") == "existing audio"
 
 
+def test_cli_existing_track_skips_search_when_overwrite_is_disabled(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    track = _make_track()
+    existing_path = downloader._get_output_path(track, output_format=AudioFormat.MP3)
+    existing_path.write_text("existing audio", encoding="utf-8")
+
+    monkeypatch.setattr(
+        downloader.searcher,
+        "search_track",
+        lambda _: pytest.fail("YouTube search should not run for an existing track"),
+    )
+
+    audio_path, updated_track = downloader.download_track_cli(
+        track,
+        output_format=AudioFormat.MP3,
+        overwrite_existing=False,
+    )
+
+    assert audio_path == existing_path
+    assert updated_track == track
+
+
 def test_missing_track_is_attempted_when_overwrite_is_disabled(tmp_path, monkeypatch):
     downloader = YouTubeDownloader(base_dir=str(tmp_path))
     track = _make_track()

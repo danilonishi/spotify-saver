@@ -65,6 +65,31 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             tuple: (Downloaded file path, Updated track) or (None, None) on error
         """
         try:
+            expected_paths = [
+                self._get_output_path(
+                    track,
+                    album_artist=album_artist,
+                    output_format=output_format,
+                )
+            ]
+            if track.album_artist:
+                expected_paths.append(
+                    self._get_output_path(
+                        track,
+                        album_artist=track.album_artist[0],
+                        output_format=output_format,
+                    )
+                )
+
+            if not overwrite_existing:
+                existing_path = next(
+                    (path for path in expected_paths if path.exists()),
+                    None,
+                )
+                if existing_path:
+                    self.logger.info(f"Skipping existing track: {existing_path}")
+                    return existing_path, track
+
             if progress_callback:
                 progress_callback(1, 1, track.name)
 
