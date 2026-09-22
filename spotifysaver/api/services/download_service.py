@@ -98,6 +98,7 @@ class DownloadService:
             "content_type": "track",
             "completed_tracks": 1 if audio_path else 0,
             "failed_tracks": 0 if audio_path else 1,
+            "failed_track_names": [] if audio_path else [track.name],
             "total_tracks": 1,
             "output_directory": str(audio_path.parent) if audio_path else None,
         }
@@ -117,7 +118,7 @@ class DownloadService:
 
         # Run download in thread pool
         loop = asyncio.get_event_loop()
-        success, total = await loop.run_in_executor(
+        success, total, failed_track_names = await loop.run_in_executor(
             None,
             self.downloader.download_album_cli,
             album,
@@ -136,6 +137,7 @@ class DownloadService:
             "content_type": "album",
             "completed_tracks": success,
             "failed_tracks": total - success,
+            "failed_track_names": failed_track_names,
             "total_tracks": total,
             "output_directory": str(output_dir),
         }

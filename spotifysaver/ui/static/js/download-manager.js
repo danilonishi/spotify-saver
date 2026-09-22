@@ -125,10 +125,14 @@ class DownloadManager {
                     console.log('📡 API Status received:', status);
                     
                     if (status.status === 'completed') {
-                        this.handleDownloadCompleted();
+                        this.handleDownloadCompleted(status);
                         return;
                     } else if (status.status === 'failed') {
-                        this.handleDownloadFailed(status.error_message || 'Download failed', status.current_track_number);
+                        this.handleDownloadFailed(
+                            status.error_message || 'Download failed',
+                            status.current_track_number,
+                            status.failed_track_names || []
+                        );
                         return;
                     } else if (status.status === 'processing') {
                         this.handleDownloadProgress(status);
@@ -150,15 +154,30 @@ class DownloadManager {
         checkProgress();
     }
 
-    handleDownloadCompleted() {
+    handleDownloadCompleted(status = {}) {
+        const completedTracks = status.completed_tracks || 0;
+        const totalTracks = status.total_tracks || 0;
+        const failedTrackNames = status.failed_track_names || [];
+        const summary = totalTracks
+            ? `Downloaded ${completedTracks}/${totalTracks} tracks`
+            : 'Download completed successfully';
+
         this.uiManager.updateProgress(100);
-        this.uiManager.updateStatus('Download completed successfully', 'success');
-        this.uiManager.addLogEntry('Download complete', 'success');
+        this.uiManager.updateStatus(
+            failedTrackNames.length ? `${summary}. ${failedTrackNames.length} failed.` : summary,
+            failedTrackNames.length ? 'error' : 'success'
+        );
+        this.uiManager.addLogEntry(summary, failedTrackNames.length ? 'error' : 'success');
+        failedTrackNames.forEach(trackName => {
+            this.uiManager.addLogEntry(`Failed: ${trackName}`, 'error');
+        });
         
         // Marcar todas las canciones como completadas
         if (this.currentTrackData && this.currentTrackData.tracks) {
             this.currentTrackData.tracks.forEach(track => {
-                if (this.trackStates.get(track.number) !== 'error') {
+                if (failedTrackNames.includes(track.name)) {
+                    this.updateTrackState(track.number, 'error');
+                } else {
                     this.updateTrackState(track.number, 'completed');
                 }
             });
@@ -179,9 +198,21 @@ class DownloadManager {
         }
     }
 
-    handleDownloadFailed(message, currentTrackNumber) {
+    handleDownloadFailed(message, currentTrackNumber, failedTrackNames = []) {
         this.uiManager.updateStatus(`Error: ${message}`, 'error');
         this.uiManager.addLogEntry(`Error: ${message}`, 'error');
+
+        failedTrackNames.forEach(trackName => {
+            this.uiManager.addLogEntry(`Failed: ${trackName}`, 'error');
+        });
+
+        if (this.currentTrackData && this.currentTrackData.tracks) {
+            this.currentTrackData.tracks.forEach(track => {
+                if (failedTrackNames.includes(track.name)) {
+                    this.updateTrackState(track.number, 'error');
+                }
+            });
+        }
         
         // Marcar canción actual como error si está especificada
         if (currentTrackNumber) {

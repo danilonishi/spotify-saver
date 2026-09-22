@@ -137,13 +137,52 @@ def test_album_counts_existing_output_when_download_returns_no_path(tmp_path, mo
         lambda **kwargs: (None, None),
     )
 
-    success, total = downloader.download_album_cli(
+    success, total, failed_tracks = downloader.download_album_cli(
         album,
         output_format=AudioFormat.MP3,
         overwrite_existing=False,
     )
 
-    assert (success, total) == (1, 1)
+    assert (success, total, failed_tracks) == (1, 1, [])
+
+
+def test_album_counts_existing_track_artist_output(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    track = _make_track()
+    track = Track(
+        **{
+            **track.__dict__,
+            "album_artist": ["Track Album Artist"],
+        }
+    )
+    album = Album(
+        name="Album One",
+        artists=["Album Artist"],
+        release_date="2024-01-01",
+        genres=[],
+        cover_url="",
+        tracks=[track],
+    )
+    expected_path = downloader._get_output_path(
+        track,
+        album_artist="Track Album Artist",
+        output_format=AudioFormat.MP3,
+    )
+    expected_path.write_text("downloaded audio", encoding="utf-8")
+
+    monkeypatch.setattr(
+        downloader,
+        "download_track",
+        lambda **kwargs: (None, None),
+    )
+
+    success, total, failed_tracks = downloader.download_album_cli(
+        album,
+        output_format=AudioFormat.MP3,
+        overwrite_existing=False,
+    )
+
+    assert (success, total, failed_tracks) == (1, 1, [])
 
 
 def test_playlist_m3u_is_created_with_local_track_paths(tmp_path):

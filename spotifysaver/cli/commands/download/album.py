@@ -105,7 +105,7 @@ def process_album(
             )
             bar.update(1)
 
-        success, total = downloader.download_album_cli(
+        success, total, failed_tracks = downloader.download_album_cli(
             album,
             download_lyrics=lyrics,
             output_format=YouTubeDownloader.string_to_audio_format(output_format),
@@ -118,10 +118,16 @@ def process_album(
     # Display summary
     if success > 0:
         click.secho(f"\n✔ Downloaded {success}/{total} tracks", fg="green")
+        if failed_tracks:
+            click.secho("⚠ Failed tracks:", fg="yellow")
+            for track_name in failed_tracks:
+                click.secho(f"  - {track_name}", fg="yellow")
         if nfo:
             click.secho("✔ Generated album metadata (NFO)", fg="green")
     else:
         click.secho("\n⚠ No tracks downloaded", fg="yellow")
+        for track_name in failed_tracks:
+            click.secho(f"  - {track_name}", fg="yellow")
 
 
 def generate_nfo_for_album(downloader, album, cover=False):

@@ -102,7 +102,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         cover: bool = False,  # Download cover art
         overwrite_existing: bool = True,
         progress_callback: Optional[callable] = None,  # Progress callback
-    ) -> tuple[int, int]:  # Returns (success, total)
+    ) -> tuple[int, int, list[str]]:  # Returns (success, total, failed track names)
         """Download a complete album with progress support.
 
         Args:
@@ -120,9 +120,10 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         """
         if not album.tracks:
             self.logger.error("Álbum no contiene tracks.")
-            return 0, 0
+            return 0, 0, []
 
         success = 0
+        failed_tracks = []
         for idx, track in enumerate(album.tracks, 1):
             try:
                 if progress_callback:
@@ -131,6 +132,13 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 expected_path = self._get_output_path(
                     track, album_artist=album.artists[0], output_format=output_format
                 )
+                track_artist_path = None
+                if track.album_artist:
+                    track_artist_path = self._get_output_path(
+                        track,
+                        album_artist=track.album_artist[0],
+                        output_format=output_format,
+                    )
                 audio_path, _ = self.download_track(
                     track=track,
                     album_artist=album.artists[0],
@@ -139,10 +147,15 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     bitrate=bitrate,
                     overwrite_existing=overwrite_existing,
                 )
-                if audio_path or expected_path.exists():
+                if audio_path or expected_path.exists() or (
+                    track_artist_path and track_artist_path.exists()
+                ):
                     success += 1
+                else:
+                    failed_tracks.append(track.name)
             except Exception as e:
                 self.logger.error(f"Error en track {track.name}: {str(e)}")
+                failed_tracks.append(track.name)
 
         # Generar metadatos solo si hay éxitos
         if success > 0:
@@ -155,7 +168,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             # Guarda el cover del artista
             # self._save_artist_cover()
 
-        return success, len(album.tracks)
+        return success, len(album.tracks), failed_tracks
 
     def download_playlist_cli(
         self,

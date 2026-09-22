@@ -10,8 +10,6 @@ from spotifysaver.spotlog import get_logger
 from spotifysaver.services.score_match_calculator import ScoreMatchCalculator
 from spotifysaver.services.errors.errors import (
     YouTubeAPIError,
-    AlbumNotFoundError,
-    InvalidResultError,
 )
 
 
@@ -86,7 +84,6 @@ class YoutubeMusicSearcher:
         """
         search_strategies = [
             self._search_exact_match,
-            self._search_album_context,
             self._search_fuzzy_match,
         ]
 
@@ -132,7 +129,6 @@ class YoutubeMusicSearcher:
             InvalidResultError: If the API returns invalid data
         """
         try:
-            # Búsqueda del álbum
             album_results = self.ytmusic.search(
                 query=self._normalize(f"{track.artists[0]} {track.name} {track.album_name}"),
                 filter="albums",
@@ -140,14 +136,16 @@ class YoutubeMusicSearcher:
             )
 
             if not album_results:
-                raise AlbumNotFoundError(f"Album '{track.album_name}' not found")
+                self.logger.info(f"Album context not found for '{track.album_name}'")
+                return None
 
             # Verificación de tipo
             if (
                 not isinstance(album_results[0], dict)
                 or "browseId" not in album_results[0]
             ):
-                raise InvalidResultError("Invalid album search result format")
+                self.logger.warning("Ignoring invalid album search result")
+                return None
 
             # Obtención de tracks
             album_tracks = self.ytmusic.get_album(album_results[0]["browseId"]).get(
@@ -155,16 +153,17 @@ class YoutubeMusicSearcher:
             )
 
             if not album_tracks:
-                raise AlbumNotFoundError(
-                    f"No tracks found in album '{track.album_name}'"
-                )
+                self.logger.info(f"Album context has no tracks for '{track.album_name}'")
+                return None
 
             return self._process_results(album_tracks, track, strict=False)
 
         except YouTubeAPIError:
-            raise
+            self.logger.warning(f"Album context lookup failed for '{track.album_name}'")
+            return None
         except Exception as e:
-            raise InvalidResultError(f"Unexpected error in album search: {str(e)}")
+            self.logger.warning(f"Album context lookup failed: {str(e)}")
+            return None
 
     def _search_fuzzy_match(self, track: Track) -> Optional[str]:
         """More flexible search when exact searches fail.
@@ -176,7 +175,7 @@ class YoutubeMusicSearcher:
             str: YouTube Music URL if found, None otherwise
         """
         results = self.ytmusic.search(
-            query=self._normalize(f"{track.artists[0]} {track.name} {track.album_name}"),
+            query=self._normalize(f"{track.artists[0]} {track.name}"),
             filter="songs",
             limit=10,
             ignore_spelling=False,  # Allow spelling corrections

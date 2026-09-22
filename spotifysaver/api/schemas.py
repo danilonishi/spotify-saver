@@ -99,6 +99,7 @@ class DownloadStatus(BaseModel):
     total_tracks: int = 0
     completed_tracks: int = 0
     failed_tracks: int = 0
+    failed_track_names: List[str] = Field(default_factory=list)
     output_directory: Optional[str] = None
     output_format: str = "m4a"
     bit_rate: Optional[int] = None

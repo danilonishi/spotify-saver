@@ -238,13 +238,19 @@ async def download_task(task_id: str, request: DownloadRequest):
         # A task with no successful tracks is a failure; partial results remain completed.
         completed_tracks = result.get("completed_tracks", 0)
         failed_tracks = result.get("failed_tracks", 0)
+        failed_track_names = result.get("failed_track_names", [])
         task.status = "failed" if failed_tracks > 0 and completed_tracks == 0 else "completed"
         task.progress = 100
         task.completed_tracks = completed_tracks
         task.failed_tracks = failed_tracks
+        task.failed_track_names = failed_track_names
         task.output_directory = result.get("output_directory")
-        if task.status == "failed":
-            task.error_message = "No tracks were downloaded successfully."
+        if failed_tracks:
+            failed_summary = ", ".join(failed_track_names) or f"{failed_tracks} track(s)"
+            task.error_message = (
+                f"Downloaded {completed_tracks}/{task.total_tracks} tracks. "
+                f"Failed: {failed_summary}."
+            )
         task.completed_at = datetime.now().isoformat()
 
         logger.info(f"Download task {task_id} completed successfully")
