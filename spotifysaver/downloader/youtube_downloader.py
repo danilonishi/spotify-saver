@@ -286,6 +286,35 @@ class YouTubeDownloader:
         except Exception as e:
             self.logger.error(f"Error downloading cover: {e}")
 
+    def _generate_album_nfos(
+        self, tracks: list[Track], output_format: AudioFormat
+    ):
+        albums = {}
+        for track in tracks:
+            album_key = (
+                track.album_artist[0] if track.album_artist else track.artists[0],
+                track.album_name,
+                track.release_date,
+            )
+            albums.setdefault(album_key, []).append(track)
+
+        for album_tracks in albums.values():
+            first_track = album_tracks[0]
+            album = Album(
+                name=first_track.album_name or "Unknown Album",
+                artists=(first_track.album_artist or first_track.artists or ["Unknown Artist"]),
+                release_date=first_track.release_date or "Unknown",
+                genres=first_track.genres or [],
+                cover_url=first_track.cover_url,
+                tracks=album_tracks,
+            )
+            album_dir = self._get_output_path(
+                first_track,
+                album_artist=album.artists[0],
+                output_format=output_format,
+            ).parent
+            NFOGenerator.generate(album, album_dir)
+
     def _sanitize_filename(self, filename: str) -> str:
         """Sanitize filename for Windows compatibility.
 
@@ -515,6 +544,7 @@ class YouTubeDownloader:
         output_dir.mkdir(parents=True, exist_ok=True)
         success = False
         failed_tracks = []
+        downloaded_tracks = []
 
         # Descarga de tracks
         for track in playlist.tracks:
@@ -534,6 +564,7 @@ class YouTubeDownloader:
                 )
                 if updated_track:
                     success = True
+                    downloaded_tracks.append(updated_track)
             except Exception as e:
                 failed_tracks.append(track.name)
                 self.logger.error(
@@ -544,9 +575,9 @@ class YouTubeDownloader:
             self._save_cover_album(playlist.cover_url, output_dir / "cover.jpg")
 
         # Generate NFO (only if successful)
-        if success and nfo:
-            self.logger.info(f"Generating NFO for playlist: {playlist.name}")
-            NFOGenerator.generate(playlist, output_dir)
+        if downloaded_tracks and nfo:
+            self.logger.info(f"Generating album NFO files for playlist: {playlist.name}")
+            self._generate_album_nfos(downloaded_tracks, output_format)
 
         self.ensure_playlist_m3u(playlist, output_format=output_format)
 

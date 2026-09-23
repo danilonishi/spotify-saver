@@ -78,6 +78,7 @@ def process_playlist(
             output_format=YouTubeDownloader.string_to_audio_format(output_format),
             bitrate=YouTubeDownloader.int_to_bitrate(bitrate),
             cover=cover,
+            nfo=nfo,
             progress_callback=update_progress,
         )
 
@@ -87,10 +88,7 @@ def process_playlist(
         for track_name in failed_tracks:
             click.secho(f"  - Failed: {track_name}", fg="yellow")
         if nfo:
-            click.secho(
-                f"\nGenerating NFO for playlist: method in development", fg="magenta"
-            )
-            # generate_nfo_for_playlist(downloader, playlist, cover)
+            click.secho("\nGenerated album NFO files", fg="magenta")
     else:
         click.secho("\n⚠ No tracks downloaded", fg="yellow")
 

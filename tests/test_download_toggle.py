@@ -259,6 +259,46 @@ def test_playlist_m3u_is_created_with_local_track_paths(tmp_path):
     assert m3u_path.name == "My Playlist.m3u"
 
 
+def test_playlist_generates_album_nfo_in_album_directory(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    track = _make_track()
+    playlist = Playlist(
+        name="My Playlist",
+        description="",
+        owner="me",
+        uri="spotify:playlist:1",
+        cover_url="",
+        tracks=[track],
+    )
+    generated = []
+
+    monkeypatch.setattr(
+        downloader,
+        "download_track",
+        lambda **kwargs: (downloader._get_output_path(
+            kwargs["track"],
+            album_artist=kwargs["album_artist"],
+            output_format=kwargs["output_format"],
+        ), kwargs["track"]),
+    )
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.NFOGenerator.generate",
+        lambda album, output_dir: generated.append((album, output_dir)),
+    )
+
+    result = downloader.download_playlist_cli(
+        playlist,
+        output_format=AudioFormat.MP3,
+        cover=False,
+        nfo=True,
+    )
+
+    assert result == (1, 1, [])
+    assert len(generated) == 1
+    assert generated[0][0].name == "Album One"
+    assert generated[0][1] == tmp_path / "Artist One" / "Album One (2024)"
+
+
 def test_playlist_track_uses_album_number_for_shared_output_path(tmp_path):
     downloader = YouTubeDownloader(base_dir=str(tmp_path))
     track = Track(

@@ -190,6 +190,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         cover: bool = True,
         overwrite_existing: bool = False,
         progress_callback: Optional[callable] = None,
+        nfo: bool = False,
     ) -> tuple[int, int, list[str]]:
         """Download a complete playlist with progress bar support.
 
@@ -201,9 +202,10 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             cover: Whether to download playlist cover
             progress_callback: Function that receives (current_track, total_tracks, track_name).
                             Example: lambda idx, total, name: print(f"{idx}/{total} {name}")
+            nfo: Whether to generate album NFO files in the album folders
 
         Returns:
-            tuple: (successful_downloads, total_tracks)
+            tuple: (successful_downloads, total_tracks, failed_track_names)
         """
         if not playlist.name or not playlist.tracks:
             self.logger.error("Playlist inválida: sin nombre o tracks vacíos")
@@ -213,6 +215,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         output_dir.mkdir(parents=True, exist_ok=True)
         success = 0
         failed_tracks = []
+        downloaded_tracks = []
 
         for idx, track in enumerate(playlist.tracks, 1):
             try:
@@ -234,11 +237,15 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 )
                 if updated_track:
                     success += 1
+                    downloaded_tracks.append(updated_track)
                 else:
                     failed_tracks.append(track.name)
             except Exception as e:
                 self.logger.error(f"Error en {track.name}: {str(e)}")
                 failed_tracks.append(track.name)
+
+        if nfo:
+            self._generate_album_nfos(downloaded_tracks, output_format)
 
         if success > 0 and cover and playlist.cover_url:
             try:
