@@ -275,6 +275,10 @@ class YouTubeDownloader:
         if not url:
             return
 
+        if output_path.exists():
+            self.logger.info(f"Cover already exists at: {output_path}")
+            return
+
         try:
             image = self.image_downloader.download_image(url, output_path)
             if image:
@@ -379,7 +383,7 @@ class YouTubeDownloader:
         bitrate: Bitrate = Bitrate.B128,
         download_lyrics: bool = False,
         nfo: bool = False,
-        cover: bool = False,
+        cover: bool = True,
     ):
         """Download a complete album and generate metadata.
 

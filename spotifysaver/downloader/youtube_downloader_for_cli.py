@@ -124,7 +124,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         output_format: AudioFormat = AudioFormat.M4A,
         bitrate: Bitrate = Bitrate.B128,
         nfo: bool = False,  # Generate NFO
-        cover: bool = False,  # Download cover art
+        cover: bool = True,  # Download cover art
         overwrite_existing: bool = True,
         progress_callback: Optional[callable] = None,  # Progress callback
     ) -> tuple[int, int, list[str]]:  # Returns (success, total, failed track names)

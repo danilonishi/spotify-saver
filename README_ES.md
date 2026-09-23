@@ -95,7 +95,7 @@ La **documentación para el uso de la API**, por su parte, pueden ubicarla en es
 | `--lyrics`           | Descargar letras sincronizadas (.lrc)    | Flag (sin valor)             |
 | `--output DIR`       | Directorio de salida                     | Ruta válida                  |
 | `--format FORMATO`   | Formato de audio                         | `m4a` (default), `mp3`       |
-| `--cover`            | Descarga la portada del album (.jpg)     | Flag (sin valor)              |
+| `--cover/--no-cover` | Descarga la portada como `cover.jpg` (activada por defecto) | Flag (sin valor)       |
 | `--nfo`              | Genera un archivo .nfo con la metadata (para Jellyfin)| Flag (sin valor) |
 | `--explain`          | Muestra (sin descargar) los puntajes de cada opción en youtube| Flag (sin valor) |
 | `--dry-run`          | Simula la descarga de un link de spotify sin descargar nada| Flag (sin valor) |
@@ -116,8 +116,8 @@ spotifysaver init
 # Descargar álbum con letras sincronizadas
 spotifysaver download "https://open.spotify.com/album/..." --lyrics
 
-# Descargar album con archivo de metadata e imagen de portada
-spotifysaver download "https://open.spotify.com/album/..." --nfo --cover
+# Descargar album con metadata; la portada se guarda como cover.jpg por defecto
+spotifysaver download "https://open.spotify.com/album/..." --nfo
 
 # Descargar canción en formato MP3
 spotifysaver download "https://open.spotify.com/track/..." --format mp3

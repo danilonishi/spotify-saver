@@ -101,7 +101,7 @@ The **documentation for using the API**, on the other hand, can be found in this
 | `--lyrics`        | Download synchronized lyrics (.lrc)                   | Flag (no value)         |
 | `--output DIR`    | Output directory                                      | Valid path              |
 | `--format FORMAT` | Audio format                                          | `m4a` (default), `mp3`  |
-| `--cover`         | Saves the cover album in de directoy (.jpg)           | Flag (no value)         |
+| `--cover/--no-cover` | Saves the album cover as `cover.jpg` (enabled by default) | Flag (no value)      |
 | `--nfo`           | Generates a .nfo metadata file in the JellyFin format | Flag (no value)         |
 | `--explain`       | Show score breakdown for each track without downloading (for error analysis) | Flag (no value)         |
 | `--dry-run`       | Simulate download without saving files                | Flag (no value)         |
@@ -122,8 +122,8 @@ spotifysaver init
 # Download album with synchronized lyrics
 spotifysaver download "https://open.spotify.com/album/..." --lyrics
 
-# Download album with album cover and metadata file
-spotifysaver download "https://open.spotify.com/album/..." --nfo --cover
+# Download album with metadata file; the cover is saved as cover.jpg by default
+spotifysaver download "https://open.spotify.com/album/..." --nfo
 
 # Download song in MP3 format
 spotifysaver download "https://open.spotify.com/track/..." --format mp3
