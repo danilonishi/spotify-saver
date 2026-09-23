@@ -1,6 +1,6 @@
 """Pydantic schemas for API requests and responses"""
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, HttpUrl, Field
 
 
@@ -97,6 +97,8 @@ class DownloadStatus(BaseModel):
     progress: int  # 0-100
     current_track: Optional[str] = None
     current_track_number: Optional[int] = None
+    current_track_status: Optional[str] = None
+    track_updates: List[Dict[str, object]] = Field(default_factory=list)
     total_tracks: int = 0
     completed_tracks: int = 0
     failed_tracks: int = 0

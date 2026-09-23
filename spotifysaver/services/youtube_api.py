@@ -228,7 +228,27 @@ class YoutubeMusicSearcher:
                 title_score = self.scorer._score_title_similarity(
                     result.get("title", ""), track.name
                 )
-                if title_score >= 0.27:
+                album_context = self.scorer._normalize(track.album_name or "")
+                album_context = album_context.replace("sound collection", "")
+                album_context = album_context.replace("original soundtrack", "")
+                album_context = " ".join(album_context.split())
+                result_album = result.get("album")
+                result_album_name = (
+                    result_album.get("name", "")
+                    if isinstance(result_album, dict)
+                    else str(result_album or "")
+                )
+                context_match = album_context and (
+                    album_context in self.scorer._normalize(result.get("title", ""))
+                    or album_context in self.scorer._normalize(result_album_name)
+                )
+                try:
+                    duration_match = abs(
+                        float(result.get("duration_seconds")) - float(track.duration)
+                    ) <= 8
+                except (TypeError, ValueError):
+                    duration_match = False
+                if title_score >= 0.27 and context_match and duration_match:
                     score = title_score
             self.logger.debug(f"Score for {result.get('title', 'Unknown')} is {score}")
             if score > 0:

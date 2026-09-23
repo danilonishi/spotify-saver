@@ -122,6 +122,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         cover: bool = True,  # Download cover art
         overwrite_existing: bool = False,
         progress_callback: Optional[callable] = None,  # Progress callback
+        track_result_callback: Optional[callable] = None,
     ) -> tuple[int, int, list[str]]:  # Returns (success, total, failed track names)
         """Download a complete album with progress support.
 
@@ -162,11 +163,17 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 )
                 if audio_path or expected_path.exists():
                     success += 1
+                    if track_result_callback:
+                        track_result_callback(idx, track.name, "completed")
                 else:
                     failed_tracks.append(track.name)
+                    if track_result_callback:
+                        track_result_callback(idx, track.name, "error")
             except Exception as e:
                 self.logger.error(f"Error en track {track.name}: {str(e)}")
                 failed_tracks.append(track.name)
+                if track_result_callback:
+                    track_result_callback(idx, track.name, "error")
 
         # Generar metadatos solo si hay éxitos
         if success > 0:
@@ -191,6 +198,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         overwrite_existing: bool = False,
         progress_callback: Optional[callable] = None,
         nfo: bool = False,
+        track_result_callback: Optional[callable] = None,
     ) -> tuple[int, int, list[str]]:
         """Download a complete playlist with progress bar support.
 
@@ -224,7 +232,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     progress_callback(idx, len(playlist.tracks), track.name)
 
                 _, updated_track = self.download_track(
-                    track,
+                    track=track,
                     album_artist=(
                         track.album_artist[0]
                         if track.album_artist
@@ -238,11 +246,17 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 if updated_track:
                     success += 1
                     downloaded_tracks.append(updated_track)
+                    if track_result_callback:
+                        track_result_callback(idx, track.name, "completed")
                 else:
                     failed_tracks.append(track.name)
+                    if track_result_callback:
+                        track_result_callback(idx, track.name, "error")
             except Exception as e:
                 self.logger.error(f"Error en {track.name}: {str(e)}")
                 failed_tracks.append(track.name)
+                if track_result_callback:
+                    track_result_callback(idx, track.name, "error")
 
         if nfo:
             self._generate_album_nfos(downloaded_tracks, output_format)

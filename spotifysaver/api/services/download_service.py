@@ -53,6 +53,7 @@ class DownloadService:
         self,
         spotify_url: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        track_result_callback: Optional[Callable[[int, str, str], None]] = None,
     ) -> Dict[str, Any]:
         """Download content from a Spotify URL.
 
@@ -67,9 +68,13 @@ class DownloadService:
             if "track" in spotify_url:
                 return await self._download_track(spotify_url, progress_callback)
             elif "album" in spotify_url:
-                return await self._download_album(spotify_url, progress_callback)
+                return await self._download_album(
+                    spotify_url, progress_callback, track_result_callback
+                )
             elif "playlist" in spotify_url:
-                return await self._download_playlist(spotify_url, progress_callback)
+                return await self._download_playlist(
+                    spotify_url, progress_callback, track_result_callback
+                )
             else:
                 raise ValueError("Invalid Spotify URL type")
 
@@ -107,6 +112,7 @@ class DownloadService:
         self,
         album_url: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        track_result_callback: Optional[Callable[[int, str, str], None]] = None,
     ) -> Dict[str, Any]:
         """Download an entire album."""
         album = self.spotify.get_album(album_url)
@@ -115,6 +121,10 @@ class DownloadService:
         def sync_progress_callback(idx: int, total: int, name: str):
             if progress_callback:
                 progress_callback(idx, total, name)
+
+        def sync_track_result_callback(idx: int, name: str, result: str):
+            if track_result_callback:
+                track_result_callback(idx, name, result)
 
         # Run download in thread pool
         loop = asyncio.get_event_loop()
@@ -129,6 +139,7 @@ class DownloadService:
             self.download_cover,
             self.overwrite_existing,
             sync_progress_callback,
+            sync_track_result_callback,
         )
 
         output_dir = self.downloader._get_album_dir(album)
@@ -146,6 +157,7 @@ class DownloadService:
         self,
         playlist_url: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        track_result_callback: Optional[Callable[[int, str, str], None]] = None,
     ) -> Dict[str, Any]:
         """Download an entire playlist."""
         playlist = self.spotify.get_playlist(playlist_url)
@@ -154,6 +166,10 @@ class DownloadService:
         def sync_progress_callback(idx: int, total: int, name: str):
             if progress_callback:
                 progress_callback(idx, total, name)
+
+        def sync_track_result_callback(idx: int, name: str, result: str):
+            if track_result_callback:
+                track_result_callback(idx, name, result)
 
         # Run download in thread pool
         loop = asyncio.get_event_loop()
@@ -167,6 +183,8 @@ class DownloadService:
             self.download_cover,
             self.overwrite_existing,
             sync_progress_callback,
+            self.generate_nfo,
+            sync_track_result_callback,
         )
 
         output_dir = self.downloader.get_playlist_dir(playlist)

@@ -227,13 +227,33 @@ async def download_task(task_id: str, request: DownloadRequest):
         def progress_callback(current: int, total: int, track_name: str):
             task.current_track = track_name
             task.current_track_number = current
+            task.current_track_status = "downloading"
             task.completed_tracks = current - 1  # current is 1-based
             task.total_tracks = total
             task.progress = int((current / total) * 100) if total > 0 else 0
 
+        def track_result_callback(current: int, track_name: str, result: str):
+            task.current_track = track_name
+            task.current_track_number = current
+            task.current_track_status = result
+            task.track_updates.append(
+                {
+                    "track_number": current,
+                    "track_name": track_name,
+                    "status": result,
+                }
+            )
+            if result == "error" and track_name not in task.failed_track_names:
+                task.failed_track_names.append(track_name)
+                task.failed_tracks += 1
+            elif result == "completed":
+                task.completed_tracks += 1
+
         # Perform the download
         result = await download_service.download_from_url(
-            str(request.spotify_url), progress_callback=progress_callback
+            str(request.spotify_url),
+            progress_callback=progress_callback,
+            track_result_callback=track_result_callback,
         )
 
         # A task with no successful tracks is a failure; partial results remain completed.

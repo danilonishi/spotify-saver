@@ -10,6 +10,7 @@ class DownloadManager {
         this.lastLoggedTrackState = null; // Track the state of the last logged track
         this.trackStates = new Map();
         this.currentTrackData = null;
+        this.trackUpdateCursor = 0;
     }
 
     getFormData() {
@@ -73,6 +74,7 @@ class DownloadManager {
         this.lastLoggedTrack = null;
         this.lastLoggedTrackState = null;
         this.trackStates.clear();
+        this.trackUpdateCursor = 0;
 
         try {
             // Paso 1: inspección
@@ -235,6 +237,24 @@ class DownloadManager {
         const currentProgress = status.progress || 0;
         this.uiManager.updateProgress(currentProgress);
         this.uiManager.updateStatus(`Downloading... ${Math.round(currentProgress)}%`, 'info');
+
+        // Consume every result event so fast failures cannot be overwritten by
+        // the next track before the browser polls again.
+        const trackUpdates = status.track_updates || [];
+        trackUpdates.slice(this.trackUpdateCursor).forEach(update => {
+            const resultState = update.status === 'error'
+                ? 'error'
+                : update.status === 'completed'
+                    ? 'completed'
+                    : null;
+            if (resultState && update.track_number) {
+                this.updateTrackState(update.track_number, resultState);
+                if (resultState === 'error' && update.track_name) {
+                    this.uiManager.addLogEntry(`Failed: ${update.track_name}`, 'error');
+                }
+            }
+        });
+        this.trackUpdateCursor = trackUpdates.length;
         
         // Actualizar estado de canción actual
         if (status.current_track && this.currentTrackData) {
@@ -246,7 +266,10 @@ class DownloadManager {
                 console.log(`🟡 Real download: Track ${currentTrackNumber} (${status.current_track}) is downloading`);
                 
                 // Marcar canción actual como descargando
-                this.updateTrackState(currentTrackNumber, 'downloading');
+                if (status.current_track_status !== 'error' &&
+                    status.current_track_status !== 'completed') {
+                    this.updateTrackState(currentTrackNumber, 'downloading');
+                }
                 
                 // Marcar canciones anteriores como completadas
                 for (let i = 1; i < currentTrackNumber; i++) {
