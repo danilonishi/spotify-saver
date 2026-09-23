@@ -72,15 +72,6 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     output_format=output_format,
                 )
             ]
-            if track.album_artist:
-                expected_paths.append(
-                    self._get_output_path(
-                        track,
-                        album_artist=track.album_artist[0],
-                        output_format=output_format,
-                    )
-                )
-
             if not overwrite_existing:
                 existing_path = next(
                     (path for path in expected_paths if path.exists()),
@@ -161,13 +152,6 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 expected_path = self._get_output_path(
                     track, album_artist=album.artists[0], output_format=output_format
                 )
-                track_artist_path = None
-                if track.album_artist:
-                    track_artist_path = self._get_output_path(
-                        track,
-                        album_artist=track.album_artist[0],
-                        output_format=output_format,
-                    )
                 audio_path, _ = self.download_track(
                     track=track,
                     album_artist=album.artists[0],
@@ -176,9 +160,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     bitrate=bitrate,
                     overwrite_existing=overwrite_existing,
                 )
-                if audio_path or expected_path.exists() or (
-                    track_artist_path and track_artist_path.exists()
-                ):
+                if audio_path or expected_path.exists():
                     success += 1
                 else:
                     failed_tracks.append(track.name)
