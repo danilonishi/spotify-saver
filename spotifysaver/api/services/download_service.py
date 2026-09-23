@@ -129,7 +129,6 @@ class DownloadService:
             self.download_cover,
             self.overwrite_existing,
             sync_progress_callback,
-            self.generate_nfo,
         )
 
         output_dir = self.downloader._get_album_dir(album)
