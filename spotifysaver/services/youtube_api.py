@@ -85,6 +85,7 @@ class YoutubeMusicSearcher:
         search_strategies = [
             self._search_exact_match,
             self._search_fuzzy_match,
+            self._search_title_match,
         ]
 
         for strategy in search_strategies:
@@ -182,8 +183,29 @@ class YoutubeMusicSearcher:
         )
         return self._process_results(results, track, strict=False)
 
+    def _search_title_match(self, track: Track) -> Optional[str]:
+        """Search by title when soundtrack uploads use a different artist."""
+        album_context = self._normalize(track.album_name or "")
+        album_context = album_context.replace("sound collection", "")
+        album_context = album_context.replace("original soundtrack", "")
+        album_context = " ".join(album_context.split())
+        query = self._normalize(f"{track.name} {album_context}")
+        results = self.ytmusic.search(
+            query=query,
+            filter="songs",
+            limit=10,
+            ignore_spelling=False,
+        )
+        return self._process_results(
+            results, track, strict=False, allow_title_only=True
+        )
+
     def _process_results(
-        self, results: List[Dict], track: Track, strict: bool
+        self,
+        results: List[Dict],
+        track: Track,
+        strict: bool,
+        allow_title_only: bool = False,
     ) -> Optional[str]:
         """Evaluate and select the best result.
         
@@ -202,6 +224,12 @@ class YoutubeMusicSearcher:
         scored_results = []
         for result in results:
             score = self.scorer._calculate_match_score(result, track, strict)
+            if not score and allow_title_only:
+                title_score = self.scorer._score_title_similarity(
+                    result.get("title", ""), track.name
+                )
+                if title_score >= 0.27:
+                    score = title_score
             self.logger.debug(f"Score for {result.get('title', 'Unknown')} is {score}")
             if score > 0:
                 scored_results.append((score, result))

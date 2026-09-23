@@ -1,3 +1,5 @@
+import logging
+
 from spotifysaver.models.track import Track
 from spotifysaver.services.youtube_api import YoutubeMusicSearcher
 
@@ -30,6 +32,7 @@ def _make_track():
 def test_track_search_does_not_check_youtube_album_metadata():
     searcher = object.__new__(YoutubeMusicSearcher)
     searcher.ytmusic = FakeYoutubeMusic()
+    searcher.logger = logging.getLogger(__name__)
     searcher._process_results = lambda results, track, strict: (
         "https://music.youtube.com/watch?v=track-video"
         if results and not strict
@@ -45,6 +48,36 @@ def test_track_search_does_not_check_youtube_album_metadata():
         "songs",
         10,
     )
+
+
+def test_title_search_is_available_when_artist_metadata_differs():
+    searcher = object.__new__(YoutubeMusicSearcher)
+    searcher.ytmusic = FakeYoutubeMusic()
+    searcher._process_results = (
+        lambda results, track, strict, allow_title_only=False: None
+    )
+
+    searcher._search_title_match(_make_track())
+
+    query, filter_name, limit = searcher.ytmusic.search_calls[-1]
+    assert query == "the march of the varangian guard stand up and fight incl. bonustrack"
+    assert filter_name == "songs"
+    assert limit == 10
+
+
+def test_title_search_allows_exact_title_without_artist_metadata():
+    searcher = object.__new__(YoutubeMusicSearcher)
+    searcher.ytmusic = FakeYoutubeMusic()
+    searcher.logger = logging.getLogger(__name__)
+    searcher._process_results = lambda results, track, strict, allow_title_only=False: (
+        "https://music.youtube.com/watch?v=track-video"
+        if allow_title_only
+        else None
+    )
+
+    result = searcher._search_title_match(_make_track())
+
+    assert result == "https://music.youtube.com/watch?v=track-video"
 
 
 def test_fuzzy_search_does_not_include_album_title():

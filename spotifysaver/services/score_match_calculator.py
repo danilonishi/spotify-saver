@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from typing import Dict, List, Union
 from spotifysaver.models.track import Track
 from spotifysaver.spotlog import get_logger
@@ -34,13 +36,14 @@ class ScoreMatchCalculator:
         Returns:
             str: Normalized text string
         """
-        text = (
-            text.lower()
-            .replace("official", "")
-            .replace("video", "")
-            .translate(str.maketrans("", "", "()[]-"))
+        text = unicodedata.normalize("NFKD", str(text)).encode(
+            "ascii", "ignore"
+        ).decode("ascii")
+        text = text.lower().replace("official", "").replace("video", "")
+        text = re.sub(r"[^a-z0-9]+", " ", text)
+        return " ".join(
+            word for word in text.split() if word not in {"lyrics", "audio"}
         )
-        return " ".join([w for w in text.split() if w not in {"lyrics", "audio"}])
     
     def _score_duration(self, yt_duration: int, sp_duration: int) -> float:
         """
@@ -53,7 +56,10 @@ class ScoreMatchCalculator:
         Returns:
             float: Duration score (0.0 to 0.3)
         """
-        diff = abs(yt_duration - sp_duration)
+        try:
+            diff = abs(float(yt_duration) - float(sp_duration))
+        except (TypeError, ValueError):
+            return 0
         return 1 if diff <= 2 else max(0, 1 - (diff / 5)) * 0.3
 
     def _score_artist_overlap(self, yt_artists_raw: List[Dict], sp_artists: List[str]) -> float:
@@ -67,10 +73,14 @@ class ScoreMatchCalculator:
         Returns:
             float: Artist overlap score (0.0 to 0.3)
         """
-        yt_artists = {a["name"].lower() for a in yt_artists_raw if isinstance(a, dict)}
-        sp_artists_set = {a.lower() for a in sp_artists}
+        yt_artists = {
+            self._normalize(a.get("name", ""))
+            for a in yt_artists_raw
+            if isinstance(a, dict) and a.get("name")
+        }
+        sp_artists_set = {self._normalize(a) for a in sp_artists}
         overlap = len(yt_artists & sp_artists_set) / max(len(sp_artists_set), 1)
-        main_match = sp_artists[0].lower() in yt_artists
+        main_match = bool(sp_artists) and self._normalize(sp_artists[0]) in yt_artists
         return overlap * 0.3 + (0.1 if main_match else 0)
 
     def _score_title_similarity(self, yt_title: str, sp_title: str) -> float:
@@ -110,32 +120,36 @@ class ScoreMatchCalculator:
         if not album_data or not sp_album:
             return 0
         album_name = (
-            album_data["name"].lower()
+            self._normalize(album_data["name"])
             if isinstance(album_data, dict)
-            else str(album_data).lower()
+            else self._normalize(str(album_data))
         )
-        return 0.1 if sp_album.lower() in album_name else 0
+        normalized_album = self._normalize(sp_album)
+        return 0.1 if normalized_album and normalized_album in album_name else 0
 
     def _has_strong_metadata_match(
         self, yt_result: Dict, track: Track
     ) -> bool:
         """Return whether non-title metadata identifies the same recording."""
-        duration_matches = abs(
-            yt_result.get("duration_seconds", 0) - track.duration
-        ) <= 2
+        try:
+            duration_matches = abs(
+                float(yt_result.get("duration_seconds")) - float(track.duration)
+            ) <= 2
+        except (TypeError, ValueError):
+            duration_matches = False
         yt_artists = {
-            artist.get("name", "").lower()
+            self._normalize(artist.get("name", ""))
             for artist in yt_result.get("artists", [])
-            if isinstance(artist, dict)
+            if isinstance(artist, dict) and artist.get("name")
         }
-        artist_matches = bool(track.artists) and track.artists[0].lower() in yt_artists
+        artist_matches = bool(track.artists) and self._normalize(track.artists[0]) in yt_artists
         album_data = yt_result.get("album")
         yt_album = (
             album_data.get("name", "")
             if isinstance(album_data, dict)
             else str(album_data or "")
         )
-        album_matches = bool(track.album_name) and track.album_name.lower() in yt_album.lower()
+        album_matches = bool(track.album_name) and self._normalize(track.album_name) in self._normalize(yt_album)
         return duration_matches and artist_matches and album_matches
 
     def _calculate_match_score(
@@ -181,7 +195,9 @@ class ScoreMatchCalculator:
             self.logger.debug(f"Total score: {total_score:.3f}")
             
             # Apply strict threshold
-            threshold = 0.7 if strict else 0.6
+            # Fuzzy searches are already constrained by artist and track title;
+            # allow soundtrack uploads with missing duration or album metadata.
+            threshold = 0.7 if strict else 0.5
             return total_score if total_score >= threshold else 0
 
         except Exception as e:
@@ -208,7 +224,7 @@ class ScoreMatchCalculator:
             album_bonus = self._score_album_bonus(yt_result.get("album"), track.album_name)
 
             total_score = duration_score + artist_score + title_score + album_bonus
-            threshold = 0.7 if strict else 0.6
+            threshold = 0.7 if strict else 0.5
             passed = total_score >= threshold
 
             return {
