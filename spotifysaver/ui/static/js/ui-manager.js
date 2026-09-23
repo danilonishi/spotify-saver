@@ -132,9 +132,10 @@ class UIManager {
 
         if (data.tracks) {
             // Inicializar estados de todas las canciones como 'waiting'
-            data.tracks.forEach(t => {
-                if (!trackStates.has(t.number)) {
-                    trackStates.set(t.number, 'waiting');
+            data.tracks.forEach((t, index) => {
+                const trackKey = index + 1;
+                if (!trackStates.has(trackKey)) {
+                    trackStates.set(trackKey, 'waiting');
                 }
             });
             
@@ -146,7 +147,8 @@ class UIManager {
             list.style.listStyle = 'none';
             list.style.padding = '0';
             
-            data.tracks.forEach(t => {
+            data.tracks.forEach((t, index) => {
+                const trackKey = index + 1;
                 const li = document.createElement('li');
                 li.style.marginBottom = '8px';
                 li.style.padding = '8px';
@@ -154,7 +156,7 @@ class UIManager {
                 li.style.backgroundColor = 'rgba(255,255,255,0.1)';
                 li.style.transition = 'all 0.3s ease';
                 
-                const trackState = trackStates.get(t.number) || 'waiting';
+                const trackState = trackStates.get(trackKey) || 'waiting';
                 const stateIcon = this.getStateIcon(trackState);
                 
                 console.log(`🎨 Rendering track ${t.number}: state="${trackState}", icon="${stateIcon}"`);
@@ -166,7 +168,7 @@ class UIManager {
                 
                 // Agregar clase CSS para estado
                 li.classList.add(`track-state-${trackState}`);
-                li.setAttribute('data-track-number', t.number);
+                li.setAttribute('data-track-number', trackKey);
                 li.setAttribute('data-track-state', trackState);
                 
                 // Debug: Verificar qué estado tiene ahora

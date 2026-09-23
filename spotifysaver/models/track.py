@@ -12,7 +12,7 @@ class Track:
     basic metadata, source information, and optional features like lyrics.
     
     Attributes:
-        number: Track number in the album/playlist
+        number: Track number in the album
         total_tracks: Total number of tracks in the source collection
         name: The name/title of the track
         duration: Duration of the track in seconds
@@ -39,6 +39,7 @@ class Track:
     disc_number: int = 1
     source_type: str = "album"
     playlist_name: Optional[str] = None
+    playlist_position: Optional[int] = None
     genres: List[str] = None
     album_name: str = None
     cover_url: str = None

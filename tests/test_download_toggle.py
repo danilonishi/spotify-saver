@@ -253,3 +253,27 @@ def test_playlist_m3u_is_created_with_local_track_paths(tmp_path):
     assert expected_relative_path in playlist_contents
     assert str(local_file.resolve()) not in playlist_contents
     assert m3u_path.name == "My Playlist.m3u"
+
+
+def test_playlist_track_uses_album_number_for_shared_output_path(tmp_path):
+    downloader = YouTubeDownloader(base_dir=str(tmp_path))
+    track = Track(
+        number=6,
+        total_tracks=10,
+        name="Track One",
+        duration=180,
+        uri="spotify:track:1",
+        artists=["Artist One"],
+        album_artist=["Artist One"],
+        release_date="2024-01-01",
+        album_name="Album One",
+        source_type="playlist",
+        playlist_name="My Playlist",
+        playlist_position=1,
+    )
+
+    output_path = downloader._get_output_path(track, output_format=AudioFormat.MP3)
+
+    assert track.number == 6
+    assert track.playlist_position == 1
+    assert output_path.name == "6 - Artist One - Track One.mp3"

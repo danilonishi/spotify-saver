@@ -72,7 +72,7 @@ def process_playlist(
             bar.update(1)
 
         # Delegate everything to the downloader
-        success, total = downloader.download_playlist_cli(
+        success, total, failed_tracks = downloader.download_playlist_cli(
             playlist,
             download_lyrics=lyrics,
             output_format=YouTubeDownloader.string_to_audio_format(output_format),
@@ -84,6 +84,8 @@ def process_playlist(
     # Display results
     if success > 0:
         click.secho(f"\n✔ Downloaded {success}/{total} tracks", fg="green")
+        for track_name in failed_tracks:
+            click.secho(f"  - Failed: {track_name}", fg="yellow")
         if nfo:
             click.secho(
                 f"\nGenerating NFO for playlist: method in development", fg="magenta"

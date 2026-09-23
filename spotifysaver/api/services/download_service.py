@@ -157,7 +157,7 @@ class DownloadService:
 
         # Run download in thread pool
         loop = asyncio.get_event_loop()
-        success, total = await loop.run_in_executor(
+        success, total, failed_track_names = await loop.run_in_executor(
             None,
             self.downloader.download_playlist_cli,
             playlist,
@@ -175,6 +175,7 @@ class DownloadService:
             "content_type": "playlist",
             "completed_tracks": success,
             "failed_tracks": total - success,
+            "failed_track_names": failed_track_names,
             "total_tracks": total,
             "output_directory": str(output_dir),
         }

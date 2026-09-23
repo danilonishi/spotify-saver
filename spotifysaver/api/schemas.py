@@ -96,6 +96,7 @@ class DownloadStatus(BaseModel):
     status: str  # pending, processing, completed, failed
     progress: int  # 0-100
     current_track: Optional[str] = None
+    current_track_number: Optional[int] = None
     total_tracks: int = 0
     completed_tracks: int = 0
     failed_tracks: int = 0

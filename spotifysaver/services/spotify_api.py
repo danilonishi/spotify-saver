@@ -363,7 +363,8 @@ class SpotifyAPI:
             Track(
                 source_type="playlist",
                 playlist_name=raw_data["name"],
-                number=idx + 1,
+                number=self._playlist_item_track(track).get("track_number") or idx + 1,
+                playlist_position=idx + 1,
                 total_tracks=raw_data.get("items", raw_data.get("tracks", {}))["total"],
                 name=self._playlist_item_track(track)["name"],
                 duration=self._playlist_item_track(track)["duration_ms"] // 1000,

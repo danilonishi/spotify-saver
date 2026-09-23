@@ -336,6 +336,7 @@ class YouTubeDownloader:
             tuple: (Downloaded file path, Updated track) or (None, None) on error
         """
         output_path = self._get_output_path(track, album_artist, output_format)
+        self._save_cover_album(track.cover_url, output_path.parent / "cover.jpg")
         if output_path.exists() and not overwrite_existing:
             self.logger.info(f"Skipping existing track: {output_path}")
             return output_path, track
@@ -384,6 +385,7 @@ class YouTubeDownloader:
         download_lyrics: bool = False,
         nfo: bool = False,
         cover: bool = True,
+        overwrite_existing: bool = False,
     ):
         """Download a complete album and generate metadata.
 
@@ -402,6 +404,7 @@ class YouTubeDownloader:
                 bitrate=bitrate,
                 album_artist=album.artists[0],
                 download_lyrics=download_lyrics,
+                overwrite_existing=overwrite_existing,
             )
 
         output_dir = self._get_album_dir(album)
@@ -481,8 +484,9 @@ class YouTubeDownloader:
         output_format: AudioFormat = AudioFormat.M4A,
         bitrate: Bitrate = Bitrate.B128,
         download_lyrics: bool = False,
-        cover: bool = False,
+        cover: bool = True,
         nfo: bool = False,
+        overwrite_existing: bool = False,
     ):
         """Download a complete playlist and generate metadata.
 
@@ -518,9 +522,15 @@ class YouTubeDownloader:
                 # Descargar URL de YouTube
                 _, updated_track = self.download_track(
                     track,
+                    album_artist=(
+                        track.album_artist[0]
+                        if track.album_artist
+                        else None
+                    ),
                     output_format=output_format,
                     bitrate=bitrate,
                     download_lyrics=download_lyrics,
+                    overwrite_existing=overwrite_existing,
                 )
                 if updated_track:
                     success = True

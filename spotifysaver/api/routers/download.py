@@ -226,6 +226,7 @@ async def download_task(task_id: str, request: DownloadRequest):
         # Progress callback
         def progress_callback(current: int, total: int, track_name: str):
             task.current_track = track_name
+            task.current_track_number = current
             task.completed_tracks = current - 1  # current is 1-based
             task.total_tracks = total
             task.progress = int((current / total) * 100) if total > 0 else 0

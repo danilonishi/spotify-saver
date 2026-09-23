@@ -174,11 +174,12 @@ class DownloadManager {
         
         // Marcar todas las canciones como completadas
         if (this.currentTrackData && this.currentTrackData.tracks) {
-            this.currentTrackData.tracks.forEach(track => {
+            this.currentTrackData.tracks.forEach((track, index) => {
+                const trackKey = index + 1;
                 if (failedTrackNames.includes(track.name)) {
-                    this.updateTrackState(track.number, 'error');
+                    this.updateTrackState(trackKey, 'error');
                 } else {
-                    this.updateTrackState(track.number, 'completed');
+                    this.updateTrackState(trackKey, 'completed');
                 }
             });
         } else {
@@ -207,9 +208,12 @@ class DownloadManager {
         });
 
         if (this.currentTrackData && this.currentTrackData.tracks) {
-            this.currentTrackData.tracks.forEach(track => {
+            this.currentTrackData.tracks.forEach((track, index) => {
+                const trackKey = index + 1;
                 if (failedTrackNames.includes(track.name)) {
-                    this.updateTrackState(track.number, 'error');
+                    this.updateTrackState(trackKey, 'error');
+                } else {
+                    this.updateTrackState(trackKey, 'completed');
                 }
             });
         }
@@ -234,8 +238,9 @@ class DownloadManager {
         
         // Actualizar estado de canción actual
         if (status.current_track && this.currentTrackData) {
-            // Encontrar el número de canción basado en el nombre
-            const currentTrackNumber = this.findTrackNumberByName(status.current_track);
+            // Album numbers repeat in playlists; use the playlist position from the API.
+            const currentTrackNumber = status.current_track_number ||
+                this.findTrackNumberByName(status.current_track);
             
             if (currentTrackNumber) {
                 console.log(`🟡 Real download: Track ${currentTrackNumber} (${status.current_track}) is downloading`);
@@ -378,16 +383,17 @@ class DownloadManager {
         const cleanTrackName = trackName.toLowerCase().trim();
         
         // Buscar la canción por nombre
-        for (const track of this.currentTrackData.tracks) {
+        for (const [index, track] of this.currentTrackData.tracks.entries()) {
             const cleanCurrentName = track.name.toLowerCase().trim();
             if (cleanCurrentName === cleanTrackName || cleanCurrentName.includes(cleanTrackName) || cleanTrackName.includes(cleanCurrentName)) {
-                console.log(`🎯 Found match: "${trackName}" -> Track ${track.number}`);
-                return track.number;
+                const trackKey = index + 1;
+                console.log(`🎯 Found match: "${trackName}" -> Track ${trackKey}`);
+                return trackKey;
             }
         }
         
         console.warn(`🔍 No match found for track: "${trackName}"`);
-        console.log('Available tracks:', this.currentTrackData.tracks.map(t => `${t.number}: ${t.name}`));
+        console.log('Available tracks:', this.currentTrackData.tracks.map((t, index) => `${index + 1}: ${t.name}`));
         return null;
     }
 
