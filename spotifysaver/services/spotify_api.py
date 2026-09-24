@@ -120,7 +120,13 @@ class SpotifyAPI:
             album_id = self._extract_spotify_id(album_url)
             if not album_id:
                 raise ValueError("Invalid album URL")
-            return self.sp.album(album_id)
+            album = self.sp.album(album_id)
+            tracks = album.get("tracks", {})
+            while tracks.get("next"):
+                tracks = self.sp.next(tracks)
+                album["tracks"]["items"].extend(tracks.get("items", []))
+            album["tracks"]["next"] = None
+            return album
         except spotipy.exceptions.SpotifyException as e:
             self.logger.error(f"Error fetching album data: {e}")
             raise ValueError("Album not found or invalid URL") from e

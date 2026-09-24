@@ -13,6 +13,10 @@ class FakeSpotify:
         self.calls.append(("playlist_tracks", playlist_id))
         return {"items": [{"track": {"name": "Track B"}}], "next": None}
 
+    def next(self, page):
+        self.calls.append(("next", page))
+        return {"items": [{"name": "Track C"}], "next": None}
+
 
 def test_get_playlist_tracks_uses_playlist_items_when_available():
     api = object.__new__(SpotifyAPI)
@@ -22,6 +26,22 @@ def test_get_playlist_tracks_uses_playlist_items_when_available():
 
     assert tracks == [{"item": {"name": "Track A"}}]
     assert api.sp.calls == [("_get", "playlists/playlist_123/items")]
+
+
+def test_fetch_album_data_includes_all_paginated_tracks():
+    api = object.__new__(SpotifyAPI)
+    api.sp = FakeSpotify()
+    api.sp.album = lambda album_id: {
+        "tracks": {"items": [{"name": "Track A"}], "next": "next-page"}
+    }
+
+    album = api._fetch_album_data("spotify:album:album_123")
+
+    assert [track["name"] for track in album["tracks"]["items"]] == [
+        "Track A",
+        "Track C",
+    ]
+    assert api.sp.calls[0][0] == "next"
 
 
 def test_get_playlist_uses_album_track_number_and_preserves_playlist_position():
