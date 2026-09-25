@@ -66,7 +66,8 @@ class YoutubeMusicSearcher:
             text.lower()
             .replace("official", "")
             .replace("video", "")
-            .translate(str.maketrans("", "", "()[]-"))
+            .translate(str.maketrans("", "", "()[]"))
+            .replace("-", " ")
         )
         return " ".join([w for w in text.split() if w not in {"lyrics", "audio"}])
 

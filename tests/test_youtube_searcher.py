@@ -1,6 +1,7 @@
 import logging
 
 from spotifysaver.models.track import Track
+from spotifysaver.services.score_match_calculator import ScoreMatchCalculator
 from spotifysaver.services.youtube_api import YoutubeMusicSearcher
 
 
@@ -78,6 +79,38 @@ def test_title_search_allows_exact_title_without_artist_metadata():
     result = searcher._search_title_match(_make_track())
 
     assert result == "https://music.youtube.com/watch?v=track-video"
+
+
+def test_hyphenated_title_keeps_search_word_boundary():
+    searcher = object.__new__(YoutubeMusicSearcher)
+    searcher.ytmusic = FakeYoutubeMusic()
+    searcher.ytmusic.search = lambda query, filter, limit, **kwargs: (
+        searcher.ytmusic.search_calls.append((query, filter, limit))
+        or [
+            {
+                "title": "Gutter-churl",
+                "videoId": "V6bjz63ec3A",
+                "duration_seconds": 182,
+                "artists": [{"name": "\u5d0e\u5143\u4ec1"}],
+                "album": {"name": "FINAL FANTASY XII Original Soundtrack"},
+            }
+        ]
+    )
+    searcher.scorer = ScoreMatchCalculator()
+    searcher.logger = logging.getLogger(__name__)
+    track = _make_track()
+    track.name = "Gutter-churl"
+    track.artists = ["\u5d0e\u5143\u4ec1"]
+    track.album_name = "FINAL FANTASY XII Original Soundtrack"
+    track.duration = 182
+
+    result = searcher._search_exact_match(track)
+
+    query, filter_name, limit = searcher.ytmusic.search_calls[-1]
+    assert query == "\u5d0e\u5143\u4ec1 gutter churl final fantasy xii original soundtrack"
+    assert filter_name == "songs"
+    assert limit == 5
+    assert result == "https://music.youtube.com/watch?v=V6bjz63ec3A"
 
 
 def test_fuzzy_search_does_not_include_album_title():
