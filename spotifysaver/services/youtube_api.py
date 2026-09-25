@@ -249,8 +249,8 @@ class YoutubeMusicSearcher:
                     ) <= 8
                 except (TypeError, ValueError):
                     duration_match = False
-                if title_score >= 0.27 and context_match and duration_match:
-                    score = title_score
+                if context_match and duration_match:
+                    score = max(title_score, 0.5)
             self.logger.debug(f"Score for {result.get('title', 'Unknown')} is {score}")
             if score > 0:
                 scored_results.append((score, result))

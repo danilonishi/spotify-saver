@@ -53,6 +53,14 @@ def test_match_tolerates_missing_duration_and_metadata_formatting():
     assert score > 0
 
 
+def test_normalization_preserves_japanese_titles_and_artist_names():
+    calculator = ScoreMatchCalculator()
+
+    assert calculator._normalize("静かなる決意") == "静かなる決意"
+    assert calculator._normalize("崎元仁") == "崎元仁"
+    assert calculator._score_title_similarity("静かなる決意", "Quiet Resolve") == 0
+
+
 def test_fuzzy_match_accepts_short_soundtrack_upload_without_duration():
     track = Track(
         number=1,

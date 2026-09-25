@@ -113,6 +113,46 @@ def test_hyphenated_title_keeps_search_word_boundary():
     assert result == "https://music.youtube.com/watch?v=V6bjz63ec3A"
 
 
+def test_translated_soundtrack_titles_match_by_album_and_duration():
+    searcher = object.__new__(YoutubeMusicSearcher)
+    searcher.scorer = ScoreMatchCalculator()
+    searcher.logger = logging.getLogger(__name__)
+    tracks = [
+        ("Quiet Resolve", 212, "\u9759\u304b\u306a\u308b\u6c7a\u610f", "rqOKNDdFKkg"),
+        ("The Archadian Empire", 469, "\u5e1d\u56fd\u306e\u30c6\u30fc\u30de", "YPnMd26jwrU"),
+        ("Ascent", 109, "\u9802\u4e0a\u3078", "p4tbkMaeMB8"),
+    ]
+
+    for title, duration, youtube_title, video_id in tracks:
+        track = Track(
+            number=1,
+            total_tracks=1,
+            name=title,
+            duration=duration,
+            uri="spotify:track:test",
+            artists=["\u5d0e\u5143\u4ec1"],
+            album_artist=["\u5d0e\u5143\u4ec1"],
+            release_date="2006-01-01",
+            album_name="FINAL FANTASY XII Original Soundtrack",
+        )
+        result = searcher._process_results(
+            [
+                {
+                    "title": youtube_title,
+                    "videoId": video_id,
+                    "duration_seconds": duration + 5,
+                    "artists": [{"name": "Hitoshi Sakimoto"}],
+                    "album": {"name": "FINAL FANTASY XII Original Soundtrack"},
+                }
+            ],
+            track,
+            strict=False,
+            allow_title_only=True,
+        )
+
+        assert result == f"https://music.youtube.com/watch?v={video_id}"
+
+
 def test_fuzzy_search_does_not_include_album_title():
     searcher = object.__new__(YoutubeMusicSearcher)
     searcher.ytmusic = FakeYoutubeMusic()

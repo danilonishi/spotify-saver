@@ -36,11 +36,13 @@ class ScoreMatchCalculator:
         Returns:
             str: Normalized text string
         """
-        text = unicodedata.normalize("NFKD", str(text)).encode(
-            "ascii", "ignore"
-        ).decode("ascii")
+        text = "".join(
+            character
+            for character in unicodedata.normalize("NFKD", str(text))
+            if not unicodedata.combining(character)
+        )
         text = text.lower().replace("official", "").replace("video", "")
-        text = re.sub(r"[^a-z0-9]+", " ", text)
+        text = re.sub(r"[^\w]|_", " ", text, flags=re.UNICODE)
         return " ".join(
             word for word in text.split() if word not in {"lyrics", "audio"}
         )
@@ -78,9 +80,12 @@ class ScoreMatchCalculator:
             for a in yt_artists_raw
             if isinstance(a, dict) and a.get("name")
         }
+        yt_artists.discard("")
         sp_artists_set = {self._normalize(a) for a in sp_artists}
+        sp_artists_set.discard("")
         overlap = len(yt_artists & sp_artists_set) / max(len(sp_artists_set), 1)
-        main_match = bool(sp_artists) and self._normalize(sp_artists[0]) in yt_artists
+        main_artist = self._normalize(sp_artists[0]) if sp_artists else ""
+        main_match = bool(main_artist) and main_artist in yt_artists
         return overlap * 0.3 + (0.1 if main_match else 0)
 
     def _score_title_similarity(self, yt_title: str, sp_title: str) -> float:
@@ -95,6 +100,8 @@ class ScoreMatchCalculator:
         """
         norm_yt = self._normalize(yt_title)
         norm_sp = self._normalize(sp_title)
+        if not norm_yt or not norm_sp:
+            return 0
         similarity = self._similar(norm_yt, norm_sp)
 
         # Penalize if token overlap is weak
