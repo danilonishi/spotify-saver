@@ -7,15 +7,18 @@ class UIManager {
 
     updateUI(downloading) {
         const downloadBtn = document.getElementById('download-btn');
+        const stopDownloadBtn = document.getElementById('stop-download-btn');
         const progressContainer = document.getElementById('progress-container');
         
         if (downloading) {
             downloadBtn.disabled = true;
             downloadBtn.textContent = '⏳ Downloading...';
+            stopDownloadBtn.disabled = false;
             progressContainer.classList.remove('hidden');
         } else {
             downloadBtn.disabled = false;
             downloadBtn.textContent = '🎵 Start Download';
+            stopDownloadBtn.disabled = true;
             progressContainer.classList.add('hidden');
             this.updateProgress(0);
         }

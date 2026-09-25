@@ -1,4 +1,5 @@
 import os
+from threading import Event
 from pathlib import Path
 
 import pytest
@@ -137,6 +138,41 @@ def test_missing_track_is_attempted_when_overwrite_is_disabled(tmp_path, monkeyp
     assert searched == [track]
 
 
+def test_active_track_download_stops_from_yt_dlp_progress_hook(tmp_path, monkeypatch):
+    downloader = YouTubeDownloader(base_dir=str(tmp_path))
+    track = _make_track()
+    cancellation_event = Event()
+    monkeypatch.setattr(
+        downloader.searcher,
+        "search_track",
+        lambda _: "https://music.youtube.com/watch?v=test",
+    )
+    monkeypatch.setattr(downloader, "_get_ydl_opts", lambda *args: {})
+
+    class CancellingYoutubeDL:
+        def __init__(self, options):
+            self.options = options
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def download(self, _urls):
+            cancellation_event.set()
+            self.options["progress_hooks"][0]({"status": "downloading"})
+
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader.yt_dlp.YoutubeDL",
+        CancellingYoutubeDL,
+    )
+
+    result = downloader.download_track(track, cancellation_event=cancellation_event)
+
+    assert result == (None, None)
+
+
 def test_album_counts_existing_output_when_download_returns_no_path(tmp_path, monkeypatch):
     downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
     track = _make_track()
@@ -209,6 +245,43 @@ def test_album_redownloads_when_canonical_output_is_missing(tmp_path, monkeypatc
     assert (success, total, failed_tracks) == (0, 1, [track.name])
     assert downloaded
     assert downloaded[0]["album_artist"] == "Album Artist"
+
+
+def test_album_cancellation_does_not_start_the_next_track(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    first_track = _make_track()
+    second_track = Track(
+        **{
+            **first_track.__dict__,
+            "number": 2,
+            "name": "Track Two",
+            "uri": "spotify:track:2",
+        }
+    )
+    album = Album(
+        name="Album One",
+        artists=["Artist One"],
+        release_date="2024-01-01",
+        genres=[],
+        cover_url="",
+        tracks=[first_track, second_track],
+    )
+    cancellation_event = Event()
+    attempted = []
+
+    def cancel_during_track(**kwargs):
+        attempted.append(kwargs["track"].name)
+        cancellation_event.set()
+        return None, None
+
+    monkeypatch.setattr(downloader, "download_track", cancel_during_track)
+
+    result = downloader.download_album_cli(
+        album, cancellation_event=cancellation_event
+    )
+
+    assert result == (0, 2, [])
+    assert attempted == [first_track.name]
 
 
 def test_playlist_m3u_is_created_with_local_track_paths(tmp_path):
@@ -297,6 +370,43 @@ def test_playlist_generates_album_nfo_in_album_directory(tmp_path, monkeypatch):
     assert len(generated) == 1
     assert generated[0][0].name == "Album One"
     assert generated[0][1] == tmp_path / "Artist One" / "Album One (2024)"
+
+
+def test_playlist_cancellation_does_not_start_the_next_track(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    first_track = _make_track()
+    second_track = Track(
+        **{
+            **first_track.__dict__,
+            "number": 2,
+            "name": "Track Two",
+            "uri": "spotify:track:2",
+        }
+    )
+    playlist = Playlist(
+        name="My Playlist",
+        description="",
+        owner="me",
+        uri="spotify:playlist:1",
+        cover_url="",
+        tracks=[first_track, second_track],
+    )
+    cancellation_event = Event()
+    attempted = []
+
+    def cancel_during_track(**kwargs):
+        attempted.append(kwargs["track"].name)
+        cancellation_event.set()
+        return None, None
+
+    monkeypatch.setattr(downloader, "download_track", cancel_during_track)
+
+    result = downloader.download_playlist_cli(
+        playlist, cancellation_event=cancellation_event
+    )
+
+    assert result == (0, 2, [])
+    assert attempted == [first_track.name]
 
 
 def test_playlist_track_uses_album_number_for_shared_output_path(tmp_path):

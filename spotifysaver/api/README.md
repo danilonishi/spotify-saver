@@ -119,8 +119,8 @@ Obtiene el estado de una tarea de descarga.
 }
 ```
 
-### GET `/api/v1/download/{task_id}/cancel`
-Cancela una tarea de descarga.
+### POST `/api/v1/download/{task_id}/cancel`
+Solicita cancelar una tarea activa. El estado cambia a `cancelling` mientras se detiene la descarga actual y pasa a `cancelled` cuando el trabajador se ha detenido. GET se mantiene por compatibilidad.
 
 ### GET `/api/v1/downloads`
 Lista todas las tareas de descarga.

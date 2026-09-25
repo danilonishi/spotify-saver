@@ -1,6 +1,7 @@
 """Youtube Downloader Module"""
 
 from pathlib import Path
+from threading import Event
 from typing import Optional
 
 from spotifysaver.services import YoutubeMusicSearcher, LrclibAPI
@@ -47,6 +48,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         progress_callback: Optional[callable] = None,
         track_result_callback: Optional[callable] = None,
         dry_run: bool = False,
+        cancellation_event: Optional[Event] = None,
     ) -> dict:
         """Download a YouTube playlist or YouTube Music album collection."""
         if not self.is_youtube_collection_url(url):
@@ -63,12 +65,23 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         ydl_opts["windowsfilenames"] = True
         ydl_opts["overwrites"] = overwrite_existing
         ydl_opts["ignoreerrors"] = True
+        self._add_cancellation_hook(ydl_opts, cancellation_event)
         ydl_opts["postprocessors"].append({"key": "FFmpegMetadata"})
         if download_cover:
             ydl_opts["writethumbnail"] = True
             ydl_opts["postprocessors"].append({"key": "EmbedThumbnail"})
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            if cancellation_event and cancellation_event.is_set():
+                return {
+                    "collection_name": "YouTube Collection",
+                    "completed_tracks": 0,
+                    "failed_tracks": 0,
+                    "failed_track_names": [],
+                    "total_tracks": 0,
+                    "output_directory": str(self.base_dir / "YouTube"),
+                    "dry_run": False,
+                }
             collection = ydl.extract_info(url, download=False)
             if not isinstance(collection, dict) or not collection.get("entries"):
                 raise ValueError("No tracks were found in the YouTube collection")
@@ -147,6 +160,21 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 )
                 ydl.download([url])
 
+                if cancellation_event and cancellation_event.is_set():
+                    completed_tracks = sum(
+                        expected_path.exists()
+                        for _, expected_path in expected_paths.values()
+                    )
+                    return {
+                        "collection_name": collection_name,
+                        "completed_tracks": completed_tracks,
+                        "failed_tracks": 0,
+                        "failed_track_names": [],
+                        "total_tracks": total,
+                        "output_directory": str(output_dir),
+                        "dry_run": False,
+                    }
+
             completed_tracks = 0
             for index, (track_name, expected_path) in expected_paths.items():
                 if expected_path.exists():
@@ -181,6 +209,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         download_lyrics: bool = False,
         progress_callback: Optional[callable] = None,
         overwrite_existing: bool = False,
+        cancellation_event: Optional[Event] = None,
     ) -> tuple[Optional[Path], Optional[Track]]:
         """
         Download a single track with CLI progress support.
@@ -198,6 +227,9 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             tuple: (Downloaded file path, Updated track) or (None, None) on error
         """
         try:
+            if cancellation_event and cancellation_event.is_set():
+                return None, None
+
             expected_paths = [
                 self._get_output_path(
                     track,
@@ -222,6 +254,8 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 progress_callback(1, 1, track.name)
 
             yt_url = self.searcher.search_track(track)
+            if cancellation_event and cancellation_event.is_set():
+                return None, None
             if not yt_url:
                 raise ValueError(f"No se encontró en YouTube Music: {track.name}")
 
@@ -232,6 +266,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 output_format=output_format,
                 bitrate=bitrate,
                 overwrite_existing=overwrite_existing,
+                cancellation_event=cancellation_event,
             )
 
             if audio_path:
@@ -256,6 +291,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         overwrite_existing: bool = False,
         progress_callback: Optional[callable] = None,  # Progress callback
         track_result_callback: Optional[callable] = None,
+        cancellation_event: Optional[Event] = None,
     ) -> tuple[int, int, list[str]]:  # Returns (success, total, failed track names)
         """Download a complete album with progress support.
 
@@ -279,6 +315,8 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         success = 0
         failed_tracks = []
         for idx, track in enumerate(album.tracks, 1):
+            if cancellation_event and cancellation_event.is_set():
+                break
             try:
                 if progress_callback:
                     progress_callback(idx, len(album.tracks), track.name)
@@ -293,7 +331,10 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     output_format=output_format,
                     bitrate=bitrate,
                     overwrite_existing=overwrite_existing,
+                    cancellation_event=cancellation_event,
                 )
+                if cancellation_event and cancellation_event.is_set():
+                    break
                 if audio_path or expected_path.exists():
                     success += 1
                     if track_result_callback:
@@ -303,10 +344,15 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     if track_result_callback:
                         track_result_callback(idx, track.name, "error")
             except Exception as e:
+                if cancellation_event and cancellation_event.is_set():
+                    break
                 self.logger.error(f"Error en track {track.name}: {str(e)}")
                 failed_tracks.append(track.name)
                 if track_result_callback:
                     track_result_callback(idx, track.name, "error")
+
+        if cancellation_event and cancellation_event.is_set():
+            return success, len(album.tracks), failed_tracks
 
         # Generar metadatos solo si hay éxitos
         if success > 0:
@@ -332,6 +378,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         progress_callback: Optional[callable] = None,
         nfo: bool = False,
         track_result_callback: Optional[callable] = None,
+        cancellation_event: Optional[Event] = None,
     ) -> tuple[int, int, list[str]]:
         """Download a complete playlist with progress bar support.
 
@@ -359,6 +406,8 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         downloaded_tracks = []
 
         for idx, track in enumerate(playlist.tracks, 1):
+            if cancellation_event and cancellation_event.is_set():
+                break
             try:
                 # Notificar progreso (si hay callback)
                 if progress_callback:
@@ -375,7 +424,10 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     bitrate=bitrate,
                     overwrite_existing=overwrite_existing,
                     download_lyrics=download_lyrics,
+                    cancellation_event=cancellation_event,
                 )
+                if cancellation_event and cancellation_event.is_set():
+                    break
                 if updated_track:
                     success += 1
                     downloaded_tracks.append(updated_track)
@@ -386,10 +438,15 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     if track_result_callback:
                         track_result_callback(idx, track.name, "error")
             except Exception as e:
+                if cancellation_event and cancellation_event.is_set():
+                    break
                 self.logger.error(f"Error en {track.name}: {str(e)}")
                 failed_tracks.append(track.name)
                 if track_result_callback:
                     track_result_callback(idx, track.name, "error")
+
+        if cancellation_event and cancellation_event.is_set():
+            return success, len(playlist.tracks), failed_tracks
 
         if nfo:
             self._generate_album_nfos(downloaded_tracks, output_format)

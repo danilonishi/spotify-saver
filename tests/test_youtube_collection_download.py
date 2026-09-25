@@ -1,13 +1,19 @@
 import logging
 import asyncio
 import importlib
+from threading import Event
 from pathlib import Path
 
 from click.testing import CliRunner
 from fastapi import BackgroundTasks
 
-from spotifysaver.api.routers.download import start_download, tasks
-from spotifysaver.api.schemas import DownloadRequest
+from spotifysaver.api.routers.download import (
+    cancel_download,
+    cancellation_events,
+    start_download,
+    tasks,
+)
+from spotifysaver.api.schemas import DownloadRequest, DownloadStatus
 from spotifysaver.api.services.download_service import DownloadService
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
 from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
@@ -132,9 +138,13 @@ def test_youtube_collection_download_embeds_metadata_and_reports_failures(
 
 
 def test_api_routes_youtube_collection_without_spotify_client():
+    cancellation_event = Event()
+
     class FakeDownloader:
         def download_youtube_playlist_cli(self, *args):
             assert args[0] == ALBUM_URL
+            assert args[7] is False
+            assert args[8] is cancellation_event
             return {
                 "collection_name": "Sample Album",
                 "completed_tracks": 1,
@@ -152,7 +162,9 @@ def test_api_routes_youtube_collection_without_spotify_client():
     service.download_cover = True
     service.overwrite_existing = False
 
-    result = asyncio.run(service.download_from_url(ALBUM_URL))
+    result = asyncio.run(
+        service.download_from_url(ALBUM_URL, cancellation_event=cancellation_event)
+    )
 
     assert result["content_type"] == "playlist"
     assert result["completed_tracks"] == 1
@@ -169,6 +181,28 @@ def test_api_accepts_youtube_collection_url():
         assert response.spotify_url == ALBUM_URL
     finally:
         tasks.pop(response.task_id, None)
+        cancellation_events.pop(response.task_id, None)
+
+
+def test_cancel_download_signals_worker_and_reports_cancelling():
+    task_id = "cancel-test-task"
+    cancellation_event = Event()
+    tasks[task_id] = DownloadStatus(
+        task_id=task_id,
+        status="processing",
+        progress=25,
+    )
+    cancellation_events[task_id] = cancellation_event
+
+    try:
+        response = asyncio.run(cancel_download(task_id))
+
+        assert cancellation_event.is_set()
+        assert tasks[task_id].status == "cancelling"
+        assert response["message"] == "Download cancellation requested"
+    finally:
+        tasks.pop(task_id, None)
+        cancellation_events.pop(task_id, None)
 
 
 def test_cli_routes_youtube_collection_without_spotify_client(monkeypatch, tmp_path):

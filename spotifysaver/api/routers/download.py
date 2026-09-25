@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 from datetime import datetime
+from threading import Event
 from typing import Dict
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
@@ -29,6 +30,7 @@ router = APIRouter()
 
 # In-memory task storage (in production, use Redis or database)
 tasks: Dict[str, DownloadStatus] = {}
+cancellation_events: Dict[str, Event] = {}
 
 
 @router.post("/download", response_model=DownloadResponse)
@@ -71,6 +73,7 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
             bit_rate=request.bit_rate,
         )
         tasks[task_id] = task_status
+        cancellation_events[task_id] = Event()
 
         # Start background download task
         background_tasks.add_task(download_task, task_id, request)
@@ -100,21 +103,27 @@ async def get_download_status(task_id: str):
 
 
 @router.get("/download/{task_id}/cancel")
+@router.post("/download/{task_id}/cancel")
 async def cancel_download(task_id: str):
     """Cancel a download task."""
     if task_id not in tasks:
         raise HTTPException(status_code=404, detail="Task not found")
 
     task = tasks[task_id]
-    if task.status in ["completed", "failed"]:
+    if task.status in ["completed", "failed", "cancelled"]:
         raise HTTPException(
             status_code=400, detail=f"Cannot cancel task with status: {task.status}"
         )
 
-    task.status = "cancelled"
-    task.error_message = "Task cancelled by user"
+    cancellation_event = cancellation_events.get(task_id)
+    if cancellation_event is None:
+        raise HTTPException(status_code=409, detail="Download task is no longer active")
 
-    return {"message": "Task cancelled successfully"}
+    cancellation_event.set()
+    task.status = "cancelling"
+    task.error_message = "Cancellation requested by user"
+
+    return {"message": "Download cancellation requested"}
 
 
 @router.get("/downloads")
@@ -211,8 +220,14 @@ async def inspect_spotify_url(spotify_url: str):
 
 async def download_task(task_id: str, request: DownloadRequest):
     """Background task for handling downloads."""
+    cancellation_event = cancellation_events[task_id]
     try:
         task = tasks[task_id]
+        if cancellation_event.is_set():
+            task.status = "cancelled"
+            task.error_message = "Task cancelled by user"
+            task.completed_at = datetime.now().isoformat()
+            return
         task.status = "processing"
 
         # Initialize the download service
@@ -257,7 +272,14 @@ async def download_task(task_id: str, request: DownloadRequest):
             str(request.spotify_url),
             progress_callback=progress_callback,
             track_result_callback=track_result_callback,
+            cancellation_event=cancellation_event,
         )
+
+        if cancellation_event.is_set():
+            task.status = "cancelled"
+            task.error_message = "Task cancelled by user"
+            task.completed_at = datetime.now().isoformat()
+            return
 
         # A task with no successful tracks is a failure; partial results remain completed.
         completed_tracks = result.get("completed_tracks", 0)
@@ -282,7 +304,10 @@ async def download_task(task_id: str, request: DownloadRequest):
     except Exception as e:
         logger.error(f"Download task {task_id} failed: {str(e)}", exc_info=True)
         task = tasks[task_id]
-        if task.completed_tracks > 0:
+        if cancellation_event.is_set():
+            task.status = "cancelled"
+            task.error_message = "Task cancelled by user"
+        elif task.completed_tracks > 0:
             task.status = "completed"
             task.error_message = (
                 f"Download finished with an error after {task.completed_tracks} "
@@ -292,6 +317,8 @@ async def download_task(task_id: str, request: DownloadRequest):
             task.status = "failed"
             task.error_message = str(e)
         task.completed_at = datetime.now().isoformat()
+    finally:
+        cancellation_events.pop(task_id, None)
 
 
 @router.get("/config/output_dir")

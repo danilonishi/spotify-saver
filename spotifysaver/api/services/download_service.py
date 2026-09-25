@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from threading import Event
 from typing import Dict, Optional, Callable, Any
 
 from ...services import SpotifyAPI, YoutubeMusicSearcher
@@ -40,6 +41,7 @@ class DownloadService:
         self.download_cover = download_cover
         self.generate_nfo = generate_nfo
         self.overwrite_existing = overwrite_existing
+        self.cancellation_event: Optional[Event] = None
         # Convert string format to enum for internal use
         self.output_format = YouTubeDownloader.string_to_audio_format(output_format)
         self.bit_rate = YouTubeDownloader.int_to_bitrate(bit_rate)
@@ -54,6 +56,7 @@ class DownloadService:
         spotify_url: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         track_result_callback: Optional[Callable[[int, str, str], None]] = None,
+        cancellation_event: Optional[Event] = None,
     ) -> Dict[str, Any]:
         """Download content from a Spotify URL or a YouTube collection URL.
 
@@ -64,6 +67,7 @@ class DownloadService:
         Returns:
             Dict containing download results and statistics
         """
+        self.cancellation_event = cancellation_event
         try:
             if YouTubeDownloader.is_youtube_collection_url(spotify_url):
                 return await self._download_youtube_playlist(
@@ -107,6 +111,8 @@ class DownloadService:
             self.overwrite_existing,
             progress_callback,
             track_result_callback,
+            False,
+            self.cancellation_event,
         )
         return {"content_type": "playlist", **result}
 
@@ -124,7 +130,7 @@ class DownloadService:
         # Run download in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         audio_path, updated_track = await loop.run_in_executor(
-            None, self._download_track_sync, track
+            None, self._download_track_sync, track, self.cancellation_event
         )
 
         return {
@@ -168,6 +174,7 @@ class DownloadService:
             self.overwrite_existing,
             sync_progress_callback,
             sync_track_result_callback,
+            self.cancellation_event,
         )
 
         output_dir = self.downloader._get_album_dir(album)
@@ -213,6 +220,7 @@ class DownloadService:
             sync_progress_callback,
             self.generate_nfo,
             sync_track_result_callback,
+            self.cancellation_event,
         )
 
         output_dir = self.downloader.get_playlist_dir(playlist)
@@ -226,7 +234,7 @@ class DownloadService:
             "output_directory": str(output_dir),
         }
 
-    def _download_track_sync(self, track):
+    def _download_track_sync(self, track, cancellation_event=None):
         """Synchronous track download helper."""
         return self.downloader.download_track_cli(
             track, 
@@ -234,4 +242,5 @@ class DownloadService:
             bitrate=self.bit_rate,
             download_lyrics=self.download_lyrics,
             overwrite_existing=self.overwrite_existing,
+            cancellation_event=cancellation_event,
         )

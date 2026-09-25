@@ -93,7 +93,7 @@ class DownloadStatus(BaseModel):
     """Schema for download status."""
 
     task_id: str
-    status: str  # pending, processing, completed, failed
+    status: str  # pending, processing, cancelling, cancelled, completed, failed
     progress: int  # 0-100
     current_track: Optional[str] = None
     current_track_number: Optional[int] = None

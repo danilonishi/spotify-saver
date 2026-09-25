@@ -164,4 +164,18 @@ class ApiClient {
             return null;
         }
     }
+
+    async cancelDownload(taskId) {
+        const response = await fetch(`${this.apiUrl}/download/${taskId}/cancel`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errorData.detail || 'Could not stop download');
+        }
+
+        return await response.json();
+    }
 }

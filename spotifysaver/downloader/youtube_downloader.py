@@ -5,6 +5,7 @@ import os
 import re
 import requests
 import yt_dlp
+from threading import Event
 from pathlib import Path
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
@@ -197,6 +198,16 @@ class YouTubeDownloader:
         from spotifysaver.spotlog import YDLLogger
         return YDLLogger()
 
+    def _add_cancellation_hook(self, ydl_opts: dict, cancellation_event: Optional[Event]):
+        if cancellation_event is None:
+            return
+
+        def cancel_if_requested(_status):
+            if cancellation_event.is_set():
+                raise yt_dlp.utils.DownloadError("Download cancelled by user")
+
+        ydl_opts.setdefault("progress_hooks", []).append(cancel_if_requested)
+
     def _get_output_path(
         self,
         track: Track,
@@ -380,6 +391,7 @@ class YouTubeDownloader:
         album_artist: str = None,
         download_lyrics: bool = False,
         overwrite_existing: bool = True,
+        cancellation_event: Optional[Event] = None,
     ) -> tuple[Optional[Path], Optional[Track]]:
         """Download a track from YouTube Music with Spotify metadata.
 
@@ -394,15 +406,25 @@ class YouTubeDownloader:
         Returns:
             tuple: (Downloaded file path, Updated track) or (None, None) on error
         """
+        if cancellation_event and cancellation_event.is_set():
+            return None, None
+
         output_path = self._get_output_path(track, album_artist, output_format)
         self._save_cover_album(track.cover_url, output_path.parent / "cover.jpg")
         if output_path.exists() and not overwrite_existing:
             self.logger.info(f"Skipping existing track: {output_path}")
             return output_path, track
 
+        if cancellation_event and cancellation_event.is_set():
+            return None, None
+
         yt_url = self.searcher.search_track(track)
+        if cancellation_event and cancellation_event.is_set():
+            return None, None
+
         ydl_opts = self._get_ydl_opts(output_path, output_format, bitrate)
         ydl_opts["overwrites"] = overwrite_existing
+        self._add_cancellation_hook(ydl_opts, cancellation_event)
 
         if not yt_url:
             self.logger.error(f"No match found for: {track.name}")
@@ -412,6 +434,11 @@ class YouTubeDownloader:
             # 1. Descarga el audio
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([yt_url])
+
+            if cancellation_event and cancellation_event.is_set():
+                if output_path.exists():
+                    output_path.unlink()
+                return None, None
 
             # 2. Add metadata and cover art
             cover_data = self._download_cover(track)

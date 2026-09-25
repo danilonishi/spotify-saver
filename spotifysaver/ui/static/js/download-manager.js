@@ -4,6 +4,7 @@ class DownloadManager {
         this.uiManager = uiManager;
         this.saveStateCallback = saveStateCallback;
         this.downloadInProgress = false;
+        this.cancellationRequested = false;
         this.currentTaskId = null;
         this.downloadStartTime = null;
         this.lastLoggedTrack = null;
@@ -87,6 +88,7 @@ class DownloadManager {
         }
 
         this.downloadInProgress = true;
+        this.cancellationRequested = false;
         this.uiManager.updateUI(true);
         this.uiManager.clearLog();
         this.uiManager.clearInspect();
@@ -119,6 +121,11 @@ class DownloadManager {
                 await new Promise(resolve => setTimeout(resolve, 1500));
             }
 
+            if (this.cancellationRequested) {
+                this.handleDownloadCancelled();
+                return;
+            }
+
             // Paso 2: iniciar descarga
             this.uiManager.updateStatus('Starting download...', 'info');
             this.uiManager.addLogEntry('Sending download request...', 'info');
@@ -133,10 +140,14 @@ class DownloadManager {
                     this.saveStateCallback();
                 }
                 this.startProgressMonitoring(result.task_id);
+                if (this.cancellationRequested) {
+                    this.requestTaskCancellation(result.task_id);
+                }
             } else {
                 this.uiManager.updateStatus('Download completed successfully', 'success');
                 this.uiManager.addLogEntry('Download complete', 'success');
                 this.downloadInProgress = false;
+                this.cancellationRequested = false;
                 this.uiManager.updateUI(false);
             }
 
@@ -144,7 +155,31 @@ class DownloadManager {
             this.uiManager.updateStatus(`Error: ${error.message}`, 'error');
             this.uiManager.addLogEntry(`Error: ${error.message}`, 'error');
             this.downloadInProgress = false;
+            this.cancellationRequested = false;
+            this.currentTaskId = null;
             this.uiManager.updateUI(false);
+        }
+    }
+
+    async stopDownload() {
+        if (!this.downloadInProgress || this.cancellationRequested) {
+            return;
+        }
+
+        this.cancellationRequested = true;
+        this.uiManager.updateStatus('Stopping download...', 'info');
+        if (this.currentTaskId) {
+            await this.requestTaskCancellation(this.currentTaskId);
+        }
+    }
+
+    async requestTaskCancellation(taskId) {
+        try {
+            await this.apiClient.cancelDownload(taskId);
+        } catch (error) {
+            this.cancellationRequested = false;
+            this.uiManager.updateStatus(`Could not stop download: ${error.message}`, 'error');
+            this.uiManager.addLogEntry(`Could not stop download: ${error.message}`, 'error');
         }
     }
 
@@ -161,6 +196,9 @@ class DownloadManager {
                     if (status.status === 'completed') {
                         this.handleDownloadCompleted(status);
                         return;
+                    } else if (status.status === 'cancelled') {
+                        this.handleDownloadCancelled(status);
+                        return;
                     } else if (status.status === 'failed') {
                         this.handleDownloadFailed(
                             status.error_message || 'Download failed',
@@ -168,6 +206,8 @@ class DownloadManager {
                             status.failed_track_names || []
                         );
                         return;
+                    } else if (status.status === 'cancelling') {
+                        this.uiManager.updateStatus('Stopping download...', 'info');
                     } else if (status.status === 'processing') {
                         this.handleDownloadProgress(status);
                     }
@@ -226,6 +266,7 @@ class DownloadManager {
         }
         
         this.downloadInProgress = false;
+        this.cancellationRequested = false;
         this.currentTaskId = null;
         this.uiManager.updateUI(false);
         if (this.saveStateCallback) {
@@ -258,6 +299,23 @@ class DownloadManager {
         }
         
         this.downloadInProgress = false;
+        this.cancellationRequested = false;
+        this.currentTaskId = null;
+        this.uiManager.updateUI(false);
+        if (this.saveStateCallback) {
+            this.saveStateCallback();
+        }
+    }
+
+    handleDownloadCancelled(status = {}) {
+        const completedTracks = status.completed_tracks || 0;
+        const message = completedTracks
+            ? `Download stopped after ${completedTracks} track${completedTracks === 1 ? '' : 's'}.`
+            : 'Download stopped.';
+        this.uiManager.updateStatus(message, 'info');
+        this.uiManager.addLogEntry(message, 'info');
+        this.downloadInProgress = false;
+        this.cancellationRequested = false;
         this.currentTaskId = null;
         this.uiManager.updateUI(false);
         if (this.saveStateCallback) {
@@ -364,6 +422,12 @@ class DownloadManager {
         console.log('🎭 Starting simulation with real track data');
         
         const interval = setInterval(() => {
+            if (this.cancellationRequested) {
+                clearInterval(interval);
+                this.handleDownloadCancelled();
+                return;
+            }
+
             progress += Math.random() * 8 + 2; // Progreso más consistente
             
             // Simular progreso por canción basado en datos reales

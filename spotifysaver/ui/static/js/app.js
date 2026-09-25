@@ -42,10 +42,12 @@ class SpotifySaverUI {
 
     initializeEventListeners() {
         const downloadBtn = document.getElementById('download-btn');
+        const stopDownloadBtn = document.getElementById('stop-download-btn');
         const spotifyUrl = document.getElementById('spotify-url');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         
         downloadBtn.addEventListener('click', () => this.downloadManager.startDownload());
+        stopDownloadBtn.addEventListener('click', () => this.downloadManager.stopDownload());
         
         // Permitir iniciar descarga con Enter
         spotifyUrl.addEventListener('keypress', (e) => {
