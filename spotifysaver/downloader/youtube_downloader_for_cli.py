@@ -5,7 +5,7 @@ from typing import Optional
 
 from spotifysaver.services import YoutubeMusicSearcher, LrclibAPI
 from spotifysaver.metadata import NFOGenerator
-from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
+from spotifysaver.downloader.youtube_downloader import YouTubeDownloader, yt_dlp
 from spotifysaver.downloader.image_downloader import ImageDownloader
 from spotifysaver.models import Track, Album, Playlist
 from spotifysaver.enums import AudioFormat, Bitrate
@@ -13,10 +13,9 @@ from spotifysaver.spotlog import get_logger
 
 
 class YouTubeDownloaderForCLI(YouTubeDownloader):
-    """Downloads tracks from YouTube Music and adds Spotify metadata.
+    """Download Spotify-backed tracks and direct YouTube collections.
 
-    This class handles the complete download process including audio download,
-    metadata injection, lyrics fetching, and file organization.
+    This class adds CLI progress support to the downloader workflows.
 
     Attributes:
         base_dir: Base directory for music downloads
@@ -37,6 +36,140 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         self.searcher = YoutubeMusicSearcher()
         self.lrc_client = LrclibAPI()
         self.image_downloader = ImageDownloader()
+
+    def download_youtube_playlist_cli(
+        self,
+        url: str,
+        output_format: AudioFormat = AudioFormat.M4A,
+        bitrate: Bitrate = Bitrate.B128,
+        download_cover: bool = True,
+        overwrite_existing: bool = False,
+        progress_callback: Optional[callable] = None,
+        track_result_callback: Optional[callable] = None,
+        dry_run: bool = False,
+    ) -> dict:
+        """Download a YouTube playlist or YouTube Music album collection."""
+        if not self.is_youtube_collection_url(url):
+            raise ValueError("URL is not a supported YouTube playlist or album")
+
+        output_template = (
+            self.base_dir
+            / "YouTube"
+            / "%(playlist_title)s"
+            / "%(playlist_index)02d - %(title)s"
+        )
+        ydl_opts = self._get_ydl_opts(output_template, output_format, bitrate)
+        ydl_opts["outtmpl"] = str(output_template.with_suffix(".%(ext)s"))
+        ydl_opts["windowsfilenames"] = True
+        ydl_opts["overwrites"] = overwrite_existing
+        ydl_opts["ignoreerrors"] = True
+        ydl_opts["postprocessors"].append({"key": "FFmpegMetadata"})
+        if download_cover:
+            ydl_opts["writethumbnail"] = True
+            ydl_opts["postprocessors"].append({"key": "EmbedThumbnail"})
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            collection = ydl.extract_info(url, download=False)
+            if not isinstance(collection, dict) or not collection.get("entries"):
+                raise ValueError("No tracks were found in the YouTube collection")
+
+            collection_name = collection.get("title") or collection.get("id") or "YouTube Collection"
+            output_dir = self.base_dir / "YouTube" / self._sanitize_filename(collection_name)
+            ydl.params["outtmpl"]["default"] = str(
+                output_dir / "%(playlist_index)02d - %(title)s.%(ext)s"
+            )
+            entries = collection["entries"]
+            total = collection.get("playlist_count") or len(entries)
+            total = int(total)
+
+            if dry_run:
+                return {
+                    "collection_name": collection_name,
+                    "completed_tracks": 0,
+                    "failed_tracks": 0,
+                    "failed_track_names": [],
+                    "total_tracks": total,
+                    "output_directory": str(output_dir),
+                    "dry_run": True,
+                }
+
+            output_dir.mkdir(parents=True, exist_ok=True)
+            failed_track_names = []
+            expected_paths = {}
+            missing_indexes = []
+            for index, entry in enumerate(entries, start=1):
+                track_name = (entry or {}).get("title") or f"Track {index}"
+                if not entry:
+                    failed_track_names.append(track_name)
+                    if track_result_callback:
+                        track_result_callback(index, track_name, "error")
+                    continue
+
+                entry_info = dict(entry)
+                entry_info.setdefault("playlist_title", collection_name)
+                entry_info.setdefault("playlist_index", index)
+                entry_info.setdefault("playlist_count", total)
+                expected_path = Path(ydl.prepare_filename(entry_info)).with_suffix(
+                    f".{output_format.value}"
+                )
+                expected_paths[index] = (track_name, expected_path)
+                if expected_path.exists() and not overwrite_existing:
+                    if progress_callback:
+                        progress_callback(index, total, track_name)
+                else:
+                    missing_indexes.append(index)
+
+            if missing_indexes:
+                if progress_callback:
+                    started_indexes = set()
+
+                    def report_progress(download_info):
+                        if download_info.get("status") != "downloading":
+                            return
+                        info = download_info.get("info_dict") or {}
+                        index = info.get("playlist_index")
+                        if index is None:
+                            return
+                        index = int(index)
+                        if index in started_indexes:
+                            return
+                        started_indexes.add(index)
+                        progress_callback(
+                            index,
+                            total,
+                            info.get("title") or f"Track {index}",
+                        )
+
+                    ydl.add_progress_hook(report_progress)
+
+                ydl.params["playlist_items"] = ",".join(
+                    str(index) for index in missing_indexes
+                )
+                ydl.download([url])
+
+            completed_tracks = 0
+            for index, (track_name, expected_path) in expected_paths.items():
+                if expected_path.exists():
+                    completed_tracks += 1
+                    if track_result_callback:
+                        track_result_callback(index, track_name, "completed")
+                else:
+                    self.logger.error(
+                        f"YouTube download did not create the expected file: {expected_path}"
+                    )
+                    failed_track_names.append(track_name)
+                    if track_result_callback:
+                        track_result_callback(index, track_name, "error")
+
+        return {
+            "collection_name": collection_name,
+            "completed_tracks": completed_tracks,
+            "failed_tracks": len(failed_track_names),
+            "failed_track_names": failed_track_names,
+            "total_tracks": total,
+            "output_directory": str(output_dir),
+            "dry_run": False,
+        }
 
 
     def download_track_cli(

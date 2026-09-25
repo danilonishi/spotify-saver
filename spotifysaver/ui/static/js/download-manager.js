@@ -37,12 +37,33 @@ class DownloadManager {
             return false;
         }
         
-        if (!formData.spotify_url.includes('spotify.com')) {
-            this.uiManager.updateStatus('The URL must be from Spotify.', 'error');
+        if (!formData.spotify_url.includes('spotify.com') &&
+            !this.isYouTubeCollectionUrl(formData.spotify_url)) {
+            this.uiManager.updateStatus(
+                'Enter a Spotify link or a YouTube album/playlist link.',
+                'error'
+            );
             return false;
         }
         
         return true;
+    }
+
+    isYouTubeCollectionUrl(url) {
+        try {
+            const parsedUrl = new URL(url);
+            const hosts = new Set([
+                'music.youtube.com',
+                'youtube.com',
+                'www.youtube.com',
+                'm.youtube.com'
+            ]);
+            return hosts.has(parsedUrl.hostname.toLowerCase()) &&
+                ['/playlist', '/watch'].includes(parsedUrl.pathname.replace(/\/$/, '')) &&
+                Boolean(parsedUrl.searchParams.get('list'));
+        } catch (_error) {
+            return false;
+        }
     }
 
     async startDownload() {
@@ -77,15 +98,26 @@ class DownloadManager {
         this.trackUpdateCursor = 0;
 
         try {
-            // Paso 1: inspección
-            this.uiManager.updateStatus('Inspecting URL...', 'info');
-            
-            const inspectData = await this.apiClient.inspectSpotifyUrl(formData.spotify_url);
-            this.uiManager.renderInspectData(inspectData, this.trackStates);
-            this.currentTrackData = inspectData;
-        
-            // Esperar un segundo antes de iniciar la descarga
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            if (this.isYouTubeCollectionUrl(formData.spotify_url)) {
+                this.currentTrackData = null;
+                this.uiManager.updateStatus(
+                    'YouTube collection detected. Track metadata will come from YouTube.',
+                    'info'
+                );
+                if (formData.download_lyrics || formData.generate_nfo) {
+                    this.uiManager.addLogEntry(
+                        'YouTube collection downloads use source metadata; lyrics and NFO options apply only to Spotify.',
+                        'info'
+                    );
+                }
+            } else {
+                this.uiManager.updateStatus('Inspecting Spotify URL...', 'info');
+                const inspectData = await this.apiClient.inspectSpotifyUrl(formData.spotify_url);
+                this.uiManager.renderInspectData(inspectData, this.trackStates);
+                this.currentTrackData = inspectData;
+
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
 
             // Paso 2: iniciar descarga
             this.uiManager.updateStatus('Starting download...', 'info');

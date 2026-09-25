@@ -1,8 +1,7 @@
 """Main download command module for SpotifySaver CLI.
 
-This module provides the primary download command that handles downloading
-tracks, albums, or playlists from Spotify by finding matching content on
-YouTube Music and applying Spotify metadata.
+This module provides the primary download command for Spotify URLs and direct
+YouTube album or playlist URLs.
 """
 
 from pathlib import Path
@@ -46,11 +45,10 @@ def download(
     explain: bool,
     dry_run: bool,
 ):
-    """Download music from Spotify URLs via YouTube Music with metadata.
+    """Download Spotify tracks or direct YouTube album and playlist URLs.
     
-    This command downloads audio content from YouTube Music that matches
-    Spotify tracks, albums, or playlists, then applies the original Spotify
-    metadata to create properly organized music files.
+    Spotify downloads use Spotify metadata; direct YouTube collections use
+    source metadata embedded by yt-dlp.
     
     Args:
         spotify_url: Spotify URL for track, album, or playlist
@@ -66,9 +64,43 @@ def download(
     LoggerConfig.setup(level="DEBUG" if verbose else "INFO")
 
     try:
+        downloader = YouTubeDownloaderForCLI(base_dir=output)
+
+        if downloader.is_youtube_url(spotify_url):
+            if not downloader.is_youtube_collection_url(spotify_url):
+                raise ValueError("YouTube URLs must point to a playlist or album collection")
+
+            if lyrics or nfo or explain:
+                click.secho(
+                    "YouTube collection downloads use YouTube metadata; --lyrics, --nfo, "
+                    "and --explain apply only to Spotify downloads.",
+                    fg="yellow",
+                )
+
+            result = downloader.download_youtube_playlist_cli(
+                url=spotify_url,
+                output_format=downloader.string_to_audio_format(format),
+                bitrate=downloader.int_to_bitrate(bitrate),
+                download_cover=cover,
+                dry_run=dry_run,
+            )
+            if dry_run:
+                click.echo(
+                    f"Found YouTube collection: {result['collection_name']} "
+                    f"({result['total_tracks']} tracks). No files downloaded."
+                )
+            else:
+                click.secho(
+                    f"Downloaded {result['completed_tracks']}/{result['total_tracks']} "
+                    f"tracks to {result['output_directory']}",
+                    fg="green" if result["completed_tracks"] else "yellow",
+                )
+                for track_name in result["failed_track_names"]:
+                    click.secho(f"  - Failed: {track_name}", fg="yellow")
+            return
+
         spotify = SpotifyAPI()
         searcher = YoutubeMusicSearcher()
-        downloader = YouTubeDownloaderForCLI(base_dir=output)
 
         if "album" in spotify_url:
             process_album(

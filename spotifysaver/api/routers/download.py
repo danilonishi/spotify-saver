@@ -18,6 +18,7 @@ from ..schemas import (
     TrackInfo,
 )
 from ..services import DownloadService
+from ...downloader import YouTubeDownloader
 from ...services import SpotifyAPI
 from ...spotlog import get_logger
 from ..config import APIConfig
@@ -32,7 +33,7 @@ tasks: Dict[str, DownloadStatus] = {}
 
 @router.post("/download", response_model=DownloadResponse)
 async def start_download(request: DownloadRequest, background_tasks: BackgroundTasks):
-    """Start a download task for a Spotify URL.
+    """Start a download task for a Spotify or YouTube collection URL.
 
     This endpoint initiates the download process and returns a task ID
     that can be used to track the progress of the download.
@@ -43,7 +44,9 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
 
         # Determine content type from URL
         spotify_url = str(request.spotify_url)
-        if "track" in spotify_url:
+        if YouTubeDownloader.is_youtube_collection_url(spotify_url):
+            content_type = "playlist"
+        elif "track" in spotify_url:
             content_type = "track"
         elif "album" in spotify_url:
             content_type = "album"
@@ -52,7 +55,7 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
         else:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid Spotify URL. Must be a track, album, or playlist.",
+                detail="URL must be a Spotify track, album, or playlist, or a YouTube album/playlist.",
             )
 
         # Create initial task status
@@ -277,7 +280,7 @@ async def download_task(task_id: str, request: DownloadRequest):
         logger.info(f"Download task {task_id} completed successfully")
 
     except Exception as e:
-        logger.error(f"Download task {task_id} failed: {str(e)}")
+        logger.error(f"Download task {task_id} failed: {str(e)}", exc_info=True)
         task = tasks[task_id]
         if task.completed_tracks > 0:
             task.status = "completed"

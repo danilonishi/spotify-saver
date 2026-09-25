@@ -9,7 +9,7 @@ class DownloadRequest(BaseModel):
 
     spotify_url: HttpUrl = Field(
         ...,
-        description="Spotify URL for track, album, or playlist",
+        description="Spotify track, album, or playlist URL, or YouTube playlist/album URL",
         example="https://open.spotify.com/track/2kd0T6zgABT8P0s2h9QU5O",
     )
     download_lyrics: bool = Field(
@@ -82,7 +82,7 @@ class DownloadResponse(BaseModel):
 
     task_id: str = Field(..., description="Unique task identifier")
     status: str = Field(..., description="Current status of the download")
-    spotify_url: str = Field(..., description="Original Spotify URL")
+    spotify_url: str = Field(..., description="Original Spotify or YouTube source URL")
     content_type: str = Field(
         ..., description="Type of content (track, album, playlist)"
     )

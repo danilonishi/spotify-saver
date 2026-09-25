@@ -7,6 +7,7 @@ import requests
 import yt_dlp
 from pathlib import Path
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 from spotifysaver.services import YoutubeMusicSearcher, LrclibAPI
 from spotifysaver.metadata import NFOGenerator, MusicFileMetadata
@@ -18,10 +19,10 @@ from spotifysaver.spotlog import get_logger
 
 
 class YouTubeDownloader:
-    """Downloads tracks from YouTube Music and adds Spotify metadata.
+    """Download YouTube matches for Spotify tracks and direct YouTube media.
 
-    This class handles the complete download process including audio download,
-    metadata injection, lyrics fetching, and file organization.
+    Spotify downloads receive Spotify metadata; direct YouTube collections use
+    the metadata provided by YouTube and yt-dlp.
 
     Attributes:
         base_dir: Base directory for music downloads
@@ -42,6 +43,35 @@ class YouTubeDownloader:
         self.searcher = YoutubeMusicSearcher()
         self.lrc_client = LrclibAPI()
         self.image_downloader = ImageDownloader()
+
+    @staticmethod
+    def is_youtube_collection_url(url: str) -> bool:
+        """Return whether a URL points to a YouTube playlist or album collection."""
+        parsed_url = urlparse(url)
+        hostname = (parsed_url.hostname or "").lower()
+        collection_hosts = {
+            "music.youtube.com",
+            "youtube.com",
+            "www.youtube.com",
+            "m.youtube.com",
+        }
+        return (
+            hostname in collection_hosts
+            and parsed_url.path.rstrip("/") in {"/playlist", "/watch"}
+            and bool(parse_qs(parsed_url.query).get("list"))
+        )
+
+    @staticmethod
+    def is_youtube_url(url: str) -> bool:
+        """Return whether a URL is hosted by YouTube or YouTube Music."""
+        hostname = (urlparse(url).hostname or "").lower()
+        return hostname in {
+            "music.youtube.com",
+            "youtube.com",
+            "www.youtube.com",
+            "m.youtube.com",
+            "youtu.be",
+        }
 
     @staticmethod
     def string_to_audio_format(format_str: str) -> AudioFormat:

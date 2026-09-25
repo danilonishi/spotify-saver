@@ -44,9 +44,9 @@ class DownloadService:
         self.output_format = YouTubeDownloader.string_to_audio_format(output_format)
         self.bit_rate = YouTubeDownloader.int_to_bitrate(bit_rate)
 
-        # Initialize services
-        self.spotify = SpotifyAPI()
-        self.searcher = YoutubeMusicSearcher()
+        # Spotify clients are initialized only for Spotify source URLs.
+        self.spotify = None
+        self.searcher = None
         self.downloader = YouTubeDownloaderForCLI(base_dir=self.output_dir)
 
     async def download_from_url(
@@ -55,16 +55,23 @@ class DownloadService:
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         track_result_callback: Optional[Callable[[int, str, str], None]] = None,
     ) -> Dict[str, Any]:
-        """Download content from a Spotify URL.
+        """Download content from a Spotify URL or a YouTube collection URL.
 
         Args:
-            spotify_url: Spotify URL to download
+            spotify_url: Source URL to download
             progress_callback: Optional callback for progress updates
 
         Returns:
             Dict containing download results and statistics
         """
         try:
+            if YouTubeDownloader.is_youtube_collection_url(spotify_url):
+                return await self._download_youtube_playlist(
+                    spotify_url, progress_callback, track_result_callback
+                )
+
+            self.spotify = SpotifyAPI()
+            self.searcher = YoutubeMusicSearcher()
             if "track" in spotify_url:
                 return await self._download_track(spotify_url, progress_callback)
             elif "album" in spotify_url:
@@ -79,8 +86,29 @@ class DownloadService:
                 raise ValueError("Invalid Spotify URL type")
 
         except Exception as e:
-            logger.error(f"Error downloading from {spotify_url}: {str(e)}")
+            logger.error(f"Error downloading from {spotify_url}: {str(e)}", exc_info=True)
             raise
+
+    async def _download_youtube_playlist(
+        self,
+        playlist_url: str,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        track_result_callback: Optional[Callable[[int, str, str], None]] = None,
+    ) -> Dict[str, Any]:
+        """Download a YouTube playlist or YouTube Music album collection."""
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            self.downloader.download_youtube_playlist_cli,
+            playlist_url,
+            self.output_format,
+            self.bit_rate,
+            self.download_cover,
+            self.overwrite_existing,
+            progress_callback,
+            track_result_callback,
+        )
+        return {"content_type": "playlist", **result}
 
     async def _download_track(
         self,

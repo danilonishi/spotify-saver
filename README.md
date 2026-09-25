@@ -22,6 +22,7 @@ Read this file in [Spanish](README_ES.md)
 
 ## 🌟 Features
 - ✅ Download audio from YouTube Music with Spotify metadata
+- ✅ Download YouTube Music albums and playlists with source metadata
 - ✅ Synchronized lyrics (.lrc) from LRC Lib
 - ✅ Generation of Jellyfin-compatible `.info` files (Still some things to work on here! ⚠️)
 - ✅ Automatic folder structure (Artist/Album)
@@ -48,7 +49,7 @@ poetry install
 pip install git+https://github.com/gabrielbaute/spotify-saver.git
 ```
 
-⚠️ IMPORTANT: You must log in to your Spotify account as a developer, create an app, and obtain a "client id" and "client secret." You must place this information in an .env file in the project's root directory.
+⚠️ Spotify URLs require a Spotify developer app with a client ID and client secret in the project's `.env` file. Direct YouTube album and playlist downloads do not require Spotify credentials.
 
 Playlist access uses Spotify user authorization. Add `http://127.0.0.1:8888/callback` to the app's Redirect URIs in the Spotify Developer Dashboard. The first playlist request opens a Spotify login/authorization page; the resulting token is cached under `~/.spotify-saver`.
 
@@ -89,7 +90,7 @@ The **documentation for using the API**, on the other hand, can be found in this
 | Command              | Description                                | Example                                    |
 |----------------------|--------------------------------------------|--------------------------------------------|
 | `init`               | Configure environment variables            | `spotifysaver init"`                       |
-| `download [URL]`     | Download track/album from Spotify          | `spotifysaver download "URL_SPOTIFY"`      |
+| `download [URL]`     | Download Spotify tracks/albums/playlists or YouTube albums/playlists | `spotifysaver download "URL"`      |
 | `inspect`            | Shows Spotify metadata (album, playlist)   | `spotifysaver inspect "URL_SPOTIFY"`       |
 | `show-log`           | Shows the application log                  | `spotifysaver show-log`                    |
 | `version`            | Shows the installed version                | `spotifysaver version`                     |
@@ -101,7 +102,7 @@ The **documentation for using the API**, on the other hand, can be found in this
 | `--lyrics`        | Download synchronized lyrics (.lrc)                   | Flag (no value)         |
 | `--output DIR`    | Output directory                                      | Valid path              |
 | `--format FORMAT` | Audio format                                          | `m4a` (default), `mp3`  |
-| `--cover/--no-cover` | Saves the album cover as `cover.jpg` (enabled by default) | Flag (no value)      |
+| `--cover/--no-cover` | Save Spotify cover or embed YouTube thumbnail | Flag (no value)      |
 | `--nfo`           | Generates a .nfo metadata file in the JellyFin format | Flag (no value)         |
 | `--explain`       | Show score breakdown for each track without downloading (for error analysis) | Flag (no value)         |
 | `--dry-run`       | Simulate download without saving files                | Flag (no value)         |
@@ -127,6 +128,9 @@ spotifysaver download "https://open.spotify.com/album/..." --nfo
 
 # Download song in MP3 format
 spotifysaver download "https://open.spotify.com/track/..." --format mp3
+
+# Download a YouTube Music album or playlist with YouTube-provided tags
+spotifysaver download "https://music.youtube.com/playlist?list=..."
 ```
 
 ## Usage with API
@@ -151,7 +155,7 @@ spotifysaver-api
 
 This will start the API server with an integrated web interface that you can access at `http://localhost:8000`. The web interface provides:
 
-- **Easy URL input**: Simply paste any Spotify URL (track, album, or playlist)
+- **Easy URL input**: Paste a Spotify link or a YouTube album/playlist link
 - **Full configuration**: All download options available through an intuitive interface
 - **Real-time progress**: Monitor download progress and see detailed logs
 - **Responsive design**: Works on desktop and mobile devices
