@@ -331,11 +331,14 @@ async def get_default_output_dir():
 
 
 @router.get("/config/output_dirs")
-async def get_output_directories():
+async def get_output_directories(root: str | None = None):
     """Returns immediate subdirectories of the configured music directory."""
-    output_root = Path(APIConfig.get_output_dir())
+    output_root = Path(root or APIConfig.get_output_dir()).expanduser().resolve()
     if not output_root.is_dir():
-        return {"directories": []}
+        raise HTTPException(
+            status_code=400,
+            detail="Base media path must be an existing directory",
+        )
 
     directories = sorted(
         (
@@ -345,4 +348,4 @@ async def get_output_directories():
         ),
         key=lambda directory: directory["name"].casefold(),
     )
-    return {"directories": directories}
+    return {"root": str(output_root), "directories": directories}

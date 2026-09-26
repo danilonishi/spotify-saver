@@ -71,19 +71,27 @@ class ApiClient {
         }
     }
 
-    async getOutputDirectories() {
-        const response = await fetch(`${this.apiUrl}/config/output_dirs`, {
+    async getOutputDirectories(rootPath = null) {
+        const url = new URL(`${this.apiUrl}/config/output_dirs`);
+        if (rootPath) {
+            url.searchParams.set('root', rootPath);
+        }
+
+        const response = await fetch(url, {
             method: 'GET',
             mode: 'cors',
             cache: 'no-cache'
         });
 
         if (!response.ok) {
-            throw new Error('Could not fetch available download folders');
+            throw new Error('Could not use the specified base media path');
         }
 
         const data = await response.json();
-        return data.directories || [];
+        return {
+            root: data.root,
+            directories: data.directories || []
+        };
     }
 
     async getAppVersion() {

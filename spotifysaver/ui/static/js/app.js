@@ -46,6 +46,10 @@ class SpotifySaverUI {
         const spotifyUrl = document.getElementById('spotify-url');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const outputDirOptions = document.getElementById('output-dir-options');
+        const setMediaRootBtn = document.getElementById('set-media-root-btn');
+        const mediaRootEditor = document.getElementById('media-root-editor');
+        const mediaRootInput = document.getElementById('media-root-input');
+        const applyMediaRootBtn = document.getElementById('apply-media-root-btn');
         
         downloadBtn.addEventListener('click', () => this.downloadManager.startDownload());
         stopDownloadBtn.addEventListener('click', () => this.downloadManager.stopDownload());
@@ -53,6 +57,18 @@ class SpotifySaverUI {
             const button = event.target.closest('button[data-output-dir]');
             if (button) {
                 this.uiManager.selectOutputDirectory(button);
+            }
+        });
+        setMediaRootBtn.addEventListener('click', () => {
+            mediaRootEditor.classList.toggle('hidden');
+            if (!mediaRootEditor.classList.contains('hidden')) {
+                mediaRootInput.focus();
+            }
+        });
+        applyMediaRootBtn.addEventListener('click', () => this.applyMediaRoot());
+        mediaRootInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                this.applyMediaRoot();
             }
         });
         
@@ -100,12 +116,36 @@ class SpotifySaverUI {
     }
 
     async loadOutputDirectories() {
+        const savedRoot = localStorage.getItem('spotifysaver_media_root');
+        if (savedRoot) {
+            document.getElementById('media-root-input').value = savedRoot;
+        }
+
         try {
-            const directories = await this.apiClient.getOutputDirectories();
-            this.uiManager.setOutputDirectories(directories);
+            const result = await this.apiClient.getOutputDirectories(savedRoot);
+            this.uiManager.setOutputDirectories(result.directories, result.root);
         } catch (error) {
             console.warn('Could not load download folders:', error);
-            this.uiManager.setOutputDirectories([]);
+            this.uiManager.setOutputDirectories([], '');
+        }
+    }
+
+    async applyMediaRoot() {
+        const rootInput = document.getElementById('media-root-input');
+        const rootPath = rootInput.value.trim();
+        if (!rootPath) {
+            this.uiManager.updateStatus('Enter a base media path', 'error');
+            return;
+        }
+
+        try {
+            const result = await this.apiClient.getOutputDirectories(rootPath);
+            localStorage.setItem('spotifysaver_media_root', result.root);
+            this.uiManager.setOutputDirectories(result.directories, result.root);
+            document.getElementById('media-root-editor').classList.add('hidden');
+            this.uiManager.updateStatus('Base media path updated', 'success');
+        } catch (error) {
+            this.uiManager.updateStatus(error.message, 'error');
         }
     }
 

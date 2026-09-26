@@ -118,6 +118,18 @@ main {
     box-shadow: inset 0 0 0 1px #4a5568;
 }
 
+.media-root-controls {
+    margin-top: 10px;
+}
+
+.media-root-editor {
+    margin-top: 10px;
+}
+
+.media-root-editor input[type="text"] {
+    margin-bottom: 8px;
+}
+
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;

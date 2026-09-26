@@ -50,6 +50,14 @@
                         <div id="output-dir-options" class="output-dir-options" role="group" aria-label="Download folder">
                             <span id="output-dir-message">Loading folders...</span>
                         </div>
+                        <div class="media-root-controls">
+                            <button id="set-media-root-btn" class="output-dir-button" type="button">Define base media path</button>
+                            <div id="media-root-editor" class="media-root-editor hidden">
+                                <label for="media-root-input">Base media path on the server:</label>
+                                <input type="text" id="media-root-input" placeholder="/media/Music">
+                                <button id="apply-media-root-btn" class="output-dir-button" type="button">Apply</button>
+                            </div>
+                        </div>
                         <input type="hidden" id="output-dir" value="">
                     </div>
 

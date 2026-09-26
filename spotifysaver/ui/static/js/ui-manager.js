@@ -218,10 +218,14 @@ class UIManager {
         container.classList.add('hidden');
     }
 
-    setOutputDirectories(directories) {
+    setOutputDirectories(directories, rootPath) {
         const options = document.getElementById('output-dir-options');
         const outputDirInput = document.getElementById('output-dir');
+        const mediaRootInput = document.getElementById('media-root-input');
         options.replaceChildren();
+        if (rootPath) {
+            mediaRootInput.value = rootPath;
+        }
 
         if (!directories.length) {
             outputDirInput.value = '';
@@ -229,6 +233,16 @@ class UIManager {
             message.id = 'output-dir-message';
             message.textContent = 'No folders are available in the configured music directory.';
             options.appendChild(message);
+
+            if (rootPath) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'output-dir-button';
+                button.dataset.outputDir = rootPath;
+                button.textContent = 'Music root';
+                button.setAttribute('aria-pressed', 'false');
+                options.appendChild(button);
+            }
             return;
         }
 
