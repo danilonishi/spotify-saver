@@ -58,7 +58,7 @@ class DownloadService:
         track_result_callback: Optional[Callable[[int, str, str], None]] = None,
         cancellation_event: Optional[Event] = None,
     ) -> Dict[str, Any]:
-        """Download content from a Spotify URL or a YouTube collection URL.
+        """Download content from a Spotify URL or a YouTube video/collection URL.
 
         Args:
             spotify_url: Source URL to download
@@ -72,6 +72,10 @@ class DownloadService:
             if YouTubeDownloader.is_youtube_collection_url(spotify_url):
                 return await self._download_youtube_playlist(
                     spotify_url, progress_callback, track_result_callback
+                )
+            if YouTubeDownloader.is_youtube_track_url(spotify_url):
+                return await self._download_youtube_track(
+                    spotify_url, progress_callback
                 )
 
             self.spotify = SpotifyAPI()
@@ -115,6 +119,26 @@ class DownloadService:
             self.cancellation_event,
         )
         return {"content_type": "playlist", **result}
+
+    async def _download_youtube_track(
+        self,
+        track_url: str,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    ) -> Dict[str, Any]:
+        """Download one YouTube video as the selected audio format."""
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            self.downloader.download_youtube_track_cli,
+            track_url,
+            self.output_format,
+            self.bit_rate,
+            self.overwrite_existing,
+            progress_callback,
+            self.cancellation_event,
+            SpotifyAPI.resolve_youtube_track_title,
+        )
+        return {"content_type": "track", **result}
 
     async def _download_track(
         self,

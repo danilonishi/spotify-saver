@@ -39,9 +39,10 @@ class DownloadManager {
         }
         
         if (!formData.spotify_url.includes('spotify.com') &&
-            !this.isYouTubeCollectionUrl(formData.spotify_url)) {
+            !this.isYouTubeCollectionUrl(formData.spotify_url) &&
+            !this.isYouTubeTrackUrl(formData.spotify_url)) {
             this.uiManager.updateStatus(
-                'Enter a Spotify link or a YouTube album/playlist link.',
+                'Enter a Spotify link or a YouTube track, album, or playlist link.',
                 'error'
             );
             return false;
@@ -62,6 +63,31 @@ class DownloadManager {
             return hosts.has(parsedUrl.hostname.toLowerCase()) &&
                 ['/playlist', '/watch'].includes(parsedUrl.pathname.replace(/\/$/, '')) &&
                 Boolean(parsedUrl.searchParams.get('list'));
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    isYouTubeTrackUrl(url) {
+        try {
+            const parsedUrl = new URL(url);
+            const hosts = new Set([
+                'music.youtube.com',
+                'youtube.com',
+                'www.youtube.com',
+                'm.youtube.com',
+                'youtu.be'
+            ]);
+            if (!hosts.has(parsedUrl.hostname.toLowerCase())) {
+                return false;
+            }
+            if (parsedUrl.hostname.toLowerCase() === 'youtu.be') {
+                return Boolean(parsedUrl.pathname.replace(/^\//, ''));
+            }
+            if (parsedUrl.pathname.replace(/\/$/, '') === '/watch') {
+                return Boolean(parsedUrl.searchParams.get('v'));
+            }
+            return /^\/(shorts|embed)\/[^/]+/.test(parsedUrl.pathname);
         } catch (_error) {
             return false;
         }
@@ -100,15 +126,19 @@ class DownloadManager {
         this.trackUpdateCursor = 0;
 
         try {
-            if (this.isYouTubeCollectionUrl(formData.spotify_url)) {
+            const isYouTubeCollection = this.isYouTubeCollectionUrl(formData.spotify_url);
+            const isYouTubeTrack = this.isYouTubeTrackUrl(formData.spotify_url);
+            if (isYouTubeCollection || isYouTubeTrack) {
                 this.currentTrackData = null;
                 this.uiManager.updateStatus(
-                    'YouTube collection detected. Track metadata will come from YouTube.',
+                    isYouTubeCollection
+                        ? 'YouTube collection detected. Track metadata will come from YouTube.'
+                        : 'YouTube track detected. Audio will be downloaded in the selected format.',
                     'info'
                 );
                 if (formData.download_lyrics || formData.generate_nfo) {
                     this.uiManager.addLogEntry(
-                        'YouTube collection downloads use source metadata; lyrics and NFO options apply only to Spotify.',
+                        'YouTube downloads use source metadata; lyrics and NFO options apply only to Spotify.',
                         'info'
                     );
                 }

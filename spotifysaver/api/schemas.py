@@ -9,7 +9,7 @@ class DownloadRequest(BaseModel):
 
     spotify_url: HttpUrl = Field(
         ...,
-        description="Spotify track, album, or playlist URL, or YouTube playlist/album URL",
+        description="Spotify track, album, or playlist URL, or YouTube video, playlist, or album URL",
         example="https://open.spotify.com/track/2kd0T6zgABT8P0s2h9QU5O",
     )
     download_lyrics: bool = Field(

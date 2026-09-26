@@ -75,6 +75,20 @@ class YouTubeDownloader:
         }
 
     @staticmethod
+    def is_youtube_track_url(url: str) -> bool:
+        """Return whether a URL identifies one YouTube video."""
+        if not YouTubeDownloader.is_youtube_url(url):
+            return False
+
+        parsed_url = urlparse(url)
+        path_parts = [part for part in parsed_url.path.split("/") if part]
+        if parsed_url.hostname == "youtu.be":
+            return bool(path_parts)
+        if parsed_url.path.rstrip("/") == "/watch":
+            return bool(parse_qs(parsed_url.query).get("v"))
+        return len(path_parts) > 1 and path_parts[0] in {"shorts", "embed"}
+
+    @staticmethod
     def string_to_audio_format(format_str: str) -> AudioFormat:
         """Convert string format to AudioFormat enum.
 

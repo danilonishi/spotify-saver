@@ -199,6 +199,114 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             "dry_run": False,
         }
 
+    def download_youtube_track_cli(
+        self,
+        url: str,
+        output_format: AudioFormat = AudioFormat.MP3,
+        bitrate: Bitrate = Bitrate.B128,
+        overwrite_existing: bool = False,
+        progress_callback: Optional[callable] = None,
+        cancellation_event: Optional[Event] = None,
+        title_resolver: Optional[callable] = None,
+    ) -> dict:
+        """Download one YouTube video and extract it to the selected audio format."""
+        if not self.is_youtube_track_url(url):
+            raise ValueError("URL is not a supported YouTube video")
+
+        output_directory = self.base_dir
+        output_template = output_directory / "%(title)s"
+        ydl_opts = self._get_ydl_opts(output_template, output_format, bitrate)
+        ydl_opts["windowsfilenames"] = True
+        ydl_opts["overwrites"] = overwrite_existing
+        self._add_cancellation_hook(ydl_opts, cancellation_event)
+
+        def make_result(title: str, output_path: Optional[Path], completed: bool) -> dict:
+            return {
+                "completed_tracks": int(completed),
+                "failed_tracks": int(not completed),
+                "failed_track_names": [] if completed else [title],
+                "total_tracks": 1,
+                "output_directory": str(output_path.parent if output_path else output_directory),
+            }
+
+        if cancellation_event and cancellation_event.is_set():
+            return make_result("YouTube track", None, False)
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if not isinstance(info, dict):
+                raise ValueError("YouTube did not return track metadata")
+
+            track_title = str(info.get("track") or "").strip()
+            title = str(
+                info.get("fulltitle")
+                or info.get("title")
+                or track_title
+                or info.get("id")
+                or "YouTube track"
+            ).strip()
+            if track_title and track_title.casefold() not in title.casefold():
+                title = f"{track_title} - {title}"
+            alternate_title = str(info.get("alt_title") or "").strip()
+            if alternate_title and alternate_title.casefold() not in title.casefold():
+                title = f"{title} - {alternate_title}"
+            if title_resolver:
+                try:
+                    canonical_title = title_resolver(info)
+                except Exception as error:
+                    self.logger.warning(f"Could not resolve YouTube track title: {error}")
+                    canonical_title = None
+                if canonical_title:
+                    canonical_title = str(canonical_title).strip()
+                    if canonical_title and canonical_title.casefold() not in title.casefold():
+                        title = f"{title} - {canonical_title}"
+            artist_metadata = info.get("artist") or info.get("channel") or "Unknown Artist"
+            if isinstance(artist_metadata, dict):
+                artist_values = [artist_metadata.get("name", "")]
+            elif isinstance(artist_metadata, list):
+                artist_values = artist_metadata
+            else:
+                artist_values = str(artist_metadata).split(",")
+
+            artist_names = []
+            for artist_value in artist_values:
+                if isinstance(artist_value, dict):
+                    artist_value = artist_value.get("name", "")
+                artist_name_part = str(artist_value).strip()
+                if artist_name_part and artist_name_part.casefold() not in {
+                    name.casefold() for name in artist_names
+                }:
+                    artist_names.append(artist_name_part)
+            artist_name = ", ".join(artist_names) or "Unknown Artist"
+            artist_directory = output_directory / self._sanitize_filename(str(artist_name))
+            artist_directory.mkdir(parents=True, exist_ok=True)
+            filename_title = self._sanitize_filename(title)
+            ydl.params["outtmpl"]["default"] = str(
+                artist_directory / f"{filename_title}.%(ext)s"
+            )
+            output_path = Path(ydl.prepare_filename(info)).with_suffix(
+                f".{output_format.value}"
+            )
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if cancellation_event and cancellation_event.is_set():
+                return make_result(title, output_path, False)
+
+            if output_path.exists() and not overwrite_existing:
+                if progress_callback:
+                    progress_callback(1, 1, title)
+                return make_result(title, output_path, True)
+
+            if progress_callback:
+                progress_callback(1, 1, title)
+            ydl.download([url])
+
+            if cancellation_event and cancellation_event.is_set():
+                if output_path.exists():
+                    output_path.unlink()
+                return make_result(title, output_path, False)
+
+        return make_result(title, output_path, output_path.is_file())
 
     def download_track_cli(
         self, 

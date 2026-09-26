@@ -17,6 +17,7 @@ from spotifysaver.api.schemas import DownloadRequest, DownloadStatus
 from spotifysaver.api.services.download_service import DownloadService
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
 from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
+from spotifysaver.enums import AudioFormat
 import spotifysaver.downloader.youtube_downloader_for_cli as cli_downloader_module
 
 cli_download_module = importlib.import_module(
@@ -29,6 +30,7 @@ ALBUM_URL = (
     "https://music.youtube.com/playlist?"
     "list=OLAK5uy_nAKi7j0JupK6KpHDrw4zO_zGIOMCs_RdQ"
 )
+TRACK_URL = "https://music.youtube.com/watch?v=YPnMd26jwrU"
 
 
 def test_youtube_collection_url_detection():
@@ -42,6 +44,13 @@ def test_youtube_collection_url_detection():
     assert not YouTubeDownloader.is_youtube_collection_url(
         "https://example.com/playlist?list=playlist-id"
     )
+    assert YouTubeDownloader.is_youtube_track_url(
+        TRACK_URL
+    )
+    assert YouTubeDownloader.is_youtube_track_url(
+        "https://youtu.be/YPnMd26jwrU"
+    )
+    assert not YouTubeDownloader.is_youtube_track_url(ALBUM_URL)
 
 
 def test_youtube_collection_download_embeds_metadata_and_reports_failures(
@@ -169,6 +178,45 @@ def test_api_routes_youtube_collection_without_spotify_client():
     assert result["content_type"] == "playlist"
     assert result["completed_tracks"] == 1
     assert result["total_tracks"] == 1
+
+
+def test_api_routes_direct_youtube_track_without_spotify_client():
+    class FakeDownloader:
+        def download_youtube_track_cli(self, *args):
+            assert args[0] == TRACK_URL
+            assert args[1] == AudioFormat.MP3
+            return {
+                "completed_tracks": 1,
+                "failed_tracks": 0,
+                "failed_track_names": [],
+                "total_tracks": 1,
+                "output_directory": "Music/YouTube/Artist",
+            }
+
+    service = object.__new__(DownloadService)
+    service.downloader = FakeDownloader()
+    service.output_format = AudioFormat.MP3
+    service.bit_rate = 128
+    service.overwrite_existing = False
+    service.cancellation_event = None
+
+    result = asyncio.run(service.download_from_url(TRACK_URL))
+
+    assert result["content_type"] == "track"
+    assert result["completed_tracks"] == 1
+
+
+def test_api_accepts_direct_youtube_track_url():
+    request = DownloadRequest(spotify_url=TRACK_URL, output_format="mp3")
+
+    response = asyncio.run(start_download(request, BackgroundTasks()))
+
+    try:
+        assert response.content_type == "track"
+        assert response.spotify_url == TRACK_URL
+    finally:
+        tasks.pop(response.task_id, None)
+        cancellation_events.pop(response.task_id, None)
 
 
 def test_api_accepts_youtube_collection_url():

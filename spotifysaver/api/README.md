@@ -78,6 +78,8 @@ curl "http://localhost:8000/api/v1/inspect?spotify_url=https://open.spotify.com/
 ### POST `/api/v1/download`
 Inicia una tarea de descarga.
 
+Acepta enlaces de video individuales de YouTube/YouTube Music, además de enlaces de Spotify y colecciones de YouTube. `output_format` puede ser `mp3` o `m4a`.
+
 **Cuerpo de la petición:**
 ```json
 {

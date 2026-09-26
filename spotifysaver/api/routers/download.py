@@ -35,7 +35,7 @@ cancellation_events: Dict[str, Event] = {}
 
 @router.post("/download", response_model=DownloadResponse)
 async def start_download(request: DownloadRequest, background_tasks: BackgroundTasks):
-    """Start a download task for a Spotify or YouTube collection URL.
+    """Start a download task for a Spotify URL or YouTube video/collection URL.
 
     This endpoint initiates the download process and returns a task ID
     that can be used to track the progress of the download.
@@ -48,6 +48,8 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
         spotify_url = str(request.spotify_url)
         if YouTubeDownloader.is_youtube_collection_url(spotify_url):
             content_type = "playlist"
+        elif YouTubeDownloader.is_youtube_track_url(spotify_url):
+            content_type = "track"
         elif "track" in spotify_url:
             content_type = "track"
         elif "album" in spotify_url:
@@ -57,7 +59,7 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
         else:
             raise HTTPException(
                 status_code=400,
-                detail="URL must be a Spotify track, album, or playlist, or a YouTube album/playlist.",
+                detail="URL must be a Spotify track, album, or playlist, or a YouTube track, album, or playlist.",
             )
 
         # Create initial task status

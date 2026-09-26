@@ -173,6 +173,89 @@ def test_active_track_download_stops_from_yt_dlp_progress_hook(tmp_path, monkeyp
     assert result == (None, None)
 
 
+@pytest.mark.parametrize(
+    ("metadata", "expected_artist"),
+    [
+        (
+            {
+                "title": "帝国のテーマ",
+                "fulltitle": "帝国のテーマ",
+                "track": "帝国のテーマ",
+                "artist": "Hitoshi Sakimoto, Hitoshi Sakimoto, Hitoshi Sakimoto",
+                "channel": "Hitoshi Sakimoto - Topic",
+                "uploader": "Hitoshi Sakimoto - Topic",
+                "ext": "webm",
+            },
+            "Hitoshi Sakimoto",
+        ),
+        (
+            {
+                "title": "Empire Theme",
+                "channel": "Hitoshi Sakimoto",
+                "uploader": "Hitoshi Sakimoto - Topic",
+                "ext": "webm",
+            },
+            "Hitoshi Sakimoto",
+        ),
+    ],
+)
+def test_direct_youtube_track_uses_artist_or_channel_folder(
+    tmp_path, monkeypatch, metadata, expected_artist
+):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+
+    class FakeYoutubeDL:
+        options = None
+        downloaded_path = None
+
+        def __init__(self, options):
+            self.params = options
+            self.params["outtmpl"] = {"default": self.params["outtmpl"]}
+            FakeYoutubeDL.options = options
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, url, download):
+            assert url == "https://music.youtube.com/watch?v=YPnMd26jwrU"
+            assert download is False
+            self.info = metadata
+            return self.info
+
+        def prepare_filename(self, info):
+            return self.params["outtmpl"]["default"] % info
+
+        def download(self, urls):
+            assert urls == ["https://music.youtube.com/watch?v=YPnMd26jwrU"]
+            output_path = Path(self.prepare_filename(self.info)).with_suffix(".mp3")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"mp3")
+            FakeYoutubeDL.downloaded_path = output_path
+
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.yt_dlp.YoutubeDL",
+        FakeYoutubeDL,
+    )
+
+    result = downloader.download_youtube_track_cli(
+        "https://music.youtube.com/watch?v=YPnMd26jwrU",
+        output_format=AudioFormat.MP3,
+        title_resolver=(
+            lambda _info: "The Archadian Empire" if metadata.get("fulltitle") else None
+        ),
+    )
+
+    assert result["completed_tracks"] == 1
+    assert Path(result["output_directory"]) == tmp_path / expected_artist
+    assert "YouTube" not in Path(result["output_directory"]).parts
+    if metadata.get("fulltitle"):
+        assert FakeYoutubeDL.downloaded_path.name == "帝国のテーマ - The Archadian Empire.mp3"
+    assert FakeYoutubeDL.options["postprocessors"][0]["preferredcodec"] == "mp3"
+
+
 def test_album_counts_existing_output_when_download_returns_no_path(tmp_path, monkeypatch):
     downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
     track = _make_track()

@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 import re
 import spotipy
 from urllib.parse import urlparse
-from spotipy.oauth2 import SpotifyOAuth
+from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 
 from spotifysaver.config import Config
 from spotifysaver.models import Album, Track, Artist, Playlist
@@ -48,6 +48,90 @@ class SpotifyAPI:
             auth_manager=auth_manager
         )
         self.logger = get_logger(f"{self.__class__.__name__}")
+
+    @staticmethod
+    def resolve_youtube_track_title(info: dict) -> Optional[str]:
+        """Find the Spotify title for a YouTube track using recording metadata."""
+        if not Config.SPOTIFY_CLIENT_ID or not Config.SPOTIFY_CLIENT_SECRET:
+            return None
+
+        def names(value):
+            if isinstance(value, dict):
+                value = [value]
+            elif isinstance(value, str):
+                value = value.split(",")
+            elif not isinstance(value, list):
+                value = []
+
+            result = []
+            for item in value:
+                name = item.get("name", "") if isinstance(item, dict) else str(item)
+                name = name.strip()
+                if name and name.casefold() not in {existing.casefold() for existing in result}:
+                    result.append(name)
+            return result
+
+        title = str(info.get("fulltitle") or info.get("title") or info.get("track") or "").strip()
+        artists = names(info.get("artists") or info.get("artist") or info.get("channel"))
+        album_data = info.get("album")
+        if isinstance(album_data, dict):
+            album = str(album_data.get("name") or album_data.get("title") or "").strip()
+        else:
+            album = str(album_data or "").strip()
+        try:
+            duration = float(info.get("duration"))
+        except (TypeError, ValueError):
+            return None
+
+        artist_query = f' artist:"{artists[0]}"' if artists else ""
+        queries = []
+        if title:
+            queries.append(f'track:"{title}"{artist_query}')
+        if album:
+            queries.append(f'album:"{album}"{artist_query}')
+            queries.append(f'album:"{album}"')
+        if artists:
+            queries.append(f'artist:"{artists[0]}"')
+        if not queries:
+            return None
+
+        client = spotipy.Spotify(
+            client_credentials_manager=SpotifyClientCredentials(
+                client_id=Config.SPOTIFY_CLIENT_ID,
+                client_secret=Config.SPOTIFY_CLIENT_SECRET,
+            )
+        )
+        candidates = {}
+        for query in dict.fromkeys(queries):
+            response = client.search(q=query, type="track", limit=50)
+            for candidate in response.get("tracks", {}).get("items", []):
+                candidates[candidate.get("id") or candidate.get("name")] = candidate
+
+        matches = []
+        normalized_album = re.sub(r"\W+", "", album.casefold())
+        for candidate in candidates.values():
+            try:
+                duration_difference = abs(
+                    float(candidate.get("duration_ms")) / 1000 - duration
+                )
+            except (TypeError, ValueError):
+                continue
+            if duration_difference > 8:
+                continue
+
+            candidate_album = candidate.get("album", {}).get("name", "")
+            candidate_album = re.sub(r"\W+", "", candidate_album.casefold())
+            album_matches = bool(normalized_album) and (
+                candidate_album == normalized_album
+                or candidate_album in normalized_album
+                or normalized_album in candidate_album
+            )
+            matches.append((not album_matches, duration_difference, candidate))
+
+        if not matches:
+            return None
+        matches.sort(key=lambda match: (match[0], match[1]))
+        return matches[0][2].get("name")
 
     def _extract_spotify_id(self, url: str) -> Optional[str]:
         """

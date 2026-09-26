@@ -1,4 +1,5 @@
 from spotifysaver.services.spotify_api import SpotifyAPI
+import spotifysaver.services.spotify_api as spotify_api_module
 
 
 class FakeSpotify:
@@ -78,3 +79,51 @@ def test_get_playlist_uses_album_track_number_and_preserves_playlist_position():
 
     assert playlist.tracks[0].number == 6
     assert playlist.tracks[0].playlist_position == 1
+
+
+def test_resolve_youtube_track_title_uses_spotify_album_and_duration(
+    monkeypatch,
+):
+    monkeypatch.setattr(spotify_api_module.Config, "SPOTIFY_CLIENT_ID", "client-id")
+    monkeypatch.setattr(
+        spotify_api_module.Config, "SPOTIFY_CLIENT_SECRET", "client-secret"
+    )
+
+    class FakeSpotify:
+        def __init__(self, client_credentials_manager):
+            self.client_credentials_manager = client_credentials_manager
+
+        def search(self, q, type, limit):
+            assert type == "track"
+            assert limit == 50
+            return {
+                "tracks": {
+                    "items": [
+                        {
+                            "id": "spotify-track",
+                            "name": "The Archadian Empire",
+                            "duration_ms": 469000,
+                            "album": {"name": "FINAL FANTASY XII Original Soundtrack"},
+                        }
+                    ]
+                }
+            }
+
+    monkeypatch.setattr(
+        spotify_api_module,
+        "SpotifyClientCredentials",
+        lambda **kwargs: kwargs,
+    )
+    monkeypatch.setattr(spotify_api_module.spotipy, "Spotify", FakeSpotify)
+
+    title = SpotifyAPI.resolve_youtube_track_title(
+        {
+            "title": "帝国のテーマ",
+            "track": "帝国のテーマ",
+            "artist": "Hitoshi Sakimoto, Hitoshi Sakimoto",
+            "album": "FINAL FANTASY XII Original Soundtrack",
+            "duration": 469,
+        }
+    )
+
+    assert title == "The Archadian Empire"
