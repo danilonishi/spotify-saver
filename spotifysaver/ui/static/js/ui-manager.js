@@ -242,10 +242,14 @@ class UIManager {
                 button.textContent = 'Music root';
                 button.setAttribute('aria-pressed', 'false');
                 options.appendChild(button);
+                this.selectOutputDirectory(button);
+                return;
             }
             return;
         }
 
+        const savedPath = localStorage.getItem('spotifysaver_selected_output_dir');
+        let selectedButton = null;
         directories.forEach((directory, index) => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -255,10 +259,11 @@ class UIManager {
             button.setAttribute('aria-pressed', 'false');
             options.appendChild(button);
 
-            if (index === 0) {
-                this.selectOutputDirectory(button);
+            if (directory.path === savedPath || (!selectedButton && index === 0)) {
+                selectedButton = button;
             }
         });
+        this.selectOutputDirectory(selectedButton);
     }
 
     selectOutputDirectory(button) {
@@ -270,6 +275,7 @@ class UIManager {
             option.setAttribute('aria-pressed', String(isSelected));
         });
         outputDirInput.value = button.dataset.outputDir;
+        localStorage.setItem('spotifysaver_selected_output_dir', button.dataset.outputDir);
     }
 
     async setAppVersion(version) {
