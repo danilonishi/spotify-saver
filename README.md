@@ -22,17 +22,19 @@ Read this file in [Spanish](README_ES.md)
 
 ## 🌟 Features
 - ✅ Download audio from YouTube Music with Spotify metadata
-- ✅ Download YouTube Music albums and playlists with source metadata
+- ✅ Download YouTube videos, playlists, and album collections with YouTube metadata through the API and web UI
+- ✅ Download YouTube playlists and album collections from the CLI
 - ✅ Synchronized lyrics (.lrc) from LRC Lib
-- ✅ Generation of Jellyfin-compatible `.info` files (Still some things to work on here! ⚠️)
+- ✅ Generate Jellyfin-compatible `.nfo` metadata files
 - ✅ Automatic folder structure (Artist/Album)
 - ✅ Command-line interface (CLI)
 - ✅ Web interface (UI) with real-time progress
+- ✅ Stop an active download from the web interface or API
 - ✅ RESTful API for integrations
 - ✅ Docker support with auto-builds
 - ✅ Playlist support
 - ✅ MP3 Conversion
-- ✅ Support for multiple bitrates (128, 180, 220, etc.)
+- ✅ Support for 96, 128, 192, and 256 kbps bitrates
 
 ### Requirements
 - Python 3.8+
@@ -49,9 +51,9 @@ poetry install
 pip install git+https://github.com/gabrielbaute/spotify-saver.git
 ```
 
-⚠️ Spotify URLs require a Spotify developer app with a client ID and client secret in the project's `.env` file. Direct YouTube album and playlist downloads do not require Spotify credentials.
+⚠️ Spotify URLs require a Spotify developer app with a client ID and client secret in the project's `.env` file. Direct YouTube downloads do not require Spotify credentials.
 
-Playlist access uses Spotify user authorization. Add `http://127.0.0.1:8888/callback` to the app's Redirect URIs in the Spotify Developer Dashboard. The first playlist request opens a Spotify login/authorization page; the resulting token is cached under `~/.spotify-saver`.
+Spotify playlist access uses Spotify user authorization. Add `http://127.0.0.1:8888/callback` to the app's Redirect URIs in the Spotify Developer Dashboard. The first playlist request opens a Spotify login/authorization page; the resulting token is cached under `~/.spotify-saver`.
 
 ## ⚙️ Configuration
 
@@ -101,7 +103,8 @@ The **documentation for using the API**, on the other hand, can be found in this
 |-------------------|-------------------------------------------------------|-------------------------|
 | `--lyrics`        | Download synchronized lyrics (.lrc)                   | Flag (no value)         |
 | `--output DIR`    | Output directory                                      | Valid path              |
-| `--format FORMAT` | Audio format                                          | `m4a` (default), `mp3`  |
+| `--format FORMAT` | Audio format                                          | `m4a` (default), `mp3`, `opus` |
+| `--bitrate KBPS`  | Audio bitrate                                         | `96`, `128` (default), `192`, `256` |
 | `--cover/--no-cover` | Save Spotify cover or embed YouTube thumbnail | Flag (no value)      |
 | `--nfo`           | Generates a .nfo metadata file in the JellyFin format | Flag (no value)         |
 | `--explain`       | Show score breakdown for each track without downloading (for error analysis) | Flag (no value)         |
@@ -133,6 +136,8 @@ spotifysaver download "https://open.spotify.com/track/..." --format mp3
 spotifysaver download "https://music.youtube.com/playlist?list=..."
 ```
 
+The CLI accepts Spotify tracks, albums, and playlists, and YouTube playlists or album collections. Direct YouTube video URLs are supported by the web interface and API, but not by the CLI. Spotify playlist tracks are saved under their canonical artist/album folders, with playlist files kept separately in a `Playlists/` directory beside the configured output directory. Existing files are skipped by default; set the web interface's overwrite option or the API's `overwrite_existing` field to replace them.
+
 ## Usage with API
 
 To use the API, you need to have the API server running. You can start it with the following command:
@@ -142,7 +147,7 @@ To use the API, you need to have the API server running. You can start it with t
 spotifysaver-api
 ```
 
-The server will run at `http://localhost:8000` by default. You can find the [API documentation here](API_IMPLEMENTATION_SUMMARY.md), which describes the technical aspects and usage in detail.
+The server will run at `http://localhost:8000` by default. The API accepts Spotify track, album, and playlist URLs, as well as direct YouTube video and collection URLs. Active downloads can be cancelled with `POST /api/v1/download/{task_id}/cancel`. You can find the [API documentation here](API_IMPLEMENTATION_SUMMARY.md), which describes the technical aspects and usage in detail.
 
 ## 🖥️ Web Interface (UI)
 
@@ -155,16 +160,19 @@ spotifysaver-api
 
 This will start the API server with an integrated web interface that you can access at `http://localhost:8000`. The web interface provides:
 
-- **Easy URL input**: Paste a Spotify link or a YouTube album/playlist link
+- **Easy URL input**: Paste a Spotify track, album, or playlist link, a YouTube video, or a YouTube album/playlist link
 - **Full configuration**: All download options available through an intuitive interface
 - **Real-time progress**: Monitor download progress and see detailed logs
+- **Download cancellation**: Stop an active download
+- **Overwrite control**: Keep existing files by default or replace them on request
 - **Responsive design**: Works on desktop and mobile devices
 - **Automatic browser opening**: Opens your default browser automatically
 
 ### Web Interface Features:
-- ✅ URL validation for Spotify links
-- ✅ Configurable audio format (M4A/MP3) and bitrate
+- ✅ URL validation for Spotify and supported YouTube links
+- ✅ Configurable audio format (M4A/MP3) and bitrate (MP3/256 kbps by default)
 - ✅ Toggle lyrics and NFO file generation
+- ✅ Stop active downloads and choose whether to overwrite existing files
 - ✅ Custom output directory
 - ✅ Real-time download progress
 - ✅ Activity log with timestamps
@@ -239,7 +247,9 @@ docker run -d \
 | `API_PORT` | API server port (includes web UI) | `8000` |
 | `MUSIC_DIR` | Host music directory | `./music` |
 | `CONFIG_DIR` | Host config directory | `./config` |
-| `LOG_LEVEL` | Logging level | `INFO` |### 🛠️ Custom Docker Compose Configuration
+| `LOG_LEVEL` | Logging level | `INFO` |
+
+### 🛠️ Custom Docker Compose Configuration
 
 ```yaml
 services:
@@ -294,15 +304,22 @@ docker run -d \
 
 ## 📂 Output Structure
 ```
-Music/
-├── Artist/
-│ ├── Album (Year)/
-│ │ ├── 01 - Song.m4a
-│ │ ├── 01 - Song.lrc
-│ │ ├── album.nfo
-│ │ └── cover.jpg
-│ └── artist_info.nfo
+.
+├── Music/
+│   ├── Artist/
+│   │   └── Album (Year)/
+│   │       ├── 01 - Song.mp3
+│   │       ├── 01 - Song.lrc
+│   │       ├── album.nfo
+│   │       └── cover.jpg
+│   └── YouTube/
+│       └── Collection Name/
+│           └── 01 - Video Title.mp3
+└── Playlists/
+    └── Playlist Name/
+        └── Playlist Name.m3u
 ```
+Direct YouTube videos are saved under an artist folder when artist metadata is available.
 
 ## 🤝 Contributions
 1. Fork the project
