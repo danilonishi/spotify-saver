@@ -218,11 +218,44 @@ class UIManager {
         container.classList.add('hidden');
     }
 
-    async setDefaultOutputDir(defaultDir) {
+    setOutputDirectories(directories) {
+        const options = document.getElementById('output-dir-options');
         const outputDirInput = document.getElementById('output-dir');
-        if (outputDirInput && defaultDir) {
-            outputDirInput.value = defaultDir;
+        options.replaceChildren();
+
+        if (!directories.length) {
+            outputDirInput.value = '';
+            const message = document.createElement('span');
+            message.id = 'output-dir-message';
+            message.textContent = 'No folders are available in the configured music directory.';
+            options.appendChild(message);
+            return;
         }
+
+        directories.forEach((directory, index) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'output-dir-button';
+            button.dataset.outputDir = directory.path;
+            button.textContent = directory.name;
+            button.setAttribute('aria-pressed', 'false');
+            options.appendChild(button);
+
+            if (index === 0) {
+                this.selectOutputDirectory(button);
+            }
+        });
+    }
+
+    selectOutputDirectory(button) {
+        const options = document.getElementById('output-dir-options');
+        const outputDirInput = document.getElementById('output-dir');
+        options.querySelectorAll('.output-dir-button').forEach((option) => {
+            const isSelected = option === button;
+            option.classList.toggle('selected', isSelected);
+            option.setAttribute('aria-pressed', String(isSelected));
+        });
+        outputDirInput.value = button.dataset.outputDir;
     }
 
     async setAppVersion(version) {

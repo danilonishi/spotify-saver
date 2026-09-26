@@ -92,6 +92,32 @@ main {
     margin-bottom: 20px;
 }
 
+.output-dir-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.output-dir-button {
+    padding: 10px 14px;
+    border: 2px solid #cbd5e0;
+    border-radius: 6px;
+    background: #fff;
+    color: #2d3748;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.output-dir-button:hover,
+.output-dir-button.selected {
+    border-color: #4a5568;
+    background: #edf2f7;
+}
+
+.output-dir-button.selected {
+    box-shadow: inset 0 0 0 1px #4a5568;
+}
+
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;

@@ -37,6 +37,11 @@ class DownloadManager {
             this.uiManager.updateStatus('Please enter a valid Spotify URL', 'error');
             return false;
         }
+
+        if (!formData.output_dir) {
+            this.uiManager.updateStatus('Choose a download folder', 'error');
+            return false;
+        }
         
         if (!formData.spotify_url.includes('spotify.com') &&
             !this.isYouTubeCollectionUrl(formData.spotify_url) &&

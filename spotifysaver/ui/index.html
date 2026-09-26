@@ -46,11 +46,11 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="output-dir">Output Directory:</label>
-                        <input 
-                            type="text" 
-                            id="output-dir" 
-                            placeholder="Music">
+                        <label>Download Folder:</label>
+                        <div id="output-dir-options" class="output-dir-options" role="group" aria-label="Download folder">
+                            <span id="output-dir-message">Loading folders...</span>
+                        </div>
+                        <input type="hidden" id="output-dir" value="">
                     </div>
 
                     <div class="form-row">

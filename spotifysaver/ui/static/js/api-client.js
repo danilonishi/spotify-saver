@@ -71,6 +71,21 @@ class ApiClient {
         }
     }
 
+    async getOutputDirectories() {
+        const response = await fetch(`${this.apiUrl}/config/output_dirs`, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-cache'
+        });
+
+        if (!response.ok) {
+            throw new Error('Could not fetch available download folders');
+        }
+
+        const data = await response.json();
+        return data.directories || [];
+    }
+
     async getAppVersion() {
         try {
             const controller = new AbortController();

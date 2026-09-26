@@ -21,7 +21,7 @@ class SpotifySaverUI {
             
             if (apiAvailable) {
                 this.uiManager.updateStatus('API connected and ready', 'success');
-                await this.setDefaultOutputDir();
+                await this.loadOutputDirectories();
                 await this.loadAppVersion();
             } else {
                 this.uiManager.updateStatus('API not available. Make sure it is running.', 'error');
@@ -45,9 +45,16 @@ class SpotifySaverUI {
         const stopDownloadBtn = document.getElementById('stop-download-btn');
         const spotifyUrl = document.getElementById('spotify-url');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
+        const outputDirOptions = document.getElementById('output-dir-options');
         
         downloadBtn.addEventListener('click', () => this.downloadManager.startDownload());
         stopDownloadBtn.addEventListener('click', () => this.downloadManager.stopDownload());
+        outputDirOptions.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-output-dir]');
+            if (button) {
+                this.uiManager.selectOutputDirectory(button);
+            }
+        });
         
         // Permitir iniciar descarga con Enter
         spotifyUrl.addEventListener('keypress', (e) => {
@@ -92,12 +99,13 @@ class SpotifySaverUI {
         this.stateManager.saveState(appState);
     }
 
-    async setDefaultOutputDir() {
+    async loadOutputDirectories() {
         try {
-            const defaultDir = await this.apiClient.getDefaultOutputDir();
-            await this.uiManager.setDefaultOutputDir(defaultDir);
+            const directories = await this.apiClient.getOutputDirectories();
+            this.uiManager.setOutputDirectories(directories);
         } catch (error) {
-            console.warn('Could not set default output directory:', error);
+            console.warn('Could not load download folders:', error);
+            this.uiManager.setOutputDirectories([]);
         }
     }
 

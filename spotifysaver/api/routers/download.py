@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 from datetime import datetime
+from pathlib import Path
 from threading import Event
 from typing import Dict
 
@@ -327,3 +328,21 @@ async def download_task(task_id: str, request: DownloadRequest):
 async def get_default_output_dir():
     """Returns the default value of the output directory."""
     return {"output_dir": APIConfig.get_output_dir()}
+
+
+@router.get("/config/output_dirs")
+async def get_output_directories():
+    """Returns immediate subdirectories of the configured music directory."""
+    output_root = Path(APIConfig.get_output_dir())
+    if not output_root.is_dir():
+        return {"directories": []}
+
+    directories = sorted(
+        (
+            {"name": directory.name, "path": str(directory)}
+            for directory in output_root.iterdir()
+            if directory.is_dir()
+        ),
+        key=lambda directory: directory["name"].casefold(),
+    )
+    return {"directories": directories}
