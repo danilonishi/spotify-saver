@@ -406,6 +406,63 @@ select:focus {
     padding-left: 0;
 }
 
+.album-details {
+    margin-bottom: 8px;
+}
+
+.album-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    list-style: none;
+}
+
+.album-summary::-webkit-details-marker {
+    display: none;
+}
+
+.album-summary::before {
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 6px solid currentColor;
+    content: '';
+    transition: transform 0.15s ease;
+}
+
+.album-details[open] > .album-summary::before {
+    transform: rotate(90deg);
+}
+
+.album-summary:focus-visible {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+.album-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+}
+
+.album-progress {
+    color: #4a5568;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.album-progress-bar {
+    width: 76px;
+    height: 8px;
+    accent-color: #38a169;
+}
+
 #inspect-message {
     color: #4a5568;
     font-size: 14px;
@@ -737,6 +794,18 @@ select:focus {
 
     body.dark-mode .footer-links a:hover {
         color: #fff;
+    }
+
+    body.dark-mode .album-summary {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    body.dark-mode .album-progress {
+        color: #cbd5e1;
+    }
+
+    body.dark-mode .album-progress-bar {
+        accent-color: #68d391;
     }
 
     body.dark-mode .version-number {

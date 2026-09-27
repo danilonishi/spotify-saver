@@ -110,12 +110,31 @@ class UIManager {
                 trackElement.className = trackElement.className.replace(/track-state-\w+/g, '');
                 trackElement.classList.add(`track-state-${state}`);
                 trackElement.setAttribute('data-track-state', state);
+                this.updateAlbumProgress(trackElement.closest('.album-details'));
                 
                 console.log(`🔄 Updated track ${trackNumber} icon to ${newIcon} (state: ${state})`);
             }
         } else {
             console.log(`❌ Could not find track element for track ${trackNumber}`);
         }
+    }
+
+    updateAlbumProgress(albumElement) {
+        if (!albumElement) return;
+
+        const tracks = Array.from(albumElement.querySelectorAll('[data-track-state]'));
+        const completed = tracks.filter((track) => track.dataset.trackState === 'completed').length;
+        const downloading = tracks.filter((track) => track.dataset.trackState === 'downloading').length;
+        const errors = tracks.filter((track) => track.dataset.trackState === 'error').length;
+        const progressText = albumElement.querySelector('.album-progress');
+        const progressBar = albumElement.querySelector('.album-progress-bar');
+        const status = [`${completed} / ${tracks.length} complete`];
+
+        if (downloading) status.push(`${downloading} downloading`);
+        if (errors) status.push(`${errors} failed`);
+        progressText.textContent = status.join(' · ');
+        progressBar.max = tracks.length || 1;
+        progressBar.value = completed;
     }
 
     renderInspectData(data, trackStates) {
@@ -142,11 +161,28 @@ class UIManager {
                 }
             });
             
-            const header = document.createElement('h3');
-            header.textContent = `${data.name} (${data.total_tracks} tracks)`;
-            container.appendChild(header);
+            const albumDetails = document.createElement('details');
+            albumDetails.className = 'album-details';
+
+            const summary = document.createElement('summary');
+            summary.className = 'album-summary';
+
+            const albumName = document.createElement('span');
+            albumName.className = 'album-name';
+            albumName.textContent = `${data.name} (${data.total_tracks} tracks)`;
+
+            const albumProgress = document.createElement('span');
+            albumProgress.className = 'album-progress';
+            albumProgress.setAttribute('aria-live', 'polite');
+
+            const progressBar = document.createElement('progress');
+            progressBar.className = 'album-progress-bar';
+            progressBar.setAttribute('aria-label', `${data.name} download progress`);
+
+            summary.append(albumName, albumProgress, progressBar);
 
             const list = document.createElement('ul');
+            list.className = 'track-list';
             list.style.listStyle = 'none';
             list.style.padding = '0';
             
@@ -179,7 +215,9 @@ class UIManager {
                 
                 list.appendChild(li);
             });
-            container.appendChild(list);
+            albumDetails.append(summary, list);
+            container.appendChild(albumDetails);
+            this.updateAlbumProgress(albumDetails);
             
         } else if (data.name && data.artists) {
             // Inicializar estado para canción individual
