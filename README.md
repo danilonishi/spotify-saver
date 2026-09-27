@@ -22,6 +22,8 @@ Compared with the upstream README baseline (`a7bf945`), this branch adds:
 - **Web interface improvements:** Dark mode, collapsible album details and activity log, a clear-URL control for quick mobile pasting, and controls for clearing completed downloads.
 - **MP3 as the default for API and web downloads.** The CLI's existing format defaults are unchanged.
 
+## Original README.md starts here.
+
 > ⚠️This repository is under a strong stage of development, expect constant changes. If you find any mistake or bug, please open an ISSUE.
 
 All-in-one tool for downloading and organizing music with Spotify metadata for Jellyfin.
