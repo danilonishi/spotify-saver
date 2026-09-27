@@ -45,6 +45,7 @@ class SpotifySaverUI {
         const stopDownloadBtn = document.getElementById('stop-download-btn');
         const spotifyUrl = document.getElementById('spotify-url');
         const clearUrlBtn = document.getElementById('clear-url-btn');
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const outputDirOptions = document.getElementById('output-dir-options');
         const setMediaRootBtn = document.getElementById('set-media-root-btn');
@@ -58,6 +59,16 @@ class SpotifySaverUI {
             spotifyUrl.value = '';
             this.saveState();
             spotifyUrl.focus();
+        });
+        const setDarkMode = (enabled) => {
+            document.body.classList.toggle('dark-mode', enabled);
+            themeToggleBtn.setAttribute('aria-pressed', String(enabled));
+            themeToggleBtn.textContent = enabled ? '☀️ Light mode' : '🌙 Dark mode';
+            localStorage.setItem('spotifysaver_theme', enabled ? 'dark' : 'light');
+        };
+        setDarkMode(localStorage.getItem('spotifysaver_theme') === 'dark');
+        themeToggleBtn.addEventListener('click', () => {
+            setDarkMode(!document.body.classList.contains('dark-mode'));
         });
         outputDirOptions.addEventListener('click', (event) => {
             const button = event.target.closest('button[data-output-dir]');
