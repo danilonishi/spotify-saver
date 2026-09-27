@@ -12,6 +12,16 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gabrielbaute/spotify-saver)
 
+## Changes in This Fork
+
+Compared with the upstream README baseline (`a7bf945`), this branch adds:
+
+- **A server-managed download queue:** Queue downloads, pause or resume processing, and clear queued or completed items. Downloads continue if the browser is refreshed or closed; queue state is held in memory and does not survive an API server restart. The server currently processes one download at a time.
+- **More queue and track visibility:** Download names and track listings are reported by the server and shown to other connected browsers, not only the browser that submitted the download.
+- **Flexible download folders in the web UI:** Choose from folders under a configurable media root, and restore the last selected destination after reloading the page.
+- **Web interface improvements:** Dark mode, collapsible album details and activity log, a clear-URL control for quick mobile pasting, and controls for clearing completed downloads.
+- **MP3 as the default for API and web downloads.** The CLI's existing format defaults are unchanged.
+
 > ⚠️This repository is under a strong stage of development, expect constant changes. If you find any mistake or bug, please open an ISSUE.
 
 All-in-one tool for downloading and organizing music with Spotify metadata for Jellyfin.
