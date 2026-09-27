@@ -233,18 +233,6 @@ class UIManager {
             message.id = 'output-dir-message';
             message.textContent = 'No folders are available in the configured music directory.';
             options.appendChild(message);
-
-            if (rootPath) {
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'output-dir-button';
-                button.dataset.outputDir = rootPath;
-                button.textContent = 'Music root';
-                button.setAttribute('aria-pressed', 'false');
-                options.appendChild(button);
-                this.selectOutputDirectory(button);
-                return;
-            }
             return;
         }
 
