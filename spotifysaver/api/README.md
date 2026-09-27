@@ -87,7 +87,7 @@ Acepta enlaces de video individuales de YouTube/YouTube Music, además de enlace
   "download_lyrics": false,
   "download_cover": true,
   "generate_nfo": false,
-  "output_format": "m4a",
+  "output_format": "mp3",
   "output_dir": "Music"
 }
 ```

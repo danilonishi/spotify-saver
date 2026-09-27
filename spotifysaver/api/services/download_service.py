@@ -23,7 +23,7 @@ class DownloadService:
         download_lyrics: bool = False,
         download_cover: bool = True,
         generate_nfo: bool = False,
-        output_format: str = "m4a",
+        output_format: str = "mp3",
         bit_rate: int = 256,
         overwrite_existing: bool = False,
     ):

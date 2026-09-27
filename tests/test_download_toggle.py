@@ -43,6 +43,7 @@ def test_download_request_defaults_to_256_kbps_and_accepts_256():
 
     assert default_request.bit_rate == 256
     assert explicit_request.bit_rate == 256
+    assert default_request.output_format == "mp3"
 
 
 def _make_track():

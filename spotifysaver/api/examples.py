@@ -31,7 +31,7 @@ class SpotifySaverAPIClient:
         download_lyrics: bool = False,
         download_cover: bool = True,
         generate_nfo: bool = False,
-        output_format: str = "m4a",
+        output_format: str = "mp3",
         output_dir: Optional[str] = None,
     ) -> dict:
         """Start a download task."""
