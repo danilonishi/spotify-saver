@@ -385,6 +385,16 @@ class DownloadManager {
         this.uiManager.updateStatus('Download queue cleared.', 'info');
     }
 
+    clearCompleted() {
+        const completedCount = this.queue.filter((item) => item.status === 'completed').length;
+        this.queue = this.queue.filter((item) => item.status !== 'completed');
+        this.uiManager.renderDownloadQueue(this.queue);
+        this.uiManager.updateStatus(
+            completedCount ? `Removed ${completedCount} completed download${completedCount === 1 ? '' : 's'}.` : 'No completed downloads to clear.',
+            'info'
+        );
+    }
+
     async requestTaskCancellation(taskId) {
         try {
             await this.apiClient.cancelDownload(taskId);

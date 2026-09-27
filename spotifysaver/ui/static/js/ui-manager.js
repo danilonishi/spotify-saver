@@ -31,6 +31,7 @@ class UIManager {
     renderDownloadQueue(queue) {
         const list = document.getElementById('download-queue');
         const clearButton = document.getElementById('clear-queue-btn');
+        const clearCompletedButton = document.getElementById('clear-completed-btn');
         const expandedItems = new Set(
             Array.from(list.querySelectorAll('.queue-item-details[open]'), (item) => item.dataset.queueId)
         );
@@ -112,6 +113,7 @@ class UIManager {
         });
 
         clearButton.disabled = !queue.some((item) => item.status !== 'downloading');
+        clearCompletedButton.disabled = !queue.some((item) => item.status === 'completed');
     }
 
     updateQueuedTrackState(queueItemId, trackNumber, state) {

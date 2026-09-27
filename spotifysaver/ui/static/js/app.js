@@ -48,6 +48,7 @@ class SpotifySaverUI {
         const themeToggleBtn = document.getElementById('theme-toggle-btn');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const clearQueueBtn = document.getElementById('clear-queue-btn');
+        const clearCompletedBtn = document.getElementById('clear-completed-btn');
         const outputDirOptions = document.getElementById('output-dir-options');
         const setMediaRootBtn = document.getElementById('set-media-root-btn');
         const mediaRootEditor = document.getElementById('media-root-editor');
@@ -85,6 +86,7 @@ class SpotifySaverUI {
         });
         applyMediaRootBtn.addEventListener('click', () => this.applyMediaRoot());
         clearQueueBtn.addEventListener('click', () => this.downloadManager.clearQueue());
+        clearCompletedBtn.addEventListener('click', () => this.downloadManager.clearCompleted());
         mediaRootInput.addEventListener('keypress', (event) => {
             if (event.key === 'Enter') {
                 this.applyMediaRoot();
