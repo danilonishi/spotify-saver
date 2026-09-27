@@ -12,7 +12,9 @@ class APIConfig:
 
     # API settings
     DEFAULT_OUTPUT_DIR: str = "Music"
-    MAX_CONCURRENT_DOWNLOADS: int = 3
+    # Number of downloads the server queue runs at the same time; the rest
+    # wait in the queue and are started automatically as slots free up.
+    MAX_CONCURRENT_DOWNLOADS: int = 1
 
     # File settings
     ALLOWED_FORMATS: List[str] = ["m4a", "mp3"]

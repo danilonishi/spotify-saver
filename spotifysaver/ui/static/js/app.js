@@ -28,12 +28,11 @@ class SpotifySaverUI {
             }
             
             this.isInitialized = true;
-            
-            // If there was a download in progress, try to reconnect
-            if (this.downloadManager.isDownloadInProgress && this.downloadManager.taskId) {
-                this.downloadManager.startProgressMonitoring(this.downloadManager.taskId);
-            }
-            
+
+            // The server owns the download queue; pull its current state so
+            // downloads that kept running while the page was closed show up.
+            await this.downloadManager.hydrateFromServer();
+
         } catch (error) {
             console.error('Failed to initialize UI:', error);
             this.uiManager.updateStatus('Failed to initialize. Please refresh the page.', 'error');
@@ -116,23 +115,13 @@ class SpotifySaverUI {
         const state = this.stateManager.loadPersistedState();
         if (!state) return;
 
-        // Restaurar únicamente los datos del formulario; nunca reanudar descargas
-        // automáticamente al cargar la página.
+        // Only form data and logs are restored locally; the download queue
+        // itself is always loaded fresh from the server.
         this.stateManager.restoreFormData(state);
-
-        if (state.downloadInProgress && state.currentTaskId) {
-            this.stateManager.clearPersistedState();
-            this.uiManager.updateStatus('Previous download state cleared. Press Start Download to begin a new one.', 'info');
-        }
     }
 
     saveState() {
-        const appState = {
-            downloadInProgress: this.downloadManager.isDownloadInProgress,
-            currentTaskId: this.downloadManager.taskId,
-            downloadStartTime: this.downloadManager.startTime
-        };
-        this.stateManager.saveState(appState);
+        this.stateManager.saveState();
     }
 
     async loadOutputDirectories() {

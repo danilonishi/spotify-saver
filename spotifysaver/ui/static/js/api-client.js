@@ -201,4 +201,85 @@ class ApiClient {
 
         return await response.json();
     }
+
+    async removeDownload(taskId) {
+        const response = await fetch(`${this.apiUrl}/download/${taskId}`, {
+            method: 'DELETE',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errorData.detail || 'Could not remove download');
+        }
+
+        return await response.json();
+    }
+
+    async getQueue() {
+        const response = await fetch(`${this.apiUrl}/queue`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            throw new Error('Could not fetch the download queue');
+        }
+
+        return await response.json();
+    }
+
+    async pauseQueue() {
+        const response = await fetch(`${this.apiUrl}/queue/pause`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errorData.detail || 'Could not pause the queue');
+        }
+
+        return await response.json();
+    }
+
+    async resumeQueue() {
+        const response = await fetch(`${this.apiUrl}/queue/resume`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errorData.detail || 'Could not resume the queue');
+        }
+
+        return await response.json();
+    }
+
+    async clearQueuedDownloads() {
+        const response = await fetch(`${this.apiUrl}/queue`, {
+            method: 'DELETE',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            throw new Error('Could not clear the queue');
+        }
+
+        return await response.json();
+    }
+
+    async clearCompletedDownloads() {
+        const response = await fetch(`${this.apiUrl}/queue/completed`, {
+            method: 'DELETE',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            throw new Error('Could not clear completed downloads');
+        }
+
+        return await response.json();
+    }
 }

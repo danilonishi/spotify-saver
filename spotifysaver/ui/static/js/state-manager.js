@@ -3,11 +3,8 @@ class StateManager {
         this.storageKey = 'spotifysaver_state';
     }
 
-    saveState(appState) {
+    saveState() {
         const state = {
-            downloadInProgress: appState.downloadInProgress,
-            currentTaskId: appState.currentTaskId,
-            downloadStartTime: appState.downloadStartTime,
             lastUrl: document.getElementById('spotify-url').value,
             logs: this.getLogs(),
             timestamp: Date.now()

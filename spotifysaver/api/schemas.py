@@ -109,6 +109,21 @@ class DownloadStatus(BaseModel):
     error_message: Optional[str] = None
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
+    spotify_url: Optional[str] = None
+    output_dir: Optional[str] = None
+    content_type: Optional[str] = None
+    title: Optional[str] = Field(
+        default=None,
+        description="Display name (album/playlist/track title) once resolved",
+    )
+    tracks: List[TrackInfo] = Field(
+        default_factory=list,
+        description="Full track listing, populated once metadata is resolved",
+    )
+    queue_position: Optional[int] = Field(
+        default=None,
+        description="1-based position in the pending queue; 0 means it is currently downloading",
+    )
 
 
 class ErrorResponse(BaseModel):

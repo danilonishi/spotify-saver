@@ -31,42 +31,113 @@ router = APIRouter()
 
 # In-memory task storage (in production, use Redis or database)
 tasks: Dict[str, DownloadStatus] = {}
+requests_by_task: Dict[str, DownloadRequest] = {}
 cancellation_events: Dict[str, Event] = {}
+
+# Server-owned download queue: the server decides when each task actually
+# starts running, so downloads keep progressing even if every browser tab
+# is closed. `order` tracks display/queue order; `pending` holds task ids
+# that are waiting for a free execution slot; `active` holds task ids that
+# are currently executing.
+order: list[str] = []
+pending: list[str] = []
+active: set[str] = set()
+paused: bool = False
+# Tasks whose active download was interrupted because the queue was paused
+# (as opposed to being cancelled/removed by the user); these get put back
+# at the front of the queue instead of being marked as cancelled.
+paused_task_ids: set[str] = set()
+queue_lock = asyncio.Lock()
+
+
+def _content_type_for_url(spotify_url: str) -> str:
+    if YouTubeDownloader.is_youtube_collection_url(spotify_url):
+        return "playlist"
+    if YouTubeDownloader.is_youtube_track_url(spotify_url):
+        return "track"
+    if "track" in spotify_url:
+        return "track"
+    if "album" in spotify_url:
+        return "album"
+    if "playlist" in spotify_url:
+        return "playlist"
+    raise HTTPException(
+        status_code=400,
+        detail="URL must be a Spotify track, album, or playlist, or a YouTube track, album, or playlist.",
+    )
+
+
+def _queue_snapshot() -> list[DownloadStatus]:
+    """Return all known tasks in queue order, annotated with queue position."""
+    snapshot = []
+    for index, task_id in enumerate(pending):
+        task = tasks.get(task_id)
+        if task is None:
+            continue
+        task.queue_position = index + 1
+        snapshot.append(task)
+    for task_id in order:
+        if task_id in pending:
+            continue
+        task = tasks.get(task_id)
+        if task is None:
+            continue
+        task.queue_position = 0 if task_id in active else None
+        snapshot.append(task)
+    # Preserve original enqueue order for the combined list.
+    position = {task_id: i for i, task_id in enumerate(order)}
+    snapshot.sort(key=lambda task: position.get(task.task_id, len(order)))
+    return snapshot
+
+
+async def _try_start_next() -> None:
+    """Start queued tasks while there is a free execution slot."""
+    async with queue_lock:
+        if paused:
+            return
+        while pending and len(active) < APIConfig.MAX_CONCURRENT_DOWNLOADS:
+            task_id = pending.pop(0)
+            request = requests_by_task.get(task_id)
+            task = tasks.get(task_id)
+            if request is None or task is None or task.status == "cancelled":
+                continue
+            active.add(task_id)
+            cancellation_events[task_id] = Event()
+            asyncio.create_task(_run_task(task_id, request))
+
+
+async def _run_task(task_id: str, request: DownloadRequest) -> None:
+    try:
+        await download_task(task_id, request)
+    finally:
+        active.discard(task_id)
+        task = tasks.get(task_id)
+        if task is not None and task.status == "queued":
+            # Interrupted by a queue pause; keep it first in line to resume.
+            async with queue_lock:
+                if task_id not in pending:
+                    pending.insert(0, task_id)
+        await _try_start_next()
 
 
 @router.post("/download", response_model=DownloadResponse)
 async def start_download(request: DownloadRequest, background_tasks: BackgroundTasks):
-    """Start a download task for a Spotify URL or YouTube video/collection URL.
+    """Enqueue a download task for a Spotify URL or YouTube video/collection URL.
 
-    This endpoint initiates the download process and returns a task ID
-    that can be used to track the progress of the download.
+    The task is handed off to the server-owned download queue and starts
+    automatically as soon as a slot is free. The download continues on the
+    server even if the client disconnects or the page is closed.
     """
     try:
         # Generate unique task ID
         task_id = str(uuid.uuid4())
-
-        # Determine content type from URL
         spotify_url = str(request.spotify_url)
-        if YouTubeDownloader.is_youtube_collection_url(spotify_url):
-            content_type = "playlist"
-        elif YouTubeDownloader.is_youtube_track_url(spotify_url):
-            content_type = "track"
-        elif "track" in spotify_url:
-            content_type = "track"
-        elif "album" in spotify_url:
-            content_type = "album"
-        elif "playlist" in spotify_url:
-            content_type = "playlist"
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="URL must be a Spotify track, album, or playlist, or a YouTube track, album, or playlist.",
-            )
+        content_type = _content_type_for_url(spotify_url)
 
         # Create initial task status
         task_status = DownloadStatus(
             task_id=task_id,
-            status="pending",
+            status="queued",
             progress=0,
             total_tracks=0,
             completed_tracks=0,
@@ -74,23 +145,30 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
             started_at=datetime.now().isoformat(),
             output_format=request.output_format,
             bit_rate=request.bit_rate,
+            spotify_url=spotify_url,
+            output_dir=request.output_dir,
+            content_type=content_type,
         )
         tasks[task_id] = task_status
-        cancellation_events[task_id] = Event()
+        requests_by_task[task_id] = request
+        order.append(task_id)
+        async with queue_lock:
+            pending.append(task_id)
 
-        # Start background download task
-        background_tasks.add_task(download_task, task_id, request)
+        background_tasks.add_task(_try_start_next)
 
-        logger.info(f"Started download task {task_id} for {spotify_url}")
+        logger.info(f"Enqueued download task {task_id} for {spotify_url}")
 
         return DownloadResponse(
             task_id=task_id,
-            status="pending",
+            status="queued",
             spotify_url=spotify_url,
             content_type=content_type,
-            message=f"Download task started for {content_type}",
+            message=f"Download task queued for {content_type}",
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error starting download: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -108,7 +186,7 @@ async def get_download_status(task_id: str):
 @router.get("/download/{task_id}/cancel")
 @router.post("/download/{task_id}/cancel")
 async def cancel_download(task_id: str):
-    """Cancel a download task."""
+    """Cancel a download task, whether it is queued or actively downloading."""
     if task_id not in tasks:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -118,15 +196,44 @@ async def cancel_download(task_id: str):
             status_code=400, detail=f"Cannot cancel task with status: {task.status}"
         )
 
+    if task_id in pending and task_id not in active:
+        async with queue_lock:
+            if task_id in pending:
+                pending.remove(task_id)
+        task.status = "cancelled"
+        task.error_message = "Cancelled by user before it started"
+        task.completed_at = datetime.now().isoformat()
+        return {"message": "Queued download removed"}
+
     cancellation_event = cancellation_events.get(task_id)
     if cancellation_event is None:
         raise HTTPException(status_code=409, detail="Download task is no longer active")
 
+    paused_task_ids.discard(task_id)
     cancellation_event.set()
     task.status = "cancelling"
     task.error_message = "Cancellation requested by user"
 
     return {"message": "Download cancellation requested"}
+
+
+@router.delete("/download/{task_id}")
+async def remove_download(task_id: str):
+    """Remove a finished task from the server's history."""
+    task = tasks.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status not in ["completed", "failed", "cancelled"]:
+        raise HTTPException(
+            status_code=400, detail=f"Cannot remove task with status: {task.status}"
+        )
+
+    tasks.pop(task_id, None)
+    requests_by_task.pop(task_id, None)
+    cancellation_events.pop(task_id, None)
+    if task_id in order:
+        order.remove(task_id)
+    return {"message": "Task removed"}
 
 
 @router.get("/downloads")
@@ -143,14 +250,96 @@ async def list_downloads():
         for task in tasks.values()
         if task.status in ["completed", "failed", "cancelled"]
     ]
-    tasks_pending = [task for task in tasks.values() if task.status == "pending"]
-    tasks_processing = [task for task in tasks.values() if task.status == "processing"]
+    tasks_pending = [task for task in tasks.values() if task.status == "queued"]
+    tasks_processing = [
+        task for task in tasks.values() if task.status in ["processing", "cancelling"]
+    ]
 
     return {
         "completed": tasks_completed,
         "pending": tasks_pending,
         "processing": tasks_processing,
     }
+
+
+@router.get("/queue")
+async def get_queue():
+    """Return every known download task in queue order.
+
+    This is the source of truth for clients: it reflects the state of the
+    server-owned queue regardless of which browser tab (if any) enqueued
+    each item, and whether the queue is globally paused.
+    """
+    return {
+        "paused": paused,
+        "tasks": _queue_snapshot(),
+    }
+
+
+@router.post("/queue/pause")
+async def pause_queue():
+    """Pause the download queue.
+
+    Stops any queued download from starting, and interrupts the currently
+    active one(s) so they can be resumed later from the front of the queue.
+    """
+    global paused
+    paused = True
+
+    for task_id in list(active):
+        task = tasks.get(task_id)
+        cancellation_event = cancellation_events.get(task_id)
+        if task is None or cancellation_event is None:
+            continue
+        if task.status == "processing":
+            paused_task_ids.add(task_id)
+            task.status = "queued"
+            task.error_message = "Paused by user"
+            cancellation_event.set()
+
+    return {"message": "Queue paused", "paused": paused}
+
+
+@router.post("/queue/resume")
+async def resume_queue(background_tasks: BackgroundTasks):
+    """Resume the download queue, restarting queued downloads automatically."""
+    global paused
+    paused = False
+    background_tasks.add_task(_try_start_next)
+    return {"message": "Queue resumed", "paused": paused}
+
+
+@router.delete("/queue/completed")
+async def clear_completed():
+    """Remove every finished (completed/failed/cancelled) task from history."""
+    removed = 0
+    for task_id in list(tasks.keys()):
+        task = tasks[task_id]
+        if task.status in ["completed", "failed", "cancelled"]:
+            tasks.pop(task_id, None)
+            requests_by_task.pop(task_id, None)
+            cancellation_events.pop(task_id, None)
+            if task_id in order:
+                order.remove(task_id)
+            removed += 1
+    return {"message": f"Removed {removed} finished task(s)", "removed": removed}
+
+
+@router.delete("/queue")
+async def clear_queue():
+    """Remove queued (not yet started) tasks, keeping active downloads running."""
+    removed = 0
+    async with queue_lock:
+        for task_id in list(pending):
+            pending.remove(task_id)
+            task = tasks.pop(task_id, None)
+            requests_by_task.pop(task_id, None)
+            cancellation_events.pop(task_id, None)
+            if task_id in order:
+                order.remove(task_id)
+            if task is not None:
+                removed += 1
+    return {"message": f"Removed {removed} queued task(s)", "removed": removed}
 
 
 @router.get("/inspect")
@@ -224,12 +413,21 @@ async def inspect_spotify_url(spotify_url: str):
 async def download_task(task_id: str, request: DownloadRequest):
     """Background task for handling downloads."""
     cancellation_event = cancellation_events[task_id]
+
+    def mark_interrupted(task: DownloadStatus) -> None:
+        if task_id in paused_task_ids:
+            paused_task_ids.discard(task_id)
+            task.status = "queued"
+            task.error_message = "Paused by user"
+        else:
+            task.status = "cancelled"
+            task.error_message = "Task cancelled by user"
+        task.completed_at = datetime.now().isoformat()
+
     try:
         task = tasks[task_id]
         if cancellation_event.is_set():
-            task.status = "cancelled"
-            task.error_message = "Task cancelled by user"
-            task.completed_at = datetime.now().isoformat()
+            mark_interrupted(task)
             return
         task.status = "processing"
 
@@ -270,18 +468,25 @@ async def download_task(task_id: str, request: DownloadRequest):
             elif result == "completed":
                 task.completed_tracks += 1
 
+        def title_callback(title: str):
+            task.title = title
+
+        def tracks_callback(track_list: list):
+            task.tracks = [TrackInfo(**track) for track in track_list]
+            task.total_tracks = len(task.tracks)
+
         # Perform the download
         result = await download_service.download_from_url(
             str(request.spotify_url),
             progress_callback=progress_callback,
             track_result_callback=track_result_callback,
             cancellation_event=cancellation_event,
+            title_callback=title_callback,
+            tracks_callback=tracks_callback,
         )
 
         if cancellation_event.is_set():
-            task.status = "cancelled"
-            task.error_message = "Task cancelled by user"
-            task.completed_at = datetime.now().isoformat()
+            mark_interrupted(task)
             return
 
         # A task with no successful tracks is a failure; partial results remain completed.
@@ -294,6 +499,9 @@ async def download_task(task_id: str, request: DownloadRequest):
         task.failed_tracks = failed_tracks
         task.failed_track_names = failed_track_names
         task.output_directory = result.get("output_directory")
+        if not task.title:
+            # YouTube collections only expose their resolved name in the final result.
+            task.title = result.get("collection_name")
         if failed_tracks:
             failed_summary = ", ".join(failed_track_names) or f"{failed_tracks} track(s)"
             task.error_message = (
@@ -308,8 +516,7 @@ async def download_task(task_id: str, request: DownloadRequest):
         logger.error(f"Download task {task_id} failed: {str(e)}", exc_info=True)
         task = tasks[task_id]
         if cancellation_event.is_set():
-            task.status = "cancelled"
-            task.error_message = "Task cancelled by user"
+            mark_interrupted(task)
         elif task.completed_tracks > 0:
             task.status = "completed"
             task.error_message = (
@@ -321,7 +528,8 @@ async def download_task(task_id: str, request: DownloadRequest):
             task.error_message = str(e)
         task.completed_at = datetime.now().isoformat()
     finally:
-        cancellation_events.pop(task_id, None)
+        if tasks.get(task_id) is not None and tasks[task_id].status != "queued":
+            cancellation_events.pop(task_id, None)
 
 
 @router.get("/config/output_dir")

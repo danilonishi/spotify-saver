@@ -10,9 +10,22 @@ from fastapi import BackgroundTasks
 from spotifysaver.api.routers.download import (
     cancel_download,
     cancellation_events,
+    order,
+    pending,
+    requests_by_task,
     start_download,
     tasks,
 )
+
+
+def _forget_task(task_id):
+    tasks.pop(task_id, None)
+    cancellation_events.pop(task_id, None)
+    requests_by_task.pop(task_id, None)
+    if task_id in pending:
+        pending.remove(task_id)
+    if task_id in order:
+        order.remove(task_id)
 from spotifysaver.api.schemas import DownloadRequest, DownloadStatus
 from spotifysaver.api.services.download_service import DownloadService
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
@@ -215,8 +228,7 @@ def test_api_accepts_direct_youtube_track_url():
         assert response.content_type == "track"
         assert response.spotify_url == TRACK_URL
     finally:
-        tasks.pop(response.task_id, None)
-        cancellation_events.pop(response.task_id, None)
+        _forget_task(response.task_id)
 
 
 def test_api_accepts_youtube_collection_url():
@@ -228,8 +240,7 @@ def test_api_accepts_youtube_collection_url():
         assert response.content_type == "playlist"
         assert response.spotify_url == ALBUM_URL
     finally:
-        tasks.pop(response.task_id, None)
-        cancellation_events.pop(response.task_id, None)
+        _forget_task(response.task_id)
 
 
 def test_cancel_download_signals_worker_and_reports_cancelling():

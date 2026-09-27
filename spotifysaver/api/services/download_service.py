@@ -14,6 +14,18 @@ from ..config import APIConfig
 logger = get_logger("DownloadService")
 
 
+def _track_to_dict(track: Any, number: int) -> dict:
+    """Convert a Track model into the plain dict shape used by the API schema."""
+    return {
+        "name": track.name,
+        "artists": track.artists,
+        "album_name": getattr(track, "album_name", None),
+        "duration": track.duration,
+        "number": number,
+        "uri": track.uri,
+    }
+
+
 class DownloadService:
     """Service class for handling download operations via API."""
 
@@ -57,12 +69,18 @@ class DownloadService:
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         track_result_callback: Optional[Callable[[int, str, str], None]] = None,
         cancellation_event: Optional[Event] = None,
+        title_callback: Optional[Callable[[str], None]] = None,
+        tracks_callback: Optional[Callable[[list], None]] = None,
     ) -> Dict[str, Any]:
         """Download content from a Spotify URL or a YouTube video/collection URL.
 
         Args:
             spotify_url: Source URL to download
             progress_callback: Optional callback for progress updates
+            title_callback: Optional callback invoked with the display name
+                (album/playlist/track title) as soon as it is known
+            tracks_callback: Optional callback invoked with the full track
+                listing (as plain dicts) as soon as it is known
 
         Returns:
             Dict containing download results and statistics
@@ -81,14 +99,18 @@ class DownloadService:
             self.spotify = SpotifyAPI()
             self.searcher = YoutubeMusicSearcher()
             if "track" in spotify_url:
-                return await self._download_track(spotify_url, progress_callback)
+                return await self._download_track(
+                    spotify_url, progress_callback, title_callback, tracks_callback
+                )
             elif "album" in spotify_url:
                 return await self._download_album(
-                    spotify_url, progress_callback, track_result_callback
+                    spotify_url, progress_callback, track_result_callback,
+                    title_callback, tracks_callback
                 )
             elif "playlist" in spotify_url:
                 return await self._download_playlist(
-                    spotify_url, progress_callback, track_result_callback
+                    spotify_url, progress_callback, track_result_callback,
+                    title_callback, tracks_callback
                 )
             else:
                 raise ValueError("Invalid Spotify URL type")
@@ -144,9 +166,15 @@ class DownloadService:
         self,
         track_url: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        title_callback: Optional[Callable[[str], None]] = None,
+        tracks_callback: Optional[Callable[[list], None]] = None,
     ) -> Dict[str, Any]:
         """Download a single track."""
         track = self.spotify.get_track(track_url)
+        if title_callback:
+            title_callback(track.name)
+        if tracks_callback:
+            tracks_callback([_track_to_dict(track, getattr(track, "number", 1) or 1)])
 
         if progress_callback:
             progress_callback(1, 1, track.name)
@@ -171,9 +199,15 @@ class DownloadService:
         album_url: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         track_result_callback: Optional[Callable[[int, str, str], None]] = None,
+        title_callback: Optional[Callable[[str], None]] = None,
+        tracks_callback: Optional[Callable[[list], None]] = None,
     ) -> Dict[str, Any]:
         """Download an entire album."""
         album = self.spotify.get_album(album_url)
+        if title_callback:
+            title_callback(album.name)
+        if tracks_callback:
+            tracks_callback([_track_to_dict(t, t.number) for t in album.tracks])
 
         # Create a wrapper for the progress callback
         def sync_progress_callback(idx: int, total: int, name: str):
@@ -217,9 +251,15 @@ class DownloadService:
         playlist_url: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         track_result_callback: Optional[Callable[[int, str, str], None]] = None,
+        title_callback: Optional[Callable[[str], None]] = None,
+        tracks_callback: Optional[Callable[[list], None]] = None,
     ) -> Dict[str, Any]:
         """Download an entire playlist."""
         playlist = self.spotify.get_playlist(playlist_url)
+        if title_callback:
+            title_callback(playlist.name)
+        if tracks_callback:
+            tracks_callback([_track_to_dict(t, t.number) for t in playlist.tracks])
 
         # Create a wrapper for the progress callback
         def sync_progress_callback(idx: int, total: int, name: str):

@@ -3,20 +3,13 @@ class DownloadManager {
         this.apiClient = apiClient;
         this.uiManager = uiManager;
         this.saveStateCallback = saveStateCallback;
-        this.downloadInProgress = false;
-        this.cancellationRequested = false;
-        this.currentTaskId = null;
-        this.downloadStartTime = null;
-        this.lastLoggedTrack = null;
-        this.lastLoggedTrackState = null; // Track the state of the last logged track
-        this.trackStates = new Map();
-        this.currentTrackData = null;
-        this.trackUpdateCursor = 0;
+        // The queue lives on the server; this array only mirrors it for
+        // rendering, so downloads survive the page being closed.
         this.queue = [];
-        this.queueId = 0;
-        this.activeQueueItem = null;
-        this.queueProcessing = false;
-        this.paused = false;
+        this.localIdCounter = 0;
+        this.queuePaused = false;
+        this.pollTimer = null;
+        this.pollInterval = 2000;
     }
 
     getFormData() {
@@ -168,6 +161,8 @@ class DownloadManager {
         });
     }
 
+    // The server owns the queue: adding an item just hands it a download
+    // request, and the server keeps running it even if this page is closed.
     startDownload() {
         if (!this.validateForm()) {
             return;
@@ -183,598 +178,352 @@ class DownloadManager {
         }
 
         const queueItem = {
-            id: ++this.queueId,
+            id: `local-${++this.localIdCounter}`,
             key: queueKey,
             url: formData.spotify_url,
             title: this.getQueueTitle(formData.spotify_url),
             formData,
             status: 'queued',
-            progress: null,
+            progress: 0,
             trackData: null,
-            trackStates: new Map()
+            trackStates: new Map(),
+            trackUpdateCursor: 0,
+            lastLoggedTrack: null,
+            lastLoggedTrackState: null,
+            loggedTerminal: false
         };
         this.queue.push(queueItem);
         this.uiManager.renderDownloadQueue(this.queue);
         this.uiManager.addLogEntry(`${queueItem.title} added to queue`, 'info');
         this.loadQueueItemDetails(queueItem);
-        this.processQueue();
+        this.submitToServer(queueItem);
+        this.ensurePolling();
     }
 
-    async processQueue() {
-        if (this.queueProcessing || this.paused) return;
-        const queueItem = this.queue.find((item) => item.status === 'queued');
-        if (!queueItem) {
-            this.downloadInProgress = false;
-            this.uiManager.updateUI(false);
-            return;
-        }
-
-        this.queueProcessing = true;
-        this.activeQueueItem = queueItem;
-        queueItem.status = 'downloading';
-        queueItem.progress = 0;
-        this.downloadInProgress = true;
-        this.cancellationRequested = false;
-        this.uiManager.renderDownloadQueue(this.queue);
-        this.uiManager.updateUI(true);
-
-        this.lastLoggedTrack = null;
-        this.lastLoggedTrackState = null;
-        this.trackStates = new Map(queueItem.trackStates || []);
-        this.trackUpdateCursor = 0;
-        this.currentTrackData = null;
-
+    async submitToServer(queueItem) {
         try {
-            this.uiManager.updateStatus('Checking API connection...', 'info');
-            const apiAvailable = await this.apiClient.checkApiStatusWithRetry();
-
-            if (!apiAvailable) {
-                throw new Error('Cannot connect to API. Please check if the server is running.');
-            }
-
-            if (this.cancellationRequested) {
-                this.pauseBeforeStart();
-                return;
-            }
-
-            const formData = queueItem.formData;
-            const isYouTubeCollection = this.isYouTubeCollectionUrl(formData.spotify_url);
-            const isYouTubeTrack = this.isYouTubeTrackUrl(formData.spotify_url);
-            if (isYouTubeCollection || isYouTubeTrack) {
-                this.currentTrackData = null;
-                this.uiManager.updateStatus(
-                    isYouTubeCollection
-                        ? 'YouTube collection detected. Track metadata will come from YouTube.'
-                        : 'YouTube track detected. Audio will be downloaded in the selected format.',
-                    'info'
-                );
-                if (formData.download_lyrics || formData.generate_nfo) {
-                    this.uiManager.addLogEntry(
-                        'YouTube downloads use source metadata; lyrics and NFO options apply only to Spotify.',
-                        'info'
-                    );
-                }
-            } else {
-                this.uiManager.updateStatus('Inspecting Spotify URL...', 'info');
-                const inspectData = await (queueItem.inspectPromise ||
-                    this.apiClient.inspectSpotifyUrl(formData.spotify_url));
-                if (this.cancellationRequested) {
-                    this.pauseBeforeStart();
-                    return;
-                }
-                if (inspectData.name) {
-                    queueItem.title = inspectData.name;
-                    this.uiManager.renderDownloadQueue(this.queue);
-                }
-                this.currentTrackData = inspectData;
-                queueItem.trackData = inspectData;
-                queueItem.trackStates = this.trackStates;
-                this.uiManager.renderDownloadQueue(this.queue);
-            }
-
-            if (this.cancellationRequested) {
-                this.pauseBeforeStart();
-                return;
-            }
-
-            this.uiManager.updateStatus('Starting download...', 'info');
-            this.uiManager.addLogEntry('Sending download request...', 'info');
-
             const result = await this.apiClient.startDownload(queueItem.formData);
-
-            if (result.task_id) {
-                this.currentTaskId = result.task_id;
-                this.downloadStartTime = Date.now();
-                this.uiManager.addLogEntry(`Download started with ID: ${result.task_id}`, 'success');
-                if (this.saveStateCallback) {
-                    this.saveStateCallback();
-                }
-                this.startProgressMonitoring(result.task_id);
-                if (this.cancellationRequested) {
-                    await this.requestTaskCancellation(result.task_id);
-                }
-            } else {
-                this.uiManager.updateStatus('Download completed successfully', 'success');
-                this.uiManager.addLogEntry('Download complete', 'success');
-                this.finishQueueItem('completed');
-            }
+            queueItem.id = result.task_id;
+            queueItem.status = 'queued';
+            this.uiManager.addLogEntry(`Download queued with ID: ${result.task_id}`, 'success');
+            this.uiManager.renderDownloadQueue(this.queue);
         } catch (error) {
-            if (this.cancellationRequested || this.paused) {
-                this.pauseBeforeStart();
-            } else {
-                this.handleDownloadFailed(error.message);
-            }
+            queueItem.status = 'failed';
+            queueItem.error_message = error.message;
+            this.uiManager.updateStatus(`Error: ${error.message}`, 'error');
+            this.uiManager.addLogEntry(`Error: ${error.message}`, 'error');
+            this.uiManager.renderDownloadQueue(this.queue);
         }
     }
 
-    async stopDownload() {
-        if (this.paused) {
-            this.resumeDownload();
-            return;
-        }
-        if (!this.downloadInProgress || this.cancellationRequested) {
-            return;
-        }
-
-        this.paused = true;
-        this.cancellationRequested = true;
-        this.uiManager.updateStatus('Stopping download...', 'info');
-        this.uiManager.updateUI(true, true);
-        if (this.currentTaskId) {
-            await this.requestTaskCancellation(this.currentTaskId);
-        }
+    ensurePolling() {
+        if (this.pollTimer) return;
+        this.pollOnce();
+        this.pollTimer = setInterval(() => this.pollOnce(), this.pollInterval);
     }
 
-    resumeDownload() {
-        if (!this.paused || this.downloadInProgress) return;
-
-        if (this.activeQueueItem && this.activeQueueItem.status === 'paused') {
-            this.activeQueueItem.status = 'queued';
-        }
-        this.activeQueueItem = null;
-        this.paused = false;
-        this.cancellationRequested = false;
-        this.uiManager.updateStatus('Resuming download queue...', 'info');
-        this.uiManager.updateUI(false);
-        this.uiManager.renderDownloadQueue(this.queue);
-        this.processQueue();
+    stopPolling() {
+        if (!this.pollTimer) return;
+        clearInterval(this.pollTimer);
+        this.pollTimer = null;
     }
 
-    pauseBeforeStart() {
-        if (this.activeQueueItem) {
-            this.activeQueueItem.status = 'paused';
-        }
-        this.queueProcessing = false;
-        this.downloadInProgress = false;
-        this.currentTaskId = null;
-        this.cancellationRequested = false;
-        this.uiManager.updateStatus('Download paused. Resume to continue.', 'info');
-        this.uiManager.updateUI(false, true);
-        this.uiManager.renderDownloadQueue(this.queue);
-        if (this.saveStateCallback) this.saveStateCallback();
-    }
-
-    finishQueueItem(status) {
-        if (this.activeQueueItem) {
-            this.activeQueueItem.status = status;
-            if (status === 'completed') this.activeQueueItem.progress = 100;
-        }
-        this.queueProcessing = false;
-        this.activeQueueItem = null;
-        this.downloadInProgress = false;
-        this.paused = false;
-        this.cancellationRequested = false;
-        this.currentTaskId = null;
-        this.downloadStartTime = null;
-        this.uiManager.updateUI(false, this.paused);
-        this.uiManager.renderDownloadQueue(this.queue);
-        if (this.saveStateCallback) this.saveStateCallback();
-        if (!this.paused) setTimeout(() => this.processQueue(), 0);
-    }
-
-    clearQueue() {
-        const activeItem = this.activeQueueItem;
-        this.queue = this.queue.filter((item) => item === activeItem && this.downloadInProgress);
-        if (activeItem && !this.downloadInProgress) {
-            this.activeQueueItem = null;
-            this.paused = false;
-            this.queueProcessing = false;
-            this.uiManager.updateUI(false);
-        }
-        this.uiManager.renderDownloadQueue(this.queue);
-        this.uiManager.updateStatus('Download queue cleared.', 'info');
-    }
-
-    clearCompleted() {
-        const completedCount = this.queue.filter((item) => item.status === 'completed').length;
-        this.queue = this.queue.filter((item) => item.status !== 'completed');
-        this.uiManager.renderDownloadQueue(this.queue);
-        this.uiManager.updateStatus(
-            completedCount ? `Removed ${completedCount} completed download${completedCount === 1 ? '' : 's'}.` : 'No completed downloads to clear.',
-            'info'
-        );
-    }
-
-    async requestTaskCancellation(taskId) {
+    async pollOnce() {
         try {
-            await this.apiClient.cancelDownload(taskId);
+            const data = await this.apiClient.getQueue();
+            this.queuePaused = Boolean(data.paused);
+            this.reconcileQueue(data.tasks || []);
         } catch (error) {
-            if (this.currentTaskId !== taskId) return;
-            this.paused = false;
-            this.cancellationRequested = false;
-            if (this.activeQueueItem) this.activeQueueItem.status = 'downloading';
-            this.uiManager.updateUI(true);
-            this.uiManager.renderDownloadQueue(this.queue);
-            this.uiManager.updateStatus(`Could not stop download: ${error.message}`, 'error');
-            this.uiManager.addLogEntry(`Could not stop download: ${error.message}`, 'error');
+            console.warn('Error refreshing download queue:', error);
         }
     }
 
-    startProgressMonitoring(taskId) {
-        // Monitorear progreso usando polling
-        const pollInterval = 2000; // 2 segundos
-        
-        const checkProgress = async () => {
-            if (this.currentTaskId !== taskId) return;
-            try {
-                const status = await this.apiClient.getDownloadStatus(taskId);
-                if (this.currentTaskId !== taskId) return;
-                if (status) {
-                    console.log('📡 API Status received:', status);
-                    
-                    if (status.status === 'completed') {
-                        this.handleDownloadCompleted(status);
-                        return;
-                    } else if (status.status === 'cancelled') {
-                        this.handleDownloadCancelled(status);
-                        return;
-                    } else if (status.status === 'failed') {
-                        this.handleDownloadFailed(
-                            status.error_message || 'Download failed',
-                            status.current_track_number,
-                            status.failed_track_names || []
-                        );
-                        return;
-                    } else if (status.status === 'cancelling') {
-                        this.uiManager.updateStatus('Stopping download...', 'info');
-                    } else if (status.status === 'processing') {
-                        this.handleDownloadProgress(status);
-                    }
-                }
-            } catch (error) {
-                console.warn('Error checking progress:', error);
-            }
-
-            if (this.currentTaskId === taskId) {
-                setTimeout(checkProgress, pollInterval);
-            }
-        };
-        
-        // Iniciar monitoreo
-        checkProgress();
-    }
-
-    handleDownloadCompleted(status = {}) {
-        const completedTracks = status.completed_tracks || 0;
-        const totalTracks = status.total_tracks || 0;
-        const failedTrackNames = status.failed_track_names || [];
-        const summary = totalTracks
-            ? `Downloaded ${completedTracks}/${totalTracks} tracks`
-            : 'Download completed successfully';
-
-        this.uiManager.updateProgress(100);
-        this.uiManager.updateStatus(
-            failedTrackNames.length ? `${summary}. ${failedTrackNames.length} failed.` : summary,
-            failedTrackNames.length ? 'error' : 'success'
-        );
-        this.uiManager.addLogEntry(summary, failedTrackNames.length ? 'error' : 'success');
-        failedTrackNames.forEach(trackName => {
-            this.uiManager.addLogEntry(`Failed: ${trackName}`, 'error');
-        });
-        
-        // Marcar todas las canciones como completadas
-        if (this.currentTrackData && this.currentTrackData.tracks) {
-            this.currentTrackData.tracks.forEach((track, index) => {
-                const trackKey = index + 1;
-                if (failedTrackNames.includes(track.name)) {
-                    this.updateTrackState(trackKey, 'error');
-                } else {
-                    this.updateTrackState(trackKey, 'completed');
-                }
-            });
-        } else {
-            // Fallback: marcar por índice
-            this.trackStates.forEach((state, trackNumber) => {
-                if (state !== 'error') {
-                    this.updateTrackState(trackNumber, 'completed');
-                }
-            });
+    mapServerStatus(task) {
+        switch (task.status) {
+            case 'processing':
+            case 'cancelling':
+                return 'downloading';
+            case 'queued':
+                return this.queuePaused && task.error_message === 'Paused by user' ? 'paused' : 'queued';
+            case 'cancelled':
+                return 'failed';
+            default:
+                return task.status; // completed, failed
         }
-        
-        this.finishQueueItem('completed');
     }
 
-    handleDownloadFailed(message, currentTrackNumber, failedTrackNames = []) {
-        this.uiManager.updateStatus(`Error: ${message}`, 'error');
-        this.uiManager.addLogEntry(`Error: ${message}`, 'error');
+    // Rebuilds the local queue from the server's queue snapshot, keeping any
+    // client-only fields (track metadata, log dedupe state) tied to each id.
+    reconcileQueue(serverTasks) {
+        const existingById = new Map(this.queue.map((item) => [item.id, item]));
+        const localOnly = this.queue.filter((item) => String(item.id).startsWith('local-'));
 
-        failedTrackNames.forEach(trackName => {
-            this.uiManager.addLogEntry(`Failed: ${trackName}`, 'error');
+        const merged = serverTasks.map((task) => {
+            const existing = existingById.get(task.task_id);
+            const item = existing || {
+                id: task.task_id,
+                key: this.getQueueKey(task.spotify_url || ''),
+                url: task.spotify_url || '',
+                title: this.getQueueTitle(task.spotify_url || ''),
+                formData: {
+                    spotify_url: task.spotify_url,
+                    output_dir: task.output_dir,
+                    output_format: task.output_format,
+                    bit_rate: task.bit_rate
+                },
+                trackData: null,
+                trackStates: new Map(),
+                trackUpdateCursor: 0,
+                lastLoggedTrack: null,
+                lastLoggedTrackState: null,
+                loggedTerminal: false
+            };
+            this.applyTaskToItem(item, task);
+            return item;
         });
 
-        if (this.currentTrackData && this.currentTrackData.tracks) {
-            this.currentTrackData.tracks.forEach((track, index) => {
-                const trackKey = index + 1;
-                if (failedTrackNames.includes(track.name)) {
-                    this.updateTrackState(trackKey, 'error');
-                } else {
-                    this.updateTrackState(trackKey, 'completed');
-                }
-            });
-        }
-        
-        // Marcar canción actual como error si está especificada
-        if (currentTrackNumber) {
-            this.updateTrackState(currentTrackNumber, 'error');
-        }
-        
-        this.finishQueueItem('failed');
+        // Keep locally created items the server hasn't acknowledged yet.
+        this.queue = merged.concat(localOnly.filter((item) => !item.error_message));
+        this.uiManager.renderDownloadQueue(this.queue);
+        this.updateGlobalStatus();
     }
 
-    handleDownloadCancelled(status = {}) {
-        const completedTracks = status.completed_tracks || 0;
-        const message = completedTracks
-            ? `Download stopped after ${completedTracks} track${completedTracks === 1 ? '' : 's'}.`
-            : 'Download stopped.';
-        this.uiManager.updateStatus(message, 'info');
-        this.uiManager.addLogEntry(message, 'info');
-        if (this.paused) {
-            if (this.activeQueueItem) this.activeQueueItem.status = 'paused';
-            this.queueProcessing = false;
-            this.downloadInProgress = false;
-            this.cancellationRequested = false;
-            this.currentTaskId = null;
-            this.uiManager.updateUI(false, true);
-            this.uiManager.renderDownloadQueue(this.queue);
-            if (this.saveStateCallback) this.saveStateCallback();
-        } else {
-            this.finishQueueItem('failed');
+    applyTaskToItem(item, task) {
+        item.progress = task.progress || 0;
+        item.error_message = task.error_message;
+        item.failed_track_names = task.failed_track_names || [];
+        item.output_directory = task.output_directory;
+        item.queue_position = task.queue_position;
+        if (task.spotify_url) item.url = task.spotify_url;
+        // Prefer the server-resolved display name (e.g. real album title)
+        // over the URL-derived placeholder used before it's known.
+        if (task.title) item.title = task.title;
+        // The server resolves the full track listing once, so every client
+        // (not just the one that started the download) can render it.
+        if (!item.trackData && Array.isArray(task.tracks) && task.tracks.length) {
+            item.trackData = { tracks: task.tracks };
         }
-    }
+        item.status = this.mapServerStatus(task);
 
-    handleDownloadProgress(status) {
-        const currentProgress = status.progress || 0;
-        if (this.activeQueueItem) {
-            this.activeQueueItem.progress = currentProgress;
-            this.uiManager.renderDownloadQueue(this.queue);
-        }
-        this.uiManager.updateProgress(currentProgress);
-        this.uiManager.updateStatus(`Downloading... ${Math.round(currentProgress)}%`, 'info');
-
-        // Consume every result event so fast failures cannot be overwritten by
-        // the next track before the browser polls again.
-        const trackUpdates = status.track_updates || [];
-        trackUpdates.slice(this.trackUpdateCursor).forEach(update => {
+        // Consume every result event so fast failures cannot be overwritten
+        // by the next track before the browser polls again.
+        const trackUpdates = task.track_updates || [];
+        trackUpdates.slice(item.trackUpdateCursor).forEach((update) => {
             const resultState = update.status === 'error'
                 ? 'error'
                 : update.status === 'completed'
                     ? 'completed'
                     : null;
             if (resultState && update.track_number) {
-                this.updateTrackState(update.track_number, resultState);
+                this.updateTrackState(item, update.track_number, resultState);
                 if (resultState === 'error' && update.track_name) {
                     this.uiManager.addLogEntry(`Failed: ${update.track_name}`, 'error');
                 }
             }
         });
-        this.trackUpdateCursor = trackUpdates.length;
-        
-        // Actualizar estado de canción actual
-        if (status.current_track && this.currentTrackData) {
-            // Album numbers repeat in playlists; use the playlist position from the API.
-            const currentTrackNumber = status.current_track_number ||
-                this.findTrackNumberByName(status.current_track);
-            
-            if (currentTrackNumber) {
-                console.log(`🟡 Real download: Track ${currentTrackNumber} (${status.current_track}) is downloading`);
-                
-                // Marcar canción actual como descargando
-                if (status.current_track_status !== 'error' &&
-                    status.current_track_status !== 'completed') {
-                    this.updateTrackState(currentTrackNumber, 'downloading');
-                }
-                
-                // Marcar canciones anteriores como completadas
-                for (let i = 1; i < currentTrackNumber; i++) {
-                    if (this.trackStates.has(i) && this.trackStates.get(i) !== 'error') {
-                        this.updateTrackState(i, 'completed');
-                    }
-                }
-            } else {
-                console.warn(`⚠️ Could not find track number for: ${status.current_track}`);
+        item.trackUpdateCursor = trackUpdates.length;
+
+        if (task.status === 'processing' && task.current_track_number) {
+            if (task.current_track_status !== 'error' && task.current_track_status !== 'completed') {
+                this.updateTrackState(item, task.current_track_number, 'downloading');
             }
-        } else if (status.current_track_number) {
-            // Fallback: usar current_track_number si está disponible
-            this.updateTrackState(status.current_track_number, 'downloading');
-            
-            for (let i = 1; i < status.current_track_number; i++) {
-                if (this.trackStates.has(i) && this.trackStates.get(i) !== 'error') {
-                    this.updateTrackState(i, 'completed');
+            for (let i = 1; i < task.current_track_number; i += 1) {
+                if (item.trackStates.has(i) && item.trackStates.get(i) !== 'error') {
+                    this.updateTrackState(item, i, 'completed');
                 }
             }
         }
-        // Registrar estado de la canción actual
-        this.logTrackStatus(status);
+
+        this.logTrackStatus(item, task);
+        this.logTerminalStateOnce(item, task);
     }
-    
-    logTrackStatus(status) {
-        // Verificar si la última canción registrada cambió a completed o error
-        if (this.lastLoggedTrack && this.lastLoggedTrackState) {
-            const lastTrackNumber = this.findTrackNumberByName(this.lastLoggedTrack);
+
+    logTrackStatus(item, task) {
+        if (item.lastLoggedTrack && item.lastLoggedTrackState) {
+            const lastTrackNumber = this.findTrackNumberByName(item, item.lastLoggedTrack);
             if (lastTrackNumber) {
-                const currentLastTrackState = this.trackStates.get(lastTrackNumber);
-                if (currentLastTrackState !== this.lastLoggedTrackState && 
-                    (currentLastTrackState === 'completed' || currentLastTrackState === 'error')) {
-                    const statusMessage = currentLastTrackState === 'completed' ? 'Completed' : 'Failed';
-                    this.uiManager.addLogEntry(`${statusMessage}: ${this.lastLoggedTrack}`, 
-                        currentLastTrackState === 'completed' ? 'success' : 'error');
-                    this.lastLoggedTrackState = currentLastTrackState;
+                const currentState = item.trackStates.get(lastTrackNumber);
+                if (currentState !== item.lastLoggedTrackState &&
+                    (currentState === 'completed' || currentState === 'error')) {
+                    const message = currentState === 'completed' ? 'Completed' : 'Failed';
+                    this.uiManager.addLogEntry(`${message}: ${item.lastLoggedTrack}`,
+                        currentState === 'completed' ? 'success' : 'error');
+                    item.lastLoggedTrackState = currentState;
                 }
             }
         }
-        
-        // Solo registrar la nueva canción si es diferente a la última registrada
-        if (status.current_track && status.current_track !== this.lastLoggedTrack) {
-            this.uiManager.addLogEntry(`Downloading: ${status.current_track}`, 'info');
-            this.lastLoggedTrack = status.current_track;
-            // Actualizar el estado inicial de la nueva canción registrada
-            const currentTrackNumber = this.findTrackNumberByName(status.current_track);
-            if (currentTrackNumber) {
-                this.lastLoggedTrackState = this.trackStates.get(currentTrackNumber) || 'downloading';
-            }
+
+        if (task.current_track && task.current_track !== item.lastLoggedTrack) {
+            this.uiManager.addLogEntry(`Downloading: ${task.current_track}`, 'info');
+            item.lastLoggedTrack = task.current_track;
+            const trackNumber = this.findTrackNumberByName(item, task.current_track);
+            item.lastLoggedTrackState = trackNumber ? (item.trackStates.get(trackNumber) || 'downloading') : 'downloading';
         }
     }
 
-    simulateProgress() {
-        // Simulación de progreso para compatibilidad
-        let progress = 0;
-        let lastMessageIndex = -1;
-        let simulatedTrackNumber = 1;
-        const totalTracks = this.trackStates.size || 1;
-        
-        console.log('🎭 Starting simulation with real track data');
-        
-        const interval = setInterval(() => {
-            if (this.cancellationRequested) {
-                clearInterval(interval);
-                this.handleDownloadCancelled();
-                return;
-            }
+    logTerminalStateOnce(item, task) {
+        if (item.loggedTerminal) return;
+        if (!['completed', 'failed', 'cancelled'].includes(task.status)) return;
+        item.loggedTerminal = true;
 
-            progress += Math.random() * 8 + 2; // Progreso más consistente
-            
-            // Simular progreso por canción basado en datos reales
-            const currentTrackByProgress = Math.ceil((progress / 100) * totalTracks);
-            if (currentTrackByProgress > simulatedTrackNumber && simulatedTrackNumber <= totalTracks) {
-                // Marcar canción anterior como completada
-                if (simulatedTrackNumber > 1) {
-                    this.updateTrackState(simulatedTrackNumber - 1, 'completed');
-                }
-                simulatedTrackNumber = currentTrackByProgress;
-                
-                // Simular log con nombre real de canción si está disponible
-                if (this.currentTrackData && this.currentTrackData.tracks && this.currentTrackData.tracks[simulatedTrackNumber - 1]) {
-                    const track = this.currentTrackData.tracks[simulatedTrackNumber - 1];
-                    this.uiManager.addLogEntry(`Downloading: ${track.name}`, 'info');
-                }
-            }
-            
-            // Actualizar canción actual como descargando
-            if (simulatedTrackNumber <= totalTracks && progress < 100) {
-                this.updateTrackState(simulatedTrackNumber, 'downloading');
-            }
-            
-            if (progress >= 100) {
-                progress = 100;
-                this.uiManager.updateProgress(progress);
-                this.uiManager.updateStatus('Download completed successfully', 'success');
-                this.uiManager.addLogEntry('Download complete', 'success');
-                
-                // Marcar todas las canciones como completadas
-                this.trackStates.forEach((state, trackNumber) => {
-                    if (state !== 'error') {
-                        this.updateTrackState(trackNumber, 'completed');
-                    }
+        if (task.status === 'completed') {
+            const summary = task.total_tracks
+                ? `Downloaded ${task.completed_tracks}/${task.total_tracks} tracks`
+                : 'Download completed successfully';
+            const hasFailures = (task.failed_track_names || []).length > 0;
+            this.uiManager.addLogEntry(summary, hasFailures ? 'error' : 'success');
+            if (item.trackData && item.trackData.tracks) {
+                item.trackData.tracks.forEach((track, index) => {
+                    const trackKey = index + 1;
+                    const state = (task.failed_track_names || []).includes(track.name) ? 'error' : 'completed';
+                    this.updateTrackState(item, trackKey, state);
                 });
-                
-                this.downloadInProgress = false;
-                this.uiManager.updateUI(false);
-                clearInterval(interval);
             } else {
-                this.uiManager.updateProgress(progress);
-                this.uiManager.updateStatus(`Downloading... ${Math.round(progress)}%`, 'info');
-                
-                // Simular mensajes de progreso, evitando repetir el último mensaje
-                if (Math.random() > 0.8) { // Reducir frecuencia de mensajes
-                    const messages = [
-                        'Searching for tracks...',
-                        'Downloading track...',
-                        'Setting metadata...',
-                        'Generating thumbnail...',
-                        'Saving file...',
-                    ];
-                    
-                    let messageIndex;
-                    do {
-                        messageIndex = Math.floor(Math.random() * messages.length);
-                    } while (messageIndex === lastMessageIndex && messages.length > 1);
-                    
-                    lastMessageIndex = messageIndex;
-                    this.uiManager.addLogEntry(messages[messageIndex], 'info');
-                }
+                item.trackStates.forEach((state, trackNumber) => {
+                    if (state !== 'error') this.updateTrackState(item, trackNumber, 'completed');
+                });
             }
-        }, 1000);
+        } else if (task.status === 'failed') {
+            this.uiManager.addLogEntry(`Error: ${task.error_message || 'Download failed'}`, 'error');
+        } else if (task.status === 'cancelled') {
+            this.uiManager.addLogEntry(`${item.title}: download cancelled`, 'info');
+        }
     }
 
-    findTrackNumberByName(trackName) {
-        if (!this.currentTrackData || !this.currentTrackData.tracks) {
+    updateGlobalStatus() {
+        const active = this.queue.find((item) => item.status === 'downloading');
+        const hasQueuedWork = this.queue.some((item) => ['queued', 'paused'].includes(item.status));
+        const hasWork = Boolean(active) || hasQueuedWork;
+
+        // The "downloading" flag only stays true while something is actually
+        // running (or in the middle of being stopped); once the pause is
+        // fully applied it drops so the button flips to "Resume Download".
+        const downloadingFlag = this.queuePaused ? Boolean(active) : hasWork;
+        this.uiManager.updateUI(downloadingFlag, this.queuePaused);
+
+        if (active) {
+            this.uiManager.updateProgress(active.progress || 0);
+            this.uiManager.updateStatus(`Downloading ${active.title}... ${Math.round(active.progress || 0)}%`, 'info');
+        } else if (this.queuePaused && hasWork) {
+            this.uiManager.updateStatus('Queue paused. Resume to continue.', 'info');
+        } else if (hasWork) {
+            this.uiManager.updateStatus('Waiting for a free download slot...', 'info');
+        } else if (!this.queue.length) {
+            this.uiManager.updateProgress(0);
+        }
+
+        // Nothing left to track: stop polling instead of spamming the API
+        // forever; startDownload()/stopDownload() restart it on demand.
+        if (!hasWork) {
+            this.stopPolling();
+        }
+
+        if (this.saveStateCallback) this.saveStateCallback();
+    }
+
+    async stopDownload() {
+        if (this.queuePaused) {
+            await this.resumeDownload();
+            return;
+        }
+        try {
+            await this.apiClient.pauseQueue();
+            this.queuePaused = true;
+            this.uiManager.updateStatus('Pausing queue...', 'info');
+            await this.pollOnce();
+            this.ensurePolling();
+        } catch (error) {
+            this.uiManager.updateStatus(`Could not pause queue: ${error.message}`, 'error');
+            this.uiManager.addLogEntry(`Could not pause queue: ${error.message}`, 'error');
+        }
+    }
+
+    async resumeDownload() {
+        try {
+            await this.apiClient.resumeQueue();
+            this.queuePaused = false;
+            this.uiManager.updateStatus('Resuming download queue...', 'info');
+            await this.pollOnce();
+            this.ensurePolling();
+        } catch (error) {
+            this.uiManager.updateStatus(`Could not resume queue: ${error.message}`, 'error');
+            this.uiManager.addLogEntry(`Could not resume queue: ${error.message}`, 'error');
+        }
+    }
+
+    async clearQueue() {
+        try {
+            await this.apiClient.clearQueuedDownloads();
+            this.uiManager.updateStatus('Queued downloads cleared.', 'info');
+            await this.pollOnce();
+        } catch (error) {
+            this.uiManager.updateStatus(`Could not clear queue: ${error.message}`, 'error');
+        }
+    }
+
+    async clearCompleted() {
+        try {
+            const result = await this.apiClient.clearCompletedDownloads();
+            this.uiManager.updateStatus(
+                result.removed ? `Removed ${result.removed} finished download${result.removed === 1 ? '' : 's'}.` : 'No completed downloads to clear.',
+                'info'
+            );
+            await this.pollOnce();
+        } catch (error) {
+            this.uiManager.updateStatus(`Could not clear completed downloads: ${error.message}`, 'error');
+        }
+    }
+
+    async removeItem(taskId) {
+        try {
+            await this.apiClient.removeDownload(taskId);
+            await this.pollOnce();
+        } catch (error) {
+            this.uiManager.updateStatus(`Could not remove download: ${error.message}`, 'error');
+        }
+    }
+
+    async cancelItem(taskId) {
+        try {
+            await this.apiClient.cancelDownload(taskId);
+            await this.pollOnce();
+        } catch (error) {
+            this.uiManager.updateStatus(`Could not cancel download: ${error.message}`, 'error');
+        }
+    }
+
+    findTrackNumberByName(item, trackName) {
+        if (!item.trackData || !item.trackData.tracks) {
             return null;
         }
-        
-        // Limpiar el nombre de la canción para comparación
+
         const cleanTrackName = trackName.toLowerCase().trim();
-        
-        // Buscar la canción por nombre
-        for (const [index, track] of this.currentTrackData.tracks.entries()) {
+        for (const [index, track] of item.trackData.tracks.entries()) {
             const cleanCurrentName = track.name.toLowerCase().trim();
-            if (cleanCurrentName === cleanTrackName || cleanCurrentName.includes(cleanTrackName) || cleanTrackName.includes(cleanCurrentName)) {
-                const trackKey = index + 1;
-                console.log(`🎯 Found match: "${trackName}" -> Track ${trackKey}`);
-                return trackKey;
+            if (cleanCurrentName === cleanTrackName ||
+                cleanCurrentName.includes(cleanTrackName) ||
+                cleanTrackName.includes(cleanCurrentName)) {
+                return index + 1;
             }
         }
-        
-        console.warn(`🔍 No match found for track: "${trackName}"`);
-        console.log('Available tracks:', this.currentTrackData.tracks.map((t, index) => `${index + 1}: ${t.name}`));
         return null;
     }
 
-    updateTrackState(trackNumber, state) {
-        this.trackStates.set(trackNumber, state);        
-        if (this.activeQueueItem) {
-            this.activeQueueItem.trackStates.set(trackNumber, state);
-            this.uiManager.updateQueuedTrackState(this.activeQueueItem.id, trackNumber, state);
-        }
+    updateTrackState(item, trackNumber, state) {
+        item.trackStates.set(trackNumber, state);
+        this.uiManager.updateQueuedTrackState(item.id, trackNumber, state);
     }
 
     clearStates() {
-        this.trackStates.clear();
-        this.currentTrackData = null;
-        this.lastLoggedTrack = null;
-        this.lastLoggedTrackState = null;
+        this.queue = [];
+        this.uiManager.renderDownloadQueue(this.queue);
     }
 
-    // Getters for state access
-    get isDownloadInProgress() {
-        return this.downloadInProgress;
-    }
-
-    get taskId() {
-        return this.currentTaskId;
-    }
-
-    get startTime() {
-        return this.downloadStartTime;
-    }
-
-    // Methods to restore state
-    restoreDownloadState(downloadInProgress, taskId, startTime) {
-        this.downloadInProgress = downloadInProgress;
-        this.currentTaskId = taskId;
-        this.downloadStartTime = startTime;
-        
-        if (downloadInProgress && taskId) {
-            this.startProgressMonitoring(taskId);
-        }
+    // Loads whatever the server already knows about (e.g. after a page
+    // reload) so downloads that kept running while the page was closed
+    // show up immediately, then keeps polling for live updates.
+    async hydrateFromServer() {
+        await this.pollOnce();
+        this.ensurePolling();
     }
 }
