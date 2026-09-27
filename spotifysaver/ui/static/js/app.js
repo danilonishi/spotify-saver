@@ -44,6 +44,7 @@ class SpotifySaverUI {
         const downloadBtn = document.getElementById('download-btn');
         const stopDownloadBtn = document.getElementById('stop-download-btn');
         const spotifyUrl = document.getElementById('spotify-url');
+        const clearUrlBtn = document.getElementById('clear-url-btn');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const outputDirOptions = document.getElementById('output-dir-options');
         const setMediaRootBtn = document.getElementById('set-media-root-btn');
@@ -53,6 +54,11 @@ class SpotifySaverUI {
         
         downloadBtn.addEventListener('click', () => this.downloadManager.startDownload());
         stopDownloadBtn.addEventListener('click', () => this.downloadManager.stopDownload());
+        clearUrlBtn.addEventListener('click', () => {
+            spotifyUrl.value = '';
+            this.saveState();
+            spotifyUrl.focus();
+        });
         outputDirOptions.addEventListener('click', (event) => {
             const button = event.target.closest('button[data-output-dir]');
             if (button) {

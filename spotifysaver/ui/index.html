@@ -38,11 +38,14 @@
                     
                     <div class="form-group">
                         <label for="spotify-url">Spotify or YouTube album/playlist URL:</label>
-                        <input 
-                            type="url" 
-                            id="spotify-url" 
-                            placeholder="Spotify URL or https://music.youtube.com/playlist?list=..."
-                            required>
+                        <div class="url-input-group">
+                            <input
+                                type="url"
+                                id="spotify-url"
+                                placeholder="Spotify URL or https://music.youtube.com/playlist?list=..."
+                                required>
+                            <button id="clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear URL">Clear</button>
+                        </div>
                     </div>
 
                     <div class="form-group">
