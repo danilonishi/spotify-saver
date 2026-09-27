@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-09-27-1">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-09-27-4">
 </head>
 <body>
     <!-- Header -->
@@ -130,13 +130,13 @@
 
                 <!-- Log section -->
                 <div class="log-section">
-                    <div class="log-header">
-                        <h2>Activity Log</h2>
+                    <details class="log-details">
+                        <summary class="log-summary"><h2>Activity Log</h2></summary>
+                        <div id="log-container">
+                            <div id="log-content"></div>
+                        </div>
                         <button id="clear-logs-btn" class="clear-btn" title="Clear logs and reset state">🗑️ Clear</button>
-                    </div>
-                    <div id="log-container">
-                        <div id="log-content"></div>
-                    </div>
+                    </details>
                 </div>
 
             </div>

@@ -58,15 +58,49 @@ main {
     font-size: 1.5em;
 }
 
-.log-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+.log-details {
+    width: 100%;
 }
 
-.log-header h2 {
+.log-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    cursor: pointer;
+    list-style: none;
+}
+
+.log-summary::-webkit-details-marker {
+    display: none;
+}
+
+.log-summary::before {
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 6px solid currentColor;
+    content: '';
+    transition: transform 0.15s ease;
+}
+
+.log-details[open] > .log-summary::before {
+    transform: rotate(90deg);
+}
+
+.log-summary:focus-visible {
+    outline: 2px solid #667eea;
+    outline-offset: 3px;
+}
+
+.log-summary h2 {
     margin-bottom: 0;
+}
+
+.log-details > .clear-btn {
+    display: block;
+    margin: 12px 0 0 auto;
 }
 
 .clear-btn {
@@ -283,7 +317,9 @@ select:focus {
 }
 
 #log-container {
+    width: 100%;
     height: 300px;
+    margin-top: 14px;
     overflow-y: auto;
     background: #f7fafc;
     border: 1px solid #e2e8f0;
