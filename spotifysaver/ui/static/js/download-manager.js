@@ -12,6 +12,11 @@ class DownloadManager {
         this.trackStates = new Map();
         this.currentTrackData = null;
         this.trackUpdateCursor = 0;
+        this.queue = [];
+        this.queueId = 0;
+        this.activeQueueItem = null;
+        this.queueProcessing = false;
+        this.paused = false;
     }
 
     getFormData() {
@@ -98,39 +103,141 @@ class DownloadManager {
         }
     }
 
-    async startDownload() {
-        if (this.downloadInProgress) {
+    getQueueKey(url) {
+        try {
+            const parsedUrl = new URL(url);
+            const hostname = parsedUrl.hostname.toLowerCase().replace(/^www\./, '');
+            const spotifyMatch = parsedUrl.pathname.match(/\/(album|playlist|track)\/([^/]+)/i);
+            if (hostname.endsWith('spotify.com') && spotifyMatch) {
+                return `spotify:${spotifyMatch[1].toLowerCase()}:${spotifyMatch[2]}`;
+            }
+
+            const playlistId = parsedUrl.searchParams.get('list');
+            if (playlistId) {
+                return `youtube:playlist:${playlistId}`;
+            }
+
+            const videoId = parsedUrl.searchParams.get('v') ||
+                (hostname === 'youtu.be' ? parsedUrl.pathname.replace(/^\//, '') : null);
+            if (videoId) {
+                return `youtube:track:${videoId}`;
+            }
+
+            for (const parameter of Array.from(parsedUrl.searchParams.keys())) {
+                if (parameter === 'si' || parameter === 'feature' || parameter.startsWith('utm_')) {
+                    parsedUrl.searchParams.delete(parameter);
+                }
+            }
+            parsedUrl.searchParams.sort();
+            return `${hostname}${parsedUrl.pathname.replace(/\/$/, '')}?${parsedUrl.searchParams}`;
+        } catch (_error) {
+            return url.trim();
+        }
+    }
+
+    getQueueTitle(url) {
+        try {
+            const parsedUrl = new URL(url);
+            const spotifyMatch = parsedUrl.pathname.match(/\/(album|playlist|track)\/([^/]+)/i);
+            if (spotifyMatch) {
+                return `${spotifyMatch[1][0].toUpperCase()}${spotifyMatch[1].slice(1)} ${spotifyMatch[2]}`;
+            }
+            const playlistId = parsedUrl.searchParams.get('list');
+            if (playlistId) {
+                return `YouTube collection ${playlistId}`;
+            }
+            return `YouTube track ${parsedUrl.searchParams.get('v') || parsedUrl.pathname.replace(/^\//, '')}`;
+        } catch (_error) {
+            return url;
+        }
+    }
+
+    loadQueueItemDetails(queueItem) {
+        if (this.isYouTubeCollectionUrl(queueItem.url) || this.isYouTubeTrackUrl(queueItem.url)) {
             return;
         }
 
+        queueItem.inspectPromise = this.apiClient.inspectSpotifyUrl(queueItem.url);
+        queueItem.inspectPromise.then((data) => {
+            queueItem.trackData = data;
+            if (data.name) queueItem.title = data.name;
+            this.uiManager.renderDownloadQueue(this.queue);
+        }, (error) => {
+            queueItem.inspectionError = error.message;
+            this.uiManager.renderDownloadQueue(this.queue);
+        });
+    }
+
+    startDownload() {
         if (!this.validateForm()) {
             return;
         }
 
         const formData = this.getFormData();
-
-        // Check API connectivity before starting
-        this.uiManager.updateStatus('Checking API connection...', 'info');
-        const apiAvailable = await this.apiClient.checkApiStatusWithRetry();
-        
-        if (!apiAvailable) {
-            this.uiManager.updateStatus('Cannot connect to API. Please check if the server is running.', 'error');
+        const queueKey = this.getQueueKey(formData.spotify_url);
+        const duplicate = this.queue.find((item) => item.key === queueKey &&
+            ['queued', 'downloading', 'paused'].includes(item.status));
+        if (duplicate) {
+            this.uiManager.updateStatus(`${duplicate.title} is already in the queue.`, 'info');
             return;
         }
 
+        const queueItem = {
+            id: ++this.queueId,
+            key: queueKey,
+            url: formData.spotify_url,
+            title: this.getQueueTitle(formData.spotify_url),
+            formData,
+            status: 'queued',
+            progress: null,
+            trackData: null,
+            trackStates: new Map()
+        };
+        this.queue.push(queueItem);
+        this.uiManager.renderDownloadQueue(this.queue);
+        this.uiManager.addLogEntry(`${queueItem.title} added to queue`, 'info');
+        this.loadQueueItemDetails(queueItem);
+        this.processQueue();
+    }
+
+    async processQueue() {
+        if (this.queueProcessing || this.paused) return;
+        const queueItem = this.queue.find((item) => item.status === 'queued');
+        if (!queueItem) {
+            this.downloadInProgress = false;
+            this.uiManager.updateUI(false);
+            return;
+        }
+
+        this.queueProcessing = true;
+        this.activeQueueItem = queueItem;
+        queueItem.status = 'downloading';
+        queueItem.progress = 0;
         this.downloadInProgress = true;
         this.cancellationRequested = false;
+        this.uiManager.renderDownloadQueue(this.queue);
         this.uiManager.updateUI(true);
-        this.uiManager.clearLog();
-        this.uiManager.clearInspect();
-        
-        // Resetear estado de logging para nueva descarga
+
         this.lastLoggedTrack = null;
         this.lastLoggedTrackState = null;
-        this.trackStates.clear();
+        this.trackStates = new Map(queueItem.trackStates || []);
         this.trackUpdateCursor = 0;
+        this.currentTrackData = null;
 
         try {
+            this.uiManager.updateStatus('Checking API connection...', 'info');
+            const apiAvailable = await this.apiClient.checkApiStatusWithRetry();
+
+            if (!apiAvailable) {
+                throw new Error('Cannot connect to API. Please check if the server is running.');
+            }
+
+            if (this.cancellationRequested) {
+                this.pauseBeforeStart();
+                return;
+            }
+
+            const formData = queueItem.formData;
             const isYouTubeCollection = this.isYouTubeCollectionUrl(formData.spotify_url);
             const isYouTubeTrack = this.isYouTubeTrackUrl(formData.spotify_url);
             if (isYouTubeCollection || isYouTubeTrack) {
@@ -149,23 +256,31 @@ class DownloadManager {
                 }
             } else {
                 this.uiManager.updateStatus('Inspecting Spotify URL...', 'info');
-                const inspectData = await this.apiClient.inspectSpotifyUrl(formData.spotify_url);
-                this.uiManager.renderInspectData(inspectData, this.trackStates);
+                const inspectData = await (queueItem.inspectPromise ||
+                    this.apiClient.inspectSpotifyUrl(formData.spotify_url));
+                if (this.cancellationRequested) {
+                    this.pauseBeforeStart();
+                    return;
+                }
+                if (inspectData.name) {
+                    queueItem.title = inspectData.name;
+                    this.uiManager.renderDownloadQueue(this.queue);
+                }
                 this.currentTrackData = inspectData;
-
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                queueItem.trackData = inspectData;
+                queueItem.trackStates = this.trackStates;
+                this.uiManager.renderDownloadQueue(this.queue);
             }
 
             if (this.cancellationRequested) {
-                this.handleDownloadCancelled();
+                this.pauseBeforeStart();
                 return;
             }
 
-            // Paso 2: iniciar descarga
             this.uiManager.updateStatus('Starting download...', 'info');
             this.uiManager.addLogEntry('Sending download request...', 'info');
 
-            const result = await this.apiClient.startDownload(formData);
+            const result = await this.apiClient.startDownload(queueItem.formData);
 
             if (result.task_id) {
                 this.currentTaskId = result.task_id;
@@ -176,43 +291,110 @@ class DownloadManager {
                 }
                 this.startProgressMonitoring(result.task_id);
                 if (this.cancellationRequested) {
-                    this.requestTaskCancellation(result.task_id);
+                    await this.requestTaskCancellation(result.task_id);
                 }
             } else {
                 this.uiManager.updateStatus('Download completed successfully', 'success');
                 this.uiManager.addLogEntry('Download complete', 'success');
-                this.downloadInProgress = false;
-                this.cancellationRequested = false;
-                this.uiManager.updateUI(false);
+                this.finishQueueItem('completed');
             }
-
         } catch (error) {
-            this.uiManager.updateStatus(`Error: ${error.message}`, 'error');
-            this.uiManager.addLogEntry(`Error: ${error.message}`, 'error');
-            this.downloadInProgress = false;
-            this.cancellationRequested = false;
-            this.currentTaskId = null;
-            this.uiManager.updateUI(false);
+            if (this.cancellationRequested || this.paused) {
+                this.pauseBeforeStart();
+            } else {
+                this.handleDownloadFailed(error.message);
+            }
         }
     }
 
     async stopDownload() {
+        if (this.paused) {
+            this.resumeDownload();
+            return;
+        }
         if (!this.downloadInProgress || this.cancellationRequested) {
             return;
         }
 
+        this.paused = true;
         this.cancellationRequested = true;
         this.uiManager.updateStatus('Stopping download...', 'info');
+        this.uiManager.updateUI(true, true);
         if (this.currentTaskId) {
             await this.requestTaskCancellation(this.currentTaskId);
         }
+    }
+
+    resumeDownload() {
+        if (!this.paused || this.downloadInProgress) return;
+
+        if (this.activeQueueItem && this.activeQueueItem.status === 'paused') {
+            this.activeQueueItem.status = 'queued';
+        }
+        this.activeQueueItem = null;
+        this.paused = false;
+        this.cancellationRequested = false;
+        this.uiManager.updateStatus('Resuming download queue...', 'info');
+        this.uiManager.updateUI(false);
+        this.uiManager.renderDownloadQueue(this.queue);
+        this.processQueue();
+    }
+
+    pauseBeforeStart() {
+        if (this.activeQueueItem) {
+            this.activeQueueItem.status = 'paused';
+        }
+        this.queueProcessing = false;
+        this.downloadInProgress = false;
+        this.currentTaskId = null;
+        this.cancellationRequested = false;
+        this.uiManager.updateStatus('Download paused. Resume to continue.', 'info');
+        this.uiManager.updateUI(false, true);
+        this.uiManager.renderDownloadQueue(this.queue);
+        if (this.saveStateCallback) this.saveStateCallback();
+    }
+
+    finishQueueItem(status) {
+        if (this.activeQueueItem) {
+            this.activeQueueItem.status = status;
+            if (status === 'completed') this.activeQueueItem.progress = 100;
+        }
+        this.queueProcessing = false;
+        this.activeQueueItem = null;
+        this.downloadInProgress = false;
+        this.paused = false;
+        this.cancellationRequested = false;
+        this.currentTaskId = null;
+        this.downloadStartTime = null;
+        this.uiManager.updateUI(false, this.paused);
+        this.uiManager.renderDownloadQueue(this.queue);
+        if (this.saveStateCallback) this.saveStateCallback();
+        if (!this.paused) setTimeout(() => this.processQueue(), 0);
+    }
+
+    clearQueue() {
+        const activeItem = this.activeQueueItem;
+        this.queue = this.queue.filter((item) => item === activeItem && this.downloadInProgress);
+        if (activeItem && !this.downloadInProgress) {
+            this.activeQueueItem = null;
+            this.paused = false;
+            this.queueProcessing = false;
+            this.uiManager.updateUI(false);
+        }
+        this.uiManager.renderDownloadQueue(this.queue);
+        this.uiManager.updateStatus('Download queue cleared.', 'info');
     }
 
     async requestTaskCancellation(taskId) {
         try {
             await this.apiClient.cancelDownload(taskId);
         } catch (error) {
+            if (this.currentTaskId !== taskId) return;
+            this.paused = false;
             this.cancellationRequested = false;
+            if (this.activeQueueItem) this.activeQueueItem.status = 'downloading';
+            this.uiManager.updateUI(true);
+            this.uiManager.renderDownloadQueue(this.queue);
             this.uiManager.updateStatus(`Could not stop download: ${error.message}`, 'error');
             this.uiManager.addLogEntry(`Could not stop download: ${error.message}`, 'error');
         }
@@ -223,8 +405,10 @@ class DownloadManager {
         const pollInterval = 2000; // 2 segundos
         
         const checkProgress = async () => {
+            if (this.currentTaskId !== taskId) return;
             try {
                 const status = await this.apiClient.getDownloadStatus(taskId);
+                if (this.currentTaskId !== taskId) return;
                 if (status) {
                     console.log('📡 API Status received:', status);
                     
@@ -246,16 +430,13 @@ class DownloadManager {
                     } else if (status.status === 'processing') {
                         this.handleDownloadProgress(status);
                     }
-                    
-                    // Continuar monitoreando
-                    setTimeout(checkProgress, pollInterval);
-                } else {
-                    // Si no hay endpoint de estado, usar simulación
-                    this.simulateProgress();
                 }
             } catch (error) {
-                console.warn('Error checking progress, using simulation:', error);
-                this.simulateProgress();
+                console.warn('Error checking progress:', error);
+            }
+
+            if (this.currentTaskId === taskId) {
+                setTimeout(checkProgress, pollInterval);
             }
         };
         
@@ -300,13 +481,7 @@ class DownloadManager {
             });
         }
         
-        this.downloadInProgress = false;
-        this.cancellationRequested = false;
-        this.currentTaskId = null;
-        this.uiManager.updateUI(false);
-        if (this.saveStateCallback) {
-            this.saveStateCallback();
-        }
+        this.finishQueueItem('completed');
     }
 
     handleDownloadFailed(message, currentTrackNumber, failedTrackNames = []) {
@@ -333,13 +508,7 @@ class DownloadManager {
             this.updateTrackState(currentTrackNumber, 'error');
         }
         
-        this.downloadInProgress = false;
-        this.cancellationRequested = false;
-        this.currentTaskId = null;
-        this.uiManager.updateUI(false);
-        if (this.saveStateCallback) {
-            this.saveStateCallback();
-        }
+        this.finishQueueItem('failed');
     }
 
     handleDownloadCancelled(status = {}) {
@@ -349,17 +518,26 @@ class DownloadManager {
             : 'Download stopped.';
         this.uiManager.updateStatus(message, 'info');
         this.uiManager.addLogEntry(message, 'info');
-        this.downloadInProgress = false;
-        this.cancellationRequested = false;
-        this.currentTaskId = null;
-        this.uiManager.updateUI(false);
-        if (this.saveStateCallback) {
-            this.saveStateCallback();
+        if (this.paused) {
+            if (this.activeQueueItem) this.activeQueueItem.status = 'paused';
+            this.queueProcessing = false;
+            this.downloadInProgress = false;
+            this.cancellationRequested = false;
+            this.currentTaskId = null;
+            this.uiManager.updateUI(false, true);
+            this.uiManager.renderDownloadQueue(this.queue);
+            if (this.saveStateCallback) this.saveStateCallback();
+        } else {
+            this.finishQueueItem('failed');
         }
     }
 
     handleDownloadProgress(status) {
         const currentProgress = status.progress || 0;
+        if (this.activeQueueItem) {
+            this.activeQueueItem.progress = currentProgress;
+            this.uiManager.renderDownloadQueue(this.queue);
+        }
         this.uiManager.updateProgress(currentProgress);
         this.uiManager.updateStatus(`Downloading... ${Math.round(currentProgress)}%`, 'info');
 
@@ -553,8 +731,10 @@ class DownloadManager {
 
     updateTrackState(trackNumber, state) {
         this.trackStates.set(trackNumber, state);        
-        // Actualizar UI
-        this.uiManager.updateSingleTrackIcon(trackNumber, state);
+        if (this.activeQueueItem) {
+            this.activeQueueItem.trackStates.set(trackNumber, state);
+            this.uiManager.updateQueuedTrackState(this.activeQueueItem.id, trackNumber, state);
+        }
     }
 
     clearStates() {

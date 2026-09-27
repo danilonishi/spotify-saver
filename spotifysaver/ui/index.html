@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-09-27-1">
 </head>
 <body>
     <!-- Header -->
@@ -109,9 +109,6 @@
                     <button id="download-btn" class="download-btn">
                         🎵 Start Download
                     </button>
-                    <button id="stop-download-btn" class="stop-download-btn" type="button" disabled>
-                        Stop Download
-                    </button>
                 </div>
             </div>
 
@@ -120,12 +117,14 @@
 
                 
 
-                <!-- Sección de inspección -->
-                <div class="inspect-section">
-                    <h2>Details</h2>
-                    <div id="inspect-container">
-                        <div id="inspect-message">Awaiting inspection...</div>
-                        <div id="inspect-details" class="hidden"></div>
+                <div class="queue-section">
+                    <h2>Download Queue</h2>
+                    <ol id="download-queue" aria-label="Download queue">
+                        <li class="queue-empty">Queue is empty</li>
+                    </ol>
+                    <div class="queue-actions">
+                        <button id="stop-download-btn" class="clear-queue-btn" type="button" disabled>Stop Download</button>
+                        <button id="clear-queue-btn" class="clear-queue-btn" type="button" disabled>Clear Queue</button>
                     </div>
                 </div>
 
@@ -176,10 +175,10 @@
         </div>
     </footer>
     <!-- Load JavaScript modules in dependency order -->
-    <script src="/static/js/api-client.js"></script>
-    <script src="/static/js/state-manager.js"></script>
-    <script src="/static/js/ui-manager.js"></script>
-    <script src="/static/js/download-manager.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/api-client.js?v=2026-09-27-1"></script>
+    <script src="/static/js/state-manager.js?v=2026-09-27-1"></script>
+    <script src="/static/js/ui-manager.js?v=2026-09-27-1"></script>
+    <script src="/static/js/download-manager.js?v=2026-09-27-1"></script>
+    <script src="/static/js/app.js?v=2026-09-27-1"></script>
 </body>
 </html>

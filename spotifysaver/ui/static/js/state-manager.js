@@ -10,7 +10,6 @@ class StateManager {
             downloadStartTime: appState.downloadStartTime,
             lastUrl: document.getElementById('spotify-url').value,
             logs: this.getLogs(),
-            inspectData: this.getInspectData(),
             timestamp: Date.now()
         };
         localStorage.setItem(this.storageKey, JSON.stringify(state));
@@ -64,30 +63,6 @@ class StateManager {
         logContent.scrollTop = 0;
     }
 
-    getInspectData() {
-        const container = document.getElementById('inspect-details');
-        if (container.classList.contains('hidden') || !container.innerHTML.trim()) {
-            return null;
-        }
-        return {
-            html: container.innerHTML,
-            visible: !container.classList.contains('hidden')
-        };
-    }
-
-    restoreInspectData(data) {
-        if (!data || !data.html) return;
-        
-        const container = document.getElementById('inspect-details');
-        const message = document.getElementById('inspect-message');
-        
-        container.innerHTML = data.html;
-        if (data.visible) {
-            message.classList.add('hidden');
-            container.classList.remove('hidden');
-        }
-    }
-
     restoreFormData(state) {
         // Restaurar URL
         if (state.lastUrl) {
@@ -99,9 +74,5 @@ class StateManager {
             this.restoreLogs(state.logs);
         }
 
-        // Restaurar detalles de inspección
-        if (state.inspectData) {
-            this.restoreInspectData(state.inspectData);
-        }
     }
 }

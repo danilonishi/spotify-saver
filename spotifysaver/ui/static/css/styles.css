@@ -41,7 +41,7 @@ main {
 
 .form-section,
 .status-section,
-.inspect-section,
+.queue-section,
 .log-section {
     background: white;
     padding: 30px;
@@ -51,7 +51,7 @@ main {
 
 .form-section h2,
 .status-section h2,
-.inspect-section h2,
+.queue-section h2,
 .log-section h2 {
     color: #4a5568;
     margin-bottom: 20px;
@@ -246,35 +246,6 @@ select:focus {
     transform: none;
 }
 
-.stop-download-btn {
-    width: 100%;
-    margin-top: 10px;
-    padding: 15px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 18px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.stop-download-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-}
-
-.stop-download-btn:active {
-    transform: translateY(0);
-}
-
-.stop-download-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-}
-
 #status-container {
     text-align: center;
 }
@@ -389,44 +360,51 @@ select:focus {
     gap: 20px;
 }
 
-/* Inspection section */
-.inspect-section {
+/* Download queue section */
+.queue-section {
     background: white;
     padding: 30px;
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     min-height: 100px;
 }
-#inspect-container {
-    height: 300px;
-    overflow-y: auto;
-}
-#inspect-details ul {
+
+#download-queue {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 10px;
+    padding: 0;
     list-style: none;
-    padding-left: 0;
 }
 
-.album-details {
-    margin-bottom: 8px;
-}
-
-.album-summary {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    padding: 8px;
+.queue-item {
+    min-width: 0;
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.04);
+    background: #f7fafc;
+    color: #2d3748;
+    font-size: 14px;
+}
+
+.queue-item-details {
+    min-width: 0;
+}
+
+.queue-item-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 38px;
+    padding: 8px 10px;
     cursor: pointer;
     list-style: none;
 }
 
-.album-summary::-webkit-details-marker {
+.queue-item-summary::-webkit-details-marker {
     display: none;
 }
 
-.album-summary::before {
+.queue-item-summary::before {
     width: 0;
     height: 0;
     border-top: 5px solid transparent;
@@ -436,43 +414,103 @@ select:focus {
     transition: transform 0.15s ease;
 }
 
-.album-details[open] > .album-summary::before {
+.queue-item-details[open] > .queue-item-summary::before {
     transform: rotate(90deg);
 }
 
-.album-summary:focus-visible {
-    outline: 2px solid #667eea;
-    outline-offset: 2px;
-}
-
-.album-name {
+.queue-item-name {
     flex: 1;
     min-width: 0;
-    font-weight: 600;
+    overflow-wrap: anywhere;
 }
 
-.album-progress {
+.queue-item-status {
+    flex: 0 0 auto;
     color: #4a5568;
-    font-size: 13px;
-    white-space: nowrap;
+    font-size: 12px;
+    text-transform: capitalize;
 }
 
-.album-progress-bar {
-    width: 76px;
-    height: 8px;
-    accent-color: #38a169;
+.queue-item-downloading .queue-item-status {
+    color: #2b6cb0;
 }
 
-#inspect-message {
-    color: #4a5568;
-    font-size: 14px;
+.queue-item-paused .queue-item-status {
+    color: #b7791f;
 }
 
+.queue-item-failed .queue-item-status {
+    color: #c53030;
+}
 
-#inspect-details li {
-    margin-bottom: 5px;
-    font-size: 14px;
+.queue-item-completed .queue-item-status {
+    color: #2f855a;
+}
+
+.queue-track-list {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+    padding: 0 8px 8px 24px;
+    list-style: none;
+}
+
+.queue-track-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.04);
     color: #2d3748;
+    font-size: 13px;
+}
+
+.queue-track-list .track-icon {
+    flex: 0 0 22px;
+}
+
+.queue-track-info {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.queue-track-empty {
+    margin: 0;
+    padding: 0 10px 10px 24px;
+    color: #718096;
+    font-size: 13px;
+}
+
+.queue-empty {
+    padding: 8px 0;
+    color: #718096;
+    font-size: 14px;
+}
+
+.clear-queue-btn {
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    background: #fff;
+    color: #2d3748;
+    cursor: pointer;
+}
+
+.clear-queue-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.queue-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.queue-actions .clear-queue-btn {
+    flex: 1 1 120px;
 }
 
 
@@ -492,6 +530,7 @@ select:focus {
     
     .form-section,
     .status-section,
+    .queue-section,
     .log-section {
         padding: 20px;
     }
@@ -689,7 +728,7 @@ select:focus {
 
     body.dark-mode .form-section,
     body.dark-mode .status-section,
-    body.dark-mode .inspect-section,
+    body.dark-mode .queue-section,
     body.dark-mode .log-section {
         background: #252d38;
         color: #d1d5db;
@@ -698,7 +737,7 @@ select:focus {
 
     body.dark-mode .form-section h2,
     body.dark-mode .status-section h2,
-    body.dark-mode .inspect-section h2,
+    body.dark-mode .queue-section h2,
     body.dark-mode .log-section h2,
     body.dark-mode label {
         color: #d1d5db;
@@ -746,8 +785,6 @@ select:focus {
 
     body.dark-mode #status-message,
     body.dark-mode #progress-text,
-    body.dark-mode #inspect-message,
-    body.dark-mode #inspect-details li,
     body.dark-mode #log-content {
         color: #d1d5db;
     }
@@ -796,16 +833,37 @@ select:focus {
         color: #fff;
     }
 
-    body.dark-mode .album-summary {
-        background: rgba(255, 255, 255, 0.08);
+    body.dark-mode .download-queue-section {
+        border-bottom-color: #3b4654;
     }
 
-    body.dark-mode .album-progress {
-        color: #cbd5e1;
+    body.dark-mode .download-queue-section h3,
+    body.dark-mode .queue-item,
+    body.dark-mode .clear-queue-btn {
+        background: #1b222c;
+        color: #d1d5db;
     }
 
-    body.dark-mode .album-progress-bar {
-        accent-color: #68d391;
+    body.dark-mode .download-queue-section h3 {
+        background: transparent;
+    }
+
+    body.dark-mode .queue-item-status,
+    body.dark-mode .queue-empty {
+        color: #aeb8c5;
+    }
+
+    body.dark-mode .queue-track-list li {
+        background: rgba(255, 255, 255, 0.07);
+        color: #d1d5db;
+    }
+
+    body.dark-mode .queue-track-empty {
+        color: #aeb8c5;
+    }
+
+    body.dark-mode .clear-queue-btn {
+        border-color: #4b5868;
     }
 
     body.dark-mode .version-number {

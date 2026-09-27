@@ -47,6 +47,7 @@ class SpotifySaverUI {
         const clearUrlBtn = document.getElementById('clear-url-btn');
         const themeToggleBtn = document.getElementById('theme-toggle-btn');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
+        const clearQueueBtn = document.getElementById('clear-queue-btn');
         const outputDirOptions = document.getElementById('output-dir-options');
         const setMediaRootBtn = document.getElementById('set-media-root-btn');
         const mediaRootEditor = document.getElementById('media-root-editor');
@@ -83,6 +84,7 @@ class SpotifySaverUI {
             }
         });
         applyMediaRootBtn.addEventListener('click', () => this.applyMediaRoot());
+        clearQueueBtn.addEventListener('click', () => this.downloadManager.clearQueue());
         mediaRootInput.addEventListener('keypress', (event) => {
             if (event.key === 'Enter') {
                 this.applyMediaRoot();
@@ -91,7 +93,7 @@ class SpotifySaverUI {
         
         // Permitir iniciar descarga con Enter
         spotifyUrl.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !this.downloadManager.isDownloadInProgress) {
+            if (e.key === 'Enter') {
                 this.downloadManager.startDownload();
             }
         });
@@ -100,7 +102,6 @@ class SpotifySaverUI {
         clearLogsBtn.addEventListener('click', () => {
             if (confirm('Are you sure you want to clear logs and state? This cannot be undone.')) {
                 this.uiManager.clearLog();
-                this.uiManager.clearInspect();
                 this.downloadManager.clearStates();
                 this.stateManager.clearPersistedState();
                 this.uiManager.updateStatus('API connected and ready', 'info');

@@ -5,23 +5,124 @@ class UIManager {
         this.saveStateCallback = saveStateCallback;
     }
 
-    updateUI(downloading) {
+    updateUI(downloading, paused = false) {
         const downloadBtn = document.getElementById('download-btn');
         const stopDownloadBtn = document.getElementById('stop-download-btn');
         const progressContainer = document.getElementById('progress-container');
-        
+
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = downloading ? 'Enqueue Download' : '🎵 Start Download';
         if (downloading) {
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = '⏳ Downloading...';
-            stopDownloadBtn.disabled = false;
+            stopDownloadBtn.disabled = paused;
+            stopDownloadBtn.textContent = paused ? 'Stopping...' : 'Stop Download';
             progressContainer.classList.remove('hidden');
+        } else if (paused) {
+            stopDownloadBtn.disabled = false;
+            stopDownloadBtn.textContent = 'Resume Download';
+            progressContainer.classList.add('hidden');
         } else {
-            downloadBtn.disabled = false;
-            downloadBtn.textContent = '🎵 Start Download';
             stopDownloadBtn.disabled = true;
+            stopDownloadBtn.textContent = 'Stop Download';
             progressContainer.classList.add('hidden');
             this.updateProgress(0);
         }
+    }
+
+    renderDownloadQueue(queue) {
+        const list = document.getElementById('download-queue');
+        const clearButton = document.getElementById('clear-queue-btn');
+        const expandedItems = new Set(
+            Array.from(list.querySelectorAll('.queue-item-details[open]'), (item) => item.dataset.queueId)
+        );
+        list.replaceChildren();
+
+        if (!queue.length) {
+            const emptyMessage = document.createElement('li');
+            emptyMessage.className = 'queue-empty';
+            emptyMessage.textContent = 'Queue is empty';
+            list.appendChild(emptyMessage);
+        }
+
+        queue.forEach((item) => {
+            const entry = document.createElement('li');
+            entry.className = `queue-item queue-item-${item.status}`;
+
+            const details = document.createElement('details');
+            details.className = 'queue-item-details';
+            details.dataset.queueId = String(item.id);
+            details.open = expandedItems.has(String(item.id));
+
+            const summary = document.createElement('summary');
+            summary.className = 'queue-item-summary';
+
+            const name = document.createElement('span');
+            name.className = 'queue-item-name';
+            name.textContent = item.title;
+
+            const status = document.createElement('span');
+            status.className = 'queue-item-status';
+            status.textContent = item.status === 'downloading' && item.progress != null
+                ? `Downloading ${Math.round(item.progress)}%`
+                : item.status;
+
+            summary.append(name, status);
+            details.appendChild(summary);
+
+            const tracks = Array.isArray(item.trackData?.tracks)
+                ? item.trackData.tracks
+                : item.trackData?.name && item.trackData?.artists
+                    ? [item.trackData]
+                    : [];
+            if (tracks.length) {
+                const trackList = document.createElement('ul');
+                trackList.className = 'queue-track-list';
+
+                tracks.forEach((track, index) => {
+                    const trackNumber = track.number || index + 1;
+                    const trackState = item.trackStates?.get(index + 1) || 'waiting';
+                    const trackEntry = document.createElement('li');
+                    trackEntry.className = `track-state-${trackState}`;
+                    trackEntry.dataset.trackNumber = String(index + 1);
+                    trackEntry.dataset.trackState = trackState;
+
+                    const icon = document.createElement('span');
+                    icon.className = 'track-icon';
+                    icon.textContent = this.getStateIcon(trackState);
+
+                    const duration = track.duration || 0;
+                    const minutes = Math.floor(duration / 60);
+                    const seconds = String(duration % 60).padStart(2, '0');
+                    const info = document.createElement('span');
+                    info.className = 'queue-track-info';
+                    info.textContent = `${trackNumber}. ${track.name} — ${(track.artists || []).join(', ')} [${minutes}:${seconds}]`;
+
+                    trackEntry.append(icon, info);
+                    trackList.appendChild(trackEntry);
+                });
+                details.appendChild(trackList);
+            } else {
+                const trackMessage = document.createElement('p');
+                trackMessage.className = 'queue-track-empty';
+                trackMessage.textContent = 'Track details appear when this download starts.';
+                details.appendChild(trackMessage);
+            }
+
+            entry.appendChild(details);
+            list.appendChild(entry);
+        });
+
+        clearButton.disabled = !queue.some((item) => item.status !== 'downloading');
+    }
+
+    updateQueuedTrackState(queueItemId, trackNumber, state) {
+        const details = document.querySelector(`.queue-item-details[data-queue-id="${queueItemId}"]`);
+        const track = details?.querySelector(`[data-track-number="${trackNumber}"]`);
+        if (!track) return;
+
+        track.className = track.className.replace(/track-state-\w+/g, '');
+        track.classList.add(`track-state-${state}`);
+        track.dataset.trackState = state;
+        track.querySelector('.track-icon').textContent = this.getStateIcon(state);
     }
 
     updateStatus(message, type = 'info') {
@@ -90,170 +191,6 @@ class UIManager {
         const icon = icons[state] || '⏳';
         console.log(`📍 getStateIcon(${state}) -> ${icon}`);
         return icon;
-    }
-
-    updateSingleTrackIcon(trackNumber, state) {
-        const container = document.getElementById('inspect-details');
-        if (container.classList.contains('hidden')) {
-            console.log('Container is hidden, not updating display');
-            return;
-        }
-        
-        const trackElement = container.querySelector(`[data-track-number="${trackNumber}"]`);
-        if (trackElement) {
-            const iconElement = trackElement.querySelector('.track-icon');
-            if (iconElement) {
-                const newIcon = this.getStateIcon(state);
-                iconElement.textContent = newIcon;
-                
-                // Actualizar clases CSS
-                trackElement.className = trackElement.className.replace(/track-state-\w+/g, '');
-                trackElement.classList.add(`track-state-${state}`);
-                trackElement.setAttribute('data-track-state', state);
-                this.updateAlbumProgress(trackElement.closest('.album-details'));
-                
-                console.log(`🔄 Updated track ${trackNumber} icon to ${newIcon} (state: ${state})`);
-            }
-        } else {
-            console.log(`❌ Could not find track element for track ${trackNumber}`);
-        }
-    }
-
-    updateAlbumProgress(albumElement) {
-        if (!albumElement) return;
-
-        const tracks = Array.from(albumElement.querySelectorAll('[data-track-state]'));
-        const completed = tracks.filter((track) => track.dataset.trackState === 'completed').length;
-        const downloading = tracks.filter((track) => track.dataset.trackState === 'downloading').length;
-        const errors = tracks.filter((track) => track.dataset.trackState === 'error').length;
-        const progressText = albumElement.querySelector('.album-progress');
-        const progressBar = albumElement.querySelector('.album-progress-bar');
-        const status = [`${completed} / ${tracks.length} complete`];
-
-        if (downloading) status.push(`${downloading} downloading`);
-        if (errors) status.push(`${errors} failed`);
-        progressText.textContent = status.join(' · ');
-        progressBar.max = tracks.length || 1;
-        progressBar.value = completed;
-    }
-
-    renderInspectData(data, trackStates) {
-        const container = document.getElementById('inspect-details');
-        const message = document.getElementById('inspect-message');
-        container.innerHTML = '';
-        
-        console.log('📝 renderInspectData called, trackStates:', Array.from(trackStates.entries()));
-        console.log('🔍 Checking for active intervals/timeouts...');
-        
-        // Limpiar cualquier timeout/interval que pueda estar corriendo
-        for (let i = 1; i < 99999; i++) {
-            window.clearTimeout(i);
-            window.clearInterval(i);
-        }
-        console.log('🧹 Cleared all timeouts and intervals');
-
-        if (data.tracks) {
-            // Inicializar estados de todas las canciones como 'waiting'
-            data.tracks.forEach((t, index) => {
-                const trackKey = index + 1;
-                if (!trackStates.has(trackKey)) {
-                    trackStates.set(trackKey, 'waiting');
-                }
-            });
-            
-            const albumDetails = document.createElement('details');
-            albumDetails.className = 'album-details';
-
-            const summary = document.createElement('summary');
-            summary.className = 'album-summary';
-
-            const albumName = document.createElement('span');
-            albumName.className = 'album-name';
-            albumName.textContent = `${data.name} (${data.total_tracks} tracks)`;
-
-            const albumProgress = document.createElement('span');
-            albumProgress.className = 'album-progress';
-            albumProgress.setAttribute('aria-live', 'polite');
-
-            const progressBar = document.createElement('progress');
-            progressBar.className = 'album-progress-bar';
-            progressBar.setAttribute('aria-label', `${data.name} download progress`);
-
-            summary.append(albumName, albumProgress, progressBar);
-
-            const list = document.createElement('ul');
-            list.className = 'track-list';
-            list.style.listStyle = 'none';
-            list.style.padding = '0';
-            
-            data.tracks.forEach((t, index) => {
-                const trackKey = index + 1;
-                const li = document.createElement('li');
-                li.style.marginBottom = '8px';
-                li.style.padding = '8px';
-                li.style.borderRadius = '4px';
-                li.style.backgroundColor = 'rgba(255,255,255,0.1)';
-                li.style.transition = 'all 0.3s ease';
-                
-                const trackState = trackStates.get(trackKey) || 'waiting';
-                const stateIcon = this.getStateIcon(trackState);
-                
-                console.log(`🎨 Rendering track ${t.number}: state="${trackState}", icon="${stateIcon}"`);
-                
-                li.innerHTML = `
-                    <span class="track-icon" style="margin-right: 12px; font-size: 20px; display: inline-block; width: 30px; text-align: center; background-color: rgba(255,255,255,0.2); border-radius: 50%; padding: 2px;">${stateIcon}</span>
-                    <span class="track-info">${t.number}. ${t.name} — ${t.artists.join(', ')} [${Math.floor(t.duration/60)}:${(t.duration%60).toString().padStart(2,'0')}]</span>
-                `;
-                
-                // Agregar clase CSS para estado
-                li.classList.add(`track-state-${trackState}`);
-                li.setAttribute('data-track-number', trackKey);
-                li.setAttribute('data-track-state', trackState);
-                
-                // Debug: Verificar qué estado tiene ahora
-                console.log(`📝 Track ${t.number} initialized with state: ${trackState}`);
-                
-                list.appendChild(li);
-            });
-            albumDetails.append(summary, list);
-            container.appendChild(albumDetails);
-            this.updateAlbumProgress(albumDetails);
-            
-        } else if (data.name && data.artists) {
-            // Inicializar estado para canción individual
-            if (!trackStates.has(1)) {
-                trackStates.set(1, 'waiting');
-            }
-            
-            const trackState = trackStates.get(1) || 'waiting';
-            const stateIcon = this.getStateIcon(trackState);
-            
-            container.innerHTML = `
-                <div style="margin-bottom: 10px;">
-                    <span class="track-icon" style="margin-right: 8px; font-size: 16px;">${stateIcon}</span>
-                    <strong>${data.name}</strong> — ${data.artists.join(', ')}
-                </div>
-                <p>Álbum: ${data.album_name}</p>
-                <p>Duración: ${Math.floor(data.duration/60)}:${(data.duration%60).toString().padStart(2,'0')}</p>
-            `;
-        }
-
-        message.classList.add('hidden');
-        container.classList.remove('hidden');
-        
-        // Guardar estado después de mostrar detalles
-        if (this.saveStateCallback) {
-            this.saveStateCallback();
-        }
-    }
-
-    clearInspect() {
-        const container = document.getElementById('inspect-details');
-        const message = document.getElementById('inspect-message');
-        container.innerHTML = '';
-        message.textContent = 'Waiting for inspection...';
-        message.classList.remove('hidden');
-        container.classList.add('hidden');
     }
 
     setOutputDirectories(directories, rootPath) {
