@@ -33,7 +33,7 @@ class SpotifyAPI:
         Raises:
             ValueError: If Spotify credentials are missing or invalid
         """
-        Config.validate()  # Valida las credenciales
+        Config.validate()  # Validate the credentials
         cache_path = Path(Config.SPOTIFY_AUTH_CACHE_PATH).expanduser()
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         auth_manager = SpotifyOAuth(
@@ -186,7 +186,7 @@ class SpotifyAPI:
             self.logger.error(f"Error fetching track data: {e}")
             raise ValueError("Track not found or invalid URL") from e
 
-    @lru_cache(maxsize=32)  # Cachea las últimas 32 llamadas
+    @lru_cache(maxsize=32)  # Cache the last 32 calls
     def _fetch_album_data(self, album_url: str) -> dict:
         """Fetch raw album data from the API.
         

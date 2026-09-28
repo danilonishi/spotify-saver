@@ -178,7 +178,7 @@ class YouTubeDownloader:
             "verbose": is_verbose,
             "extract_flat": False,
             "logger": self._get_ydl_logger(),
-            # Parámetros de cookies y headers para evitar bloqueos
+            # Cookie and header options to avoid blocks
             "cookiefile": (
                 str(Config.YTDLP_COOKIES_PATH) if Config.YTDLP_COOKIES_PATH else None
             ),
@@ -445,7 +445,7 @@ class YouTubeDownloader:
             return None, None
 
         try:
-            # 1. Descarga el audio
+            # 1. Download the audio
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([yt_url])
 
@@ -509,7 +509,7 @@ class YouTubeDownloader:
 
         output_dir = self._get_album_dir(album)
 
-        # Generar NFO después de descargar todos los tracks
+        # Generate the NFO after downloading all tracks
         if nfo:
             self.logger.info(f"Generating NFO for album: {album.name}")
             NFOGenerator.generate(album, output_dir)
@@ -602,7 +602,7 @@ class YouTubeDownloader:
             bool: True if at least one track was successfully downloaded
         """
 
-        # Validación básica
+        # Basic validation
         if not playlist.name:
             self.logger.error("Playlist name is empty. Cannot create directory.")
             return False
@@ -610,17 +610,17 @@ class YouTubeDownloader:
             self.logger.warning(f"Playlist '{playlist.name}' has no tracks.")
             return False
 
-        # Configuración inicial
+        # Initial setup
         output_dir = self.get_playlist_dir(playlist)
         output_dir.mkdir(parents=True, exist_ok=True)
         success = False
         failed_tracks = []
         downloaded_tracks = []
 
-        # Descarga de tracks
+        # Download tracks
         for track in playlist.tracks:
             try:
-                # Descargar URL de YouTube
+                # Download the YouTube URL
                 _, updated_track = self.download_track(
                     track,
                     album_artist=(

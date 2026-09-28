@@ -32,5 +32,5 @@ def show_playlist_info(playlist: Playlist, verbose: bool):
         click.echo(f"  - {track.name} by {', '.join(track.artists)} ({track.duration // 60}:{track.duration % 60:02d})")
 
     if verbose:
-        click.echo(f"\n🔍 Detalles técnicos:")
-        click.echo(f"URL de portada: {playlist.cover_url or 'N/A'}")
+        click.echo(f"\n🔍 Technical details:")
+        click.echo(f"Cover URL: {playlist.cover_url or 'N/A'}")

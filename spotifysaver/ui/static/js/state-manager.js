@@ -20,7 +20,7 @@ class StateManager {
             const state = JSON.parse(saved);
             const maxAge = 24 * 60 * 60 * 1000; // 24 horas
             
-            // Verificar si el estado no es muy antiguo
+            // Check whether the state is recent enough
             if (Date.now() - state.timestamp > maxAge) {
                 localStorage.removeItem(this.storageKey);
                 return null;
@@ -40,7 +40,7 @@ class StateManager {
 
     getLogs() {
         const logEntries = document.querySelectorAll('.log-entry');
-        // Invertir para mantener el orden cronológico original al guardar
+        // Reverse to preserve the original chronological order when saving
         return Array.from(logEntries).reverse().map(entry => ({
             text: entry.textContent,
             className: entry.className
@@ -50,7 +50,7 @@ class StateManager {
     restoreLogs(logs) {
         const logContent = document.getElementById('log-content');
         logContent.innerHTML = '';
-        // Invertir el orden de los logs para mostrar los más recientes primero
+        // Reverse the log order to show the most recent entries first
         logs.reverse().forEach(log => {
             const entry = document.createElement('div');
             entry.className = log.className;

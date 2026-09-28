@@ -1,57 +1,57 @@
 # SpotifySaver API
 
-Una API REST construida con FastAPI para descargar música de Spotify vía YouTube Music.
+A REST API built with FastAPI for downloading music from Spotify via YouTube Music.
 
-## ⚙️ Configuración
+## ⚙️ Configuration
 
-### 1. Credenciales de Spotify API
+### 1. Spotify API Credentials
 
-1. Ve al [Dashboard de Spotify for Developers](https://developer.spotify.com/dashboard/applications)
-2. Crea una nueva aplicación o usa una existente
-3. Copia el `Client ID` y `Client Secret`
-4. Crea un archivo `.env` en la raíz del proyecto:
+1. Go to the [Spotify for Developers dashboard](https://developer.spotify.com/dashboard/applications)
+2. Create a new application or use an existing one
+3. Copy the `Client ID` and `Client Secret`
+4. Create a `.env` file in the project root:
 
 ```bash
-# Copia el archivo de ejemplo
+# Copy the example file
 cp .env.example .env
 ```
 
-5. Edita el archivo `.env` con tus credenciales:
+5. Edit the `.env` file with your credentials:
 
 ```env
-SPOTIFY_CLIENT_ID=tu_client_id_aqui
-SPOTIFY_CLIENT_SECRET=tu_client_secret_aqui
-SPOTIFYSAVER_OUTPUT_DIR=Music  # Opcional
+SPOTIFY_CLIENT_ID=your_client_id_here
+SPOTIFY_CLIENT_SECRET=your_client_secret_here
+SPOTIFYSAVER_OUTPUT_DIR=Music  # Optional
 ```
 
-### 2. Instalar dependencias
+### 2. Install Dependencies
 
 ```bash
-# Instalar todas las dependencias
+# Install all dependencies
 pip install -r requirements.txt
 
-# O solo las dependencias de la API
+# Or install only the API dependencies
 pip install fastapi uvicorn
 ```
 
-## 🚀 Inicio Rápido
+## 🚀 Quick Start
 
-### Ejecutar el servidor
+### Run the Server
 
 ```bash
-# Usando Poetry
+# Using Poetry
 poetry run uvicorn spotifysaver.api.main:app --reload
 
-# O directamente
+# Or directly
 python -m spotifysaver.api.main
 
-# O usando el script
+# Or using the script
 spotifysaver-api
 ```
 
-El servidor estará disponible en: `http://localhost:8000`
+The server will be available at: `http://localhost:8000`
 
-## 📚 Documentación
+## 📚 Documentation
 
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
@@ -59,15 +59,15 @@ El servidor estará disponible en: `http://localhost:8000`
 ## 🔌 Endpoints
 
 ### GET `/`
-Información básica de la API.
+Basic API information.
 
 ### GET `/health`
-Verificación de estado del servicio.
+Service health check.
 
 ### GET `/api/v1/inspect`
-Inspecciona una URL de Spotify y devuelve los metadatos sin descargar.
+Inspect a Spotify URL and return its metadata without downloading anything.
 
-**Parámetros:**
+**Parameters:**
 - `spotify_url` (string): URL de Spotify
 
 **Ejemplo:**
@@ -76,11 +76,11 @@ curl "http://localhost:8000/api/v1/inspect?spotify_url=https://open.spotify.com/
 ```
 
 ### POST `/api/v1/download`
-Inicia una tarea de descarga.
+Start a download task.
 
-Acepta enlaces de video individuales de YouTube/YouTube Music, además de enlaces de Spotify y colecciones de YouTube. `output_format` puede ser `mp3` o `m4a`.
+Accepts individual YouTube/YouTube Music video links, as well as Spotify links and YouTube collections. `output_format` can be `OPUS`, `mp3` or `m4a`.
 
-**Cuerpo de la petición:**
+**Request body:**
 ```json
 {
   "spotify_url": "https://open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy",
@@ -92,7 +92,7 @@ Acepta enlaces de video individuales de YouTube/YouTube Music, además de enlace
 }
 ```
 
-**Respuesta:**
+**Response:**
 ```json
 {
   "task_id": "uuid-task-id",
@@ -104,9 +104,9 @@ Acepta enlaces de video individuales de YouTube/YouTube Music, además de enlace
 ```
 
 ### GET `/api/v1/download/{task_id}/status`
-Obtiene el estado de una tarea de descarga.
+Get the status of a download task.
 
-**Respuesta:**
+**Response:**
 ```json
 {
   "task_id": "uuid-task-id",
@@ -122,26 +122,26 @@ Obtiene el estado de una tarea de descarga.
 ```
 
 ### POST `/api/v1/download/{task_id}/cancel`
-Solicita cancelar una tarea activa. El estado cambia a `cancelling` mientras se detiene la descarga actual y pasa a `cancelled` cuando el trabajador se ha detenido. GET se mantiene por compatibilidad.
+Request cancellation of an active task. The status changes to `cancelling` while the current download is stopping, then changes to `cancelled` once the worker has stopped. GET is retained for compatibility.
 
 ### GET `/api/v1/downloads`
-Lista todas las tareas de descarga.
+List all download tasks.
 
-## 💡 Ejemplos de Uso
+## 💡 Usage Examples
 
-### Python con requests
+### Python with requests
 
 ```python
 import requests
 
-# Inspeccionar un álbum
+# Inspect an album
 response = requests.get(
     "http://localhost:8000/api/v1/inspect",
     params={"spotify_url": "https://open.spotify.com/album/..."}
 )
 metadata = response.json()
 
-# Iniciar descarga
+# Start a download
 download_request = {
     "spotify_url": "https://open.spotify.com/album/...",
     "download_lyrics": True,
@@ -154,7 +154,7 @@ response = requests.post(
 )
 task = response.json()
 
-# Verificar estado
+# Check status
 status_response = requests.get(
     f"http://localhost:8000/api/v1/download/{task['task_id']}/status"
 )
@@ -164,13 +164,13 @@ status = status_response.json()
 ### JavaScript/Node.js
 
 ```javascript
-// Inspeccionar URL
+// Inspect URL
 const inspectResponse = await fetch(
   `http://localhost:8000/api/v1/inspect?spotify_url=${encodeURIComponent(spotifyUrl)}`
 );
 const metadata = await inspectResponse.json();
 
-// Iniciar descarga
+// Start a download
 const downloadResponse = await fetch('http://localhost:8000/api/v1/download', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -183,7 +183,7 @@ const downloadResponse = await fetch('http://localhost:8000/api/v1/download', {
 });
 const task = await downloadResponse.json();
 
-// Verificar estado
+// Check status
 const statusResponse = await fetch(
   `http://localhost:8000/api/v1/download/${task.task_id}/status`
 );
@@ -193,10 +193,10 @@ const status = await statusResponse.json();
 ### cURL
 
 ```bash
-# Inspeccionar
+# Inspect
 curl "http://localhost:8000/api/v1/inspect?spotify_url=https://open.spotify.com/track/..."
 
-# Iniciar descarga
+# Start a download
 curl -X POST "http://localhost:8000/api/v1/download" \
   -H "Content-Type: application/json" \
   -d '{
@@ -205,72 +205,72 @@ curl -X POST "http://localhost:8000/api/v1/download" \
     "download_cover": true
   }'
 
-# Verificar estado
+# Check status
 curl "http://localhost:8000/api/v1/download/{task_id}/status"
 ```
 
-## ⚙️ Configuración
+## ⚙️ Configuration
 
-### Variables de Entorno
+### Environment Variables
 
 ```bash
-# Archivo .env
-SPOTIFY_CLIENT_ID=tu_client_id
-SPOTIFY_CLIENT_SECRET=tu_client_secret
-YTDLP_COOKIES_PATH="cookies.txt"  # Opcional
-SPOTIFYSAVER_OUTPUT_DIR="Music"   # Directorio de salida por defecto
+# .env file
+SPOTIFY_CLIENT_ID=your_client_id
+SPOTIFY_CLIENT_SECRET=your_client_secret
+YTDLP_COOKIES_PATH="cookies.txt"  # Optional
+SPOTIFYSAVER_OUTPUT_DIR="Music"   # Default output directory
 ```
 
-### Configuración de CORS
+### CORS Configuration
 
-Por defecto, la API permite conexiones desde:
+By default, the API allows connections from:
 - `http://localhost:*`
 - `http://127.0.0.1:*`
 
-Para modificar esto, edita `spotifysaver/api/config.py`.
+To change this, edit `spotifysaver/api/config.py`.
 
-## 🔄 Estados de Descarga
+## 🔄 Download States
 
-- **`pending`**: Tarea creada, esperando procesamiento
-- **`processing`**: Descarga en progreso
-- **`completed`**: Descarga completada exitosamente
-- **`failed`**: Error durante la descarga
-- **`cancelled`**: Tarea cancelada por el usuario
+- **`pending`**: Task created and waiting to be processed
+- **`processing`**: Download in progress
+- **`completed`**: Download completed successfully
+- **`failed`**: Download error
+- **`cancelled`**: Task cancelled by the user
 
-## 📁 Estructura de Salida
+## 📁 Output Structure
 
 ```
 Music/
-├── Artista/
-│   ├── Álbum (Año)/
-│   │   ├── 01 - Canción.m4a
-│   │   ├── 01 - Canción.lrc  # Si se solicitan letras
-│   │   ├── album.nfo         # Si se solicita NFO
-│   │   └── cover.jpg         # Si se solicita portada
+├── Artist/
+│   ├── Album (Year)/
+│   │   ├── 01 - Track.mp3
+│   │   ├── 01 - Track.lrc    # If lyrics are requested
+│   │   ├── album.nfo         # If NFO is requested
+│   │   └── cover.jpg         # If cover art is requested
 │   └── ...
 └── Playlist Name/
-    ├── Track 01.m4a
-    ├── Track 02.m4a
+    ├── Track 01.mp3
+    ├── Track 02.mp3
     └── cover.jpg
 ```
 
-## 🚨 Limitaciones
+## 🚨 Limitations
 
-- Las descargas son procesadas secuencialmente para evitar sobrecarga
-- El almacenamiento de tareas es en memoria (se reinicia con el servidor)
-- Se recomienda usar Redis o una base de datos para producción
-- Las cookies de YouTube Music pueden ser necesarias para contenido restringido
+- Downloads are processed sequentially to avoid overloading the system
+- Task storage is in memory (it resets when the server restarts)
+- Redis or a database is recommended for production
+- YouTube Music cookies may be required for restricted content
 
-## 🛡️ Consideraciones de Seguridad
+## 🛡️ Security Considerations
 
-- La API no incluye autenticación por defecto
-- No expongas la API directamente a internet sin autenticación
-- Considera usar un proxy reverso (nginx) para producción
-- Valida y sanitiza todas las URLs de entrada
+- The API does not include authentication by default
+- Do not expose the API directly to the internet without authentication
+- Consider using a reverse proxy (nginx) in production
+- Validate and sanitize all input URLs
 
 ## 📝 Logging
 
-Los logs se generan usando el sistema de logging de SpotifySaver. Para habilitar logs detallados:
+Logs are generated using the SpotifySaver logging system. To enable detailed logs:
 
 ```python
 from spotifysaver.spotlog import LoggerConfig

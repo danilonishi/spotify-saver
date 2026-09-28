@@ -95,9 +95,9 @@ class AudioDBParser():
         descriptions: List[AlbumDescription] = []
         for key, value in raw_data.items():
             if key.startswith("strDescription"):
-                # Extraer el código de idioma (ej. "CN", "IT", "JP", "RU")
+                # Extract the language code (e.g. "CN", "IT", "JP", "RU")
                 lang_code = key.replace("strDescription", "")
-                # Normalizar valor: si viene "None" o None, lo dejamos vacío
+                # Normalize the value: convert "None" or None to an empty value
                 desc_text = None if value in (None, "None") else value
                 descriptions.append(
                     AlbumDescription(language=lang_code, description=desc_text or "")

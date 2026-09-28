@@ -92,14 +92,14 @@ class SpotifySaverUI {
             }
         });
         
-        // Permitir iniciar descarga con Enter
+        // Allow starting a download with Enter
         spotifyUrl.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 this.downloadManager.startDownload();
             }
         });
 
-        // Botón para limpiar logs y estado
+        // Button to clear logs and state
         clearLogsBtn.addEventListener('click', () => {
             if (confirm('Are you sure you want to clear logs and state? This cannot be undone.')) {
                 this.uiManager.clearLog();
@@ -170,7 +170,7 @@ class SpotifySaverUI {
     }
 }
 
-// Inicializar la aplicación cuando se carga la página
+// Initialize the application when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     new SpotifySaverUI();
 });

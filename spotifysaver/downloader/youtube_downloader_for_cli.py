@@ -365,7 +365,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             if cancellation_event and cancellation_event.is_set():
                 return None, None
             if not yt_url:
-                raise ValueError(f"No se encontró en YouTube Music: {track.name}")
+                raise ValueError(f"Not found on YouTube Music: {track.name}")
 
             audio_path, updated_track = self.download_track(
                 track=track,
@@ -378,14 +378,14 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             )
 
             if audio_path:
-                self.logger.info(f"Track descargado exitosamente: {track.name}")
+                self.logger.info(f"Track downloaded successfully: {track.name}")
                 return audio_path, updated_track
             else:
-                self.logger.warning(f"No se pudo descargar el track: {track.name}")
+                self.logger.warning(f"Could not download track: {track.name}")
                 return None, None
 
         except Exception as e:
-            self.logger.error(f"Error al descargar el track {track.name}: {str(e)}", exc_info=True)
+            self.logger.error(f"Error downloading track {track.name}: {str(e)}", exc_info=True)
             return None, None
 
     def download_album_cli(
@@ -417,7 +417,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             tuple: (successful_downloads, total_tracks)
         """
         if not album.tracks:
-            self.logger.error("Álbum no contiene tracks.")
+            self.logger.error("Album contains no tracks.")
             return 0, 0, []
 
         success = 0
@@ -462,7 +462,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         if cancellation_event and cancellation_event.is_set():
             return success, len(album.tracks), failed_tracks
 
-        # Generar metadatos solo si hay éxitos
+        # Generate metadata only if at least one track succeeded
         if success > 0:
             output_dir = self._get_album_dir(album)
             if nfo:
@@ -470,7 +470,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             if cover and album.cover_url:
                 self._save_cover_album(album.cover_url, output_dir / "cover.jpg")
 
-            # Guarda el cover del artista
+            # Save the artist cover
             # self._save_artist_cover()
 
         return success, len(album.tracks), failed_tracks
@@ -504,7 +504,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             tuple: (successful_downloads, total_tracks, failed_track_names)
         """
         if not playlist.name or not playlist.tracks:
-            self.logger.error("Playlist inválida: sin nombre o tracks vacíos")
+            self.logger.error("Invalid playlist: missing name or no tracks")
             return 0, 0, []
 
         output_dir = self.get_playlist_dir(playlist)
@@ -517,7 +517,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             if cancellation_event and cancellation_event.is_set():
                 break
             try:
-                # Notificar progreso (si hay callback)
+                # Report progress if a callback is provided
                 if progress_callback:
                     progress_callback(idx, len(playlist.tracks), track.name)
 
@@ -548,7 +548,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             except Exception as e:
                 if cancellation_event and cancellation_event.is_set():
                     break
-                self.logger.error(f"Error en {track.name}: {str(e)}")
+                self.logger.error(f"Error processing {track.name}: {str(e)}")
                 failed_tracks.append(track.name)
                 if track_result_callback:
                     track_result_callback(idx, track.name, "error")

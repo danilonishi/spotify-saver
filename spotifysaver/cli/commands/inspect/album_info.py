@@ -22,7 +22,7 @@ def show_album_info(album: Album, verbose: bool):
         verbose (bool): Whether to show detailed technical information including
                        genres and additional metadata
     """
-    click.secho(f"\n💿 Álbum: {album.name}", fg="magenta", bold=True)
+    click.secho(f"\n💿 Album: {album.name}", fg="magenta", bold=True)
     click.echo(f"👥 Artist(s): {', '.join(album.artists)}")
     click.echo(f"📅 Release date: {album.release_date}")
     click.echo(f"🎶 Tracks: {len(album.tracks)}")
@@ -34,5 +34,5 @@ def show_album_info(album: Album, verbose: bool):
         )
 
     if verbose:
-        click.echo(f"\n🔍 Detalles técnicos:")
-        click.echo(f"Géneros: {', '.join(album.genres) if album.genres else 'N/A'}")
+        click.echo(f"\n🔍 Technical details:")
+        click.echo(f"Genres: {', '.join(album.genres) if album.genres else 'N/A'}")

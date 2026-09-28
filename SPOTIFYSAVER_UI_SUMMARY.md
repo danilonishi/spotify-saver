@@ -1,159 +1,159 @@
-# SpotifySaver Web UI - Resumen de Implementación
+# SpotifySaver Web UI - Implementation Summary
 
-## ✅ Implementación Completada
+## ✅ Implementation Complete
 
-La interfaz web de SpotifySaver ahora está **integrada directamente en el comando `spotifysaver-api`**, proporcionando una solución unificada para la API y la interfaz web. 
+The SpotifySaver web interface is now **integrated directly into the `spotifysaver-api` command**, providing a unified solution for the API and web interface.
 
-### 🎯 Características Principales
+### 🎯 Key Features
 
-1. **Servidor Unificado `spotifysaver-api`**
-   - Sirve tanto la API como la interfaz web en un solo puerto (8000)
-   - La interfaz web está disponible en `http://localhost:8000`
-   - La documentación de la API en `http://localhost:8000/docs`
-   - Configuración simplificada con un solo servidor
+1. **Unified `spotifysaver-api` Server**
+   - Serves both the API and web interface on a single port (8000)
+   - The web interface is available at `http://localhost:8000`
+   - The API documentation is available at `http://localhost:8000/docs`
+   - Simplified configuration with a single server
 
-2. **Interfaz Web Moderna**
-   - Diseño responsive y atractivo
-   - Validación de URLs de Spotify
-   - Configuración completa de parámetros de descarga
-   - Monitoreo de progreso en tiempo real
-   - Registro de actividad con timestamps
+2. **Modern Web Interface**
+   - Attractive, responsive design
+   - Spotify URL validation
+   - Full configuration of download options
+   - Real-time progress monitoring
+   - Activity log with timestamps
 
-3. **Configuración Flexible**
-   - Formato de audio (M4A/MP3)
-   - Bitrate configurable (128-320 kbps)
-   - Directorio de salida personalizable
-   - Opciones para letras y archivos NFO
-   - Puerto configurable (default: 8000)
+3. **Flexible Configuration**
+   - Audio format (M4A/MP3)
+   - Configurable bitrate (128-320 kbps)
+   - Customizable output directory
+   - Options for lyrics and NFO files
+   - Configurable port (default: 8000)
 
-### 🔧 Arquitectura Técnica
+### 🔧 Technical Architecture
 
 #### Backend
-- **Servidor Unificado**: FastAPI sirviendo tanto API como UI en puerto 8000
-- **Archivos Estáticos**: Servidos desde `spotifysaver/ui/`
-- **Rutas Absolutas**: Usa Path para resolver rutas independientemente del sistema operativo
-- **Configuración**: Variables de entorno y argumentos CLI
+- **Unified Server**: FastAPI serves both the API and UI on port 8000
+- **Static Files**: Served from `spotifysaver/ui/`
+- **Absolute Paths**: Uses Path to resolve paths regardless of the operating system
+- **Configuration**: Environment variables and CLI arguments
 
 #### Frontend
-- **Arquitectura Modular**: Código JavaScript organizado en 5 módulos especializados
-  - `api-client.js` - Comunicación con API
-  - `state-manager.js` - Persistencia de estado
-  - `ui-manager.js` - Actualizaciones de interfaz
-  - `download-manager.js` - Gestión de descargas
-  - `app.js` - Controlador principal
-- **HTML5**: Estructura semántica moderna
-- **CSS3**: Diseño gradient, animaciones, responsive
-- **UX**: Validación, feedback visual, logging en tiempo real
+- **Modular Architecture**: JavaScript code organized into 5 specialized modules
+  - `api-client.js` - API communication
+  - `state-manager.js` - State persistence
+  - `ui-manager.js` - Interface updates
+  - `download-manager.js` - Download management
+  - `app.js` - Main controller
+- **HTML5**: Modern semantic structure
+- **CSS3**: Gradient design, animations, responsive layout
+- **UX**: Validation, visual feedback, real-time logging
 
-### 📁 Estructura de Archivos
+### 📁 File Structure
 
 ```
 spotifysaver/
 ├── api/
-│   ├── app.py                # Aplicación FastAPI integrada con UI
+│   ├── app.py                # FastAPI application integrated with the UI
 │   └── ...
 ├── ui/
-│   ├── index.html            # Página principal
+│   ├── index.html            # Main page
 │   ├── static/
 │   │   ├── css/
-│   │   │   └── styles.css    # Estilos
+│   │   │   └── styles.css    # Styles
 │   │   └── js/
-│   │       ├── api-client.js     # Cliente API
-│   │       ├── state-manager.js  # Gestión de estado
-│   │       ├── ui-manager.js     # Gestión UI
-│   │       ├── download-manager.js # Gestión descargas
-│   │       └── app.js            # Aplicación principal
-│   └── README.md             # Documentación del UI
+│   │       ├── api-client.js     # API client
+│   │       ├── state-manager.js  # State management
+│   │       ├── ui-manager.js     # UI management
+│   │       ├── download-manager.js # Download management
+│   │       └── app.js            # Main application
+│   └── README.md             # UI documentation
 ```
 
-### 🚀 Uso del Comando
+### 🚀 Using the Command
 
 ```bash
-# Uso básico - Inicia API + UI en puerto 8000
+# Basic usage - Start the API + UI on port 8000
 spotifysaver-api
 
-# Con puerto personalizado
+# Use a custom port
 spotifysaver-api --port 8080
 
-# Con host específico
+# Use a specific host
 spotifysaver-api --host 0.0.0.0
 ```
 
-**Acceso:**
-- **Interfaz Web**: http://localhost:8000
-- **Documentación API**: http://localhost:8000/docs
-- **Redoc API**: http://localhost:8000/redoc
+**Access:**
+- **Web interface**: http://localhost:8000
+- **API documentation**: http://localhost:8000/docs
+- **API ReDoc**: http://localhost:8000/redoc
 
-### 🌐 Funcionalidades Web
+### 🌐 Web Features
 
-1. **Entrada de URL**: Campo validado para URLs de Spotify
-2. **Configuración de Audio**:
-   - Formato: M4A (recomendado) o MP3
-   - Bitrate: 128, 192, 256, 320 kbps o "Mejor calidad"
-3. **Opciones Avanzadas**:
-   - Directorio de salida personalizable
-   - Incluir letras sincronizadas
-   - Generar archivos NFO para Jellyfin/Kodi
-4. **Monitoreo**:
-   - Barra de progreso visual
-   - Estado de descarga en tiempo real
-   - Log de actividad detallado
-5. **Experiencia de Usuario**:
-   - Validación de formularios
-   - Feedback visual inmediato
-   - Diseño responsive para móviles
+1. **URL Input**: Validated field for Spotify URLs
+2. **Audio Settings**:
+   - Format: M4A (recommended) or MP3
+   - Bitrate: 128, 192, 256, 320 kbps, or "Best quality"
+3. **Advanced Options**:
+   - Customizable output directory
+   - Include synchronized lyrics
+   - Generate NFO files for Jellyfin/Kodi
+4. **Monitoring**:
+   - Visual progress bar
+   - Real-time download status
+   - Detailed activity log
+5. **User Experience**:
+   - Form validation
+   - Immediate visual feedback
+   - Responsive mobile design
 
-### 🔧 Configuración Avanzada
+### 🔧 Advanced Configuration
 
-#### Variables de Entorno
-- `SPOTIFYSAVER_API_PORT`: Puerto del servidor (default: 8000)
-- `SPOTIFYSAVER_API_HOST`: Host del servidor (default: 0.0.0.0)
+#### Environment Variables
+- `SPOTIFYSAVER_API_PORT`: Server port (default: 8000)
+- `SPOTIFYSAVER_API_HOST`: Server host (default: 0.0.0.0)
 
-#### Argumentos CLI
-- `--port`: Puerto del servidor
-- `--host`: Host del servidor
+#### CLI Arguments
+- `--port`: Server port
+- `--host`: Server host
 
-### 💡 Características Técnicas
+### 💡 Technical Features
 
-1. **Arquitectura Integrada**:
-   - FastAPI sirve tanto la API REST como la interfaz web
-   - Servidor único en puerto 8000
-   - Manejo limpio de shutdown (Ctrl+C)
+1. **Integrated Architecture**:
+   - FastAPI serves both the REST API and the web interface
+   - Single server on port 8000
+   - Clean shutdown handling (Ctrl+C)
 
-2. **Comunicación**:
-   - CORS configurado para desarrollo
-   - Validación de formularios en frontend
-   - API REST documentada con Swagger/ReDoc
+2. **Communication**:
+   - CORS configured for development
+   - Frontend form validation
+   - REST API documented with Swagger/ReDoc
 
-3. **Compatibilidad**:
-   - Rutas estáticas para CSS/JS
-   - Manejo de errores robusto
-   - Logging detallado
+3. **Compatibility**:
+   - Static routes for CSS/JS
+   - Robust error handling
+   - Detailed logging
 
-### 🎨 Diseño Visual
+### 🎨 Visual Design
 
-- **Tema**: Gradient azul-púrpura moderno
-- **Responsivo**: Adapta a pantallas móviles
-- **Accesibilidad**: Etiquetas semánticas y contraste adecuado
-- **Animaciones**: Transiciones suaves y feedback visual
-- **Estados**: Colores diferenciados para éxito, error, advertencia
+- **Theme**: Modern blue-purple gradient
+- **Responsive**: Adapts to mobile screens
+- **Accessibility**: Semantic labels and adequate contrast
+- **Animations**: Smooth transitions and visual feedback
+- **States**: Distinct colors for success, error, and warning
 
-### 🔄 Actualización del Proyecto
+### 🔄 Project Updates
 
-1. **spotifysaver/api/app.py**: Integrada interfaz web en FastAPI
-2. **pyproject.toml**: Configuración de archivos UI en package
-3. **README.md**: Documentación del servidor unificado
-4. **Instalación**: Compatible con instalación via pip/poetry existente
+1. **spotifysaver/api/app.py**: Integrated the web interface into FastAPI
+2. **pyproject.toml**: Configured UI files in the package
+3. **README.md**: Documentation for the unified server
+4. **Installation**: Compatible with the existing pip/Poetry installation
 
-### ✅ Pruebas Realizadas
+### ✅ Tests Performed
 
-- ✅ Instalación del paquete via pip/poetry
-- ✅ Inicio del servidor con `spotifysaver-api`
-- ✅ Acceso a interfaz web en http://localhost:8000
-- ✅ Interfaz web responsive
-- ✅ Comunicación frontend-backend
-- ✅ Validación de formularios
-- ✅ Manejo de errores
-- ✅ Compatibilidad cross-platform (Windows/Linux/macOS)
+- ✅ Package installation via pip/Poetry
+- ✅ Server startup with `spotifysaver-api`
+- ✅ Web interface access at http://localhost:8000
+- ✅ Responsive web interface
+- ✅ Frontend-backend communication
+- ✅ Form validation
+- ✅ Error handling
+- ✅ Cross-platform compatibility (Windows/Linux/macOS)
 
-La interfaz web está completamente integrada en `spotifysaver-api` y lista para uso. Proporciona una interfaz moderna y fácil de usar que hace que SpotifySaver sea accesible para usuarios que prefieren interfaces gráficas sobre la línea de comandos.
+The web interface is fully integrated into `spotifysaver-api` and ready to use. It provides a modern, easy-to-use interface that makes SpotifySaver accessible to users who prefer graphical interfaces over the command line.

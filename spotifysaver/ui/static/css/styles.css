@@ -386,13 +386,13 @@ select:focus {
 
 .left-column {
     display: grid;
-    grid-template-rows: auto 1fr; /* form arriba, status abajo */
+    grid-template-rows: auto 1fr; /* form on top, status below */
     gap: 20px;
 }
 
 .right-column {
     display: grid;
-    grid-template-rows: auto 1fr; /* status arriba, log ocupando el resto */
+    grid-template-rows: auto 1fr; /* status on top, log fills the rest */
     gap: 20px;
 }
 
@@ -581,7 +581,7 @@ select:focus {
     }
 }
 
-/* Estilos para iconos de estado de canciones */
+/* Styles for track status icons */
 .track-icon {
     display: inline-block;
     font-size: 16px;

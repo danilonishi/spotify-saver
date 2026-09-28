@@ -1,4 +1,4 @@
-# 📘 CONTRIBUTING.md — Guía para contribuir a CERCAPP
+# 📘 CONTRIBUTING.md — Guide to contributing to CERCAPP
 
 Welcome to Spotifysaver. This document establishes some conventions and good practices for contributing to the project in an organized and collaborative way. Suggestions and improvements are welcome!
 
@@ -71,8 +71,8 @@ Before submitting your PR:
 
 ---
 
-### 📌 Enlaces útiles
+### 📌 Useful links
 
-- [README del proyecto](./README.md)
-- [Plantillas de Issues](.github/ISSUE_TEMPLATE/)
-- [Plantilla de Pull Request](.github/PULL_REQUEST_TEMPLATE.md)
+- [Project README](./README.md)
+- [Issue templates](.github/ISSUE_TEMPLATE/)
+- [Pull request template](.github/PULL_REQUEST_TEMPLATE.md)

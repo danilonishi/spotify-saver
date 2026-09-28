@@ -141,7 +141,7 @@ class YoutubeMusicSearcher:
                 self.logger.info(f"Album context not found for '{track.album_name}'")
                 return None
 
-            # Verificación de tipo
+            # Verify the result type
             if (
                 not isinstance(album_results[0], dict)
                 or "browseId" not in album_results[0]
@@ -149,7 +149,7 @@ class YoutubeMusicSearcher:
                 self.logger.warning("Ignoring invalid album search result")
                 return None
 
-            # Obtención de tracks
+            # Fetch the tracks
             album_tracks = self.ytmusic.get_album(album_results[0]["browseId"]).get(
                 "tracks", []
             )

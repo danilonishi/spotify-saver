@@ -89,7 +89,7 @@ class NFOGenerator:
             if adb_data.genre:
                 ET.SubElement(root, "genre").text = adb_data.genre
             if adb_data.description:
-                # description es lista de AlbumDescription → tomar la primera
+                # description is a list of AlbumDescription objects; use the first one
                 desc = adb_data.description[0].description if adb_data.description else ""
                 ET.SubElement(root, "review").text = desc
                 ET.SubElement(root, "outline").text = desc

@@ -142,15 +142,15 @@ class UIManager {
     }
 
     addLogEntry(message, type = 'info') {
-        // Prevenir logs duplicados usando un identificador único
+        // Prevent duplicate logs by using a unique identifier
         const logId = `${type}:${message}`;
         
-        // Verificar si este mensaje ya fue registrado recientemente
+        // Check whether this message was logged recently
         if (this.recentLogs.has(logId)) {
-            return; // No añadir logs duplicados
+            return; // Do not add duplicate logs
         }
         
-        // Añadir al cache de logs recientes con cooldown
+        // Add to the recent log cache with a cooldown
         this.recentLogs.add(logId);
         setTimeout(() => {
             this.recentLogs.delete(logId);
@@ -162,11 +162,11 @@ class UIManager {
         entry.className = `log-entry ${type}`;
         entry.textContent = `[${timestamp}] ${message}`;
         
-        // Insertar al principio para mostrar los más recientes arriba
+        // Insert at the top to show the most recent entries first
         logContent.insertBefore(entry, logContent.firstChild);
         logContent.scrollTop = 0;
         
-        // Guardar estado después de añadir log
+        // Save state after adding a log
         if (this.saveStateCallback) {
             this.saveStateCallback();
         }
@@ -176,19 +176,19 @@ class UIManager {
         const logContent = document.getElementById('log-content');
         logContent.innerHTML = '';
         
-        // Limpiar también el estado de deduplicación
+        // Also clear the deduplication state
         this.recentLogs.clear();
         
-        // Forzar limpieza de caché de estados
+        // Force-clear the state cache
         console.log('🧹 Clearing all track states and cache');
     }
 
     getStateIcon(state) {
         const icons = {
-            'waiting': '⏳',      // Reloj de arena - Esperando
-            'downloading': '🔄', // Flechas azules - Descargando 
-            'completed': '✅',   // Check verde - Completado
-            'error': '❌'         // X roja - Error
+            'waiting': '⏳',      // Hourglass - Waiting
+            'downloading': '🔄', // Blue arrows - Downloading
+            'completed': '✅',   // Green check - Completed
+            'error': '❌'         // Red X - Error
         };
         const icon = icons[state] || '⏳';
         console.log(`📍 getStateIcon(${state}) -> ${icon}`);
