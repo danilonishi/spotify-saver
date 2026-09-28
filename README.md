@@ -14,13 +14,19 @@
 
 ## Changes in This Fork
 
-Compared with the upstream README baseline (`a7bf945`), this branch adds:
+Compared with the upstream baseline, this branch adds:
 
-- **A server-managed download queue:** Queue downloads, pause or resume processing, and clear queued or completed items. Downloads continue if the browser is refreshed or closed; queue state is held in memory and does not survive an API server restart. The server currently processes one download at a time.
-- **More queue and track visibility:** Download names and track listings are reported by the server and shown to other connected browsers, not only the browser that submitted the download.
-- **Flexible download folders in the web UI:** Choose from folders under a configurable media root, and restore the last selected destination after reloading the page.
-- **Web interface improvements:** Dark mode, collapsible album details and activity log, a clear-URL control for quick mobile pasting, and controls for clearing completed downloads.
-- **MP3 as the default for API and web downloads.** The CLI's existing format defaults are unchanged.
+- **A server-managed download queue:** Server controlled downloading means you can queue downloads, pause or resume them, and clear queued or completed items. Downloads continue if the browser is refreshed or closed; queue state is held in memory and does not survive an API server restart. The server currently processes one download at a time.
+- **Queue and track visibility:** Download names and track listings are reported by the server and shown to other connected browsers, regardless if they're the one that submitted the download.
+- **Simple download folders in the web UI:** Choose from folders under a configurable media root. Refreshing the page restores the last selected destination after reloading the page. A button for defining the root folder is available in the interface.
+- **Web interface improvements:** Dark mode, collapsible album details and activity log, a clear-URL button for quick mobile pasting, and controls for clearing completed downloads.
+- **Direct youtube downloads.** You can now paste any youtube video or playlist link, and it will download and extract the audio content.
+- **MP3 256kbps as the default for API and web downloads.** Up from 128kbps M4A.
+- **Download over 50 tracks per album or playlist.** Downloading large playlists were capped at 50 tracks due to Spotify list being paginated. This is fixed here.
+- **Option to skip files.** Before, files were always redownloaded. Now a check is done before downloading.
+- **Album-numbered playlist tracks.** Tracks were saved with playlist entry number as track number, now they use the album number. This helps avoid duplicate files.
+- **Improved Spotify-youtube accuracy.** Often it matched wrong content from youtube. This will never be 100% but it's much better.
+
 
 > ⚠️This repository is under a strong stage of development, expect constant changes. If you find any mistake or bug, please open an ISSUE.
 
