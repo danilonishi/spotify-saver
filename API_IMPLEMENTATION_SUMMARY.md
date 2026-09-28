@@ -1,134 +1,125 @@
 # SpotifySaver API - Implementation Summary
 
-## ✅ Completed Tasks
+The API is implemented with FastAPI in `spotifysaver/api/`. It serves the web UI,
+exposes OpenAPI documentation, and runs downloads through a server-owned in-memory
+queue.
 
-### 1. API Structure Created
-- **FastAPI Application**: Complete REST API structure in `spotifysaver/api/` folder
-- **Modular Design**: Organized into routers, services, and schemas
-- **Configuration**: Environment-based configuration with `.env` support
-- **Documentation**: Automatic OpenAPI/Swagger documentation
+## Application Endpoints
 
-### 2. Core API Files
-- `__init__.py` - Package initialization and exports
-- `app.py` - FastAPI application factory with CORS
-- `config.py` - API configuration settings
-- `schemas.py` - Pydantic models for request/response validation
-- `main.py` - Server entry point with uvicorn
-- `README.md` - Comprehensive API documentation in Spanish
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Serves the web UI, when initialized and running |
+| GET | `/health` | Returns the service health status |
+| GET | `/version` | Returns the running API version |
+| GET | `/api/v1/` | Returns API information and documentation links |
+| GET | `/docs` | Swagger UI |
+| GET | `/redoc` | ReDoc |
 
-### 3. Router Implementation
-- `routers/download.py` - Download endpoints with background task support
-- **Endpoints implemented**:
-  - `POST /api/v1/download` - Start download tasks
-  - `GET /api/v1/download/{task_id}/status` - Check task status
-  - `GET /api/v1/download/{task_id}/cancel` - Cancel tasks
-  - `GET /api/v1/downloads` - List all tasks
-  - `GET /api/v1/inspect` - Inspect Spotify URLs
+The download router is mounted below `/api/v1`.
 
-### 4. Service Layer
-- `services/download_service.py` - Async wrapper for existing SpotifySaver functionality
-- **Background task processing** for downloads
-- **Integration** with existing YouTube downloader
-- **Async/await** pattern for non-blocking operations
+## Download Endpoints
 
-### 5. Project Configuration
-- **Updated `pyproject.toml`** with FastAPI dependencies
-- **Added script entry point**: `spotifysaver-api`
-- **Dependencies installed**: FastAPI, uvicorn, and all project requirements
-- **Environment setup**: `.env.example` template for configuration
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/download` | Validate and enqueue a Spotify or YouTube download |
+| GET | `/api/v1/download/{task_id}/status` | Return one task's current status |
+| GET, POST | `/api/v1/download/{task_id}/cancel` | Cancel a queued or active task; GET is retained for compatibility |
+| DELETE | `/api/v1/download/{task_id}` | Remove a completed, failed, or cancelled task from history |
+| GET | `/api/v1/downloads` | List completed, pending, and processing tasks |
+| GET | `/api/v1/inspect` | Fetch Spotify track, album, or playlist metadata without downloading |
 
-### 6. Testing & Validation
-- **Server startup**: Successfully running on `http://localhost:8000`
-- **API endpoints**: All basic endpoints responding correctly
-- **Documentation**: Available at `http://localhost:8000/docs`
-- **Health checks**: Working properly
-- **Error handling**: Proper error responses for missing credentials
+### Queue Endpoints
 
-## 🔗 API Endpoints Summary
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/queue` | Return all known tasks in queue order and the paused state |
+| POST | `/api/v1/queue/pause` | Pause starting queued tasks and interrupt the active task for later resumption |
+| POST | `/api/v1/queue/resume` | Resume the queue and start pending tasks automatically |
+| DELETE | `/api/v1/queue` | Remove queued tasks while leaving the active task running |
+| DELETE | `/api/v1/queue/completed` | Remove completed, failed, and cancelled task history |
 
-| Method | Endpoint | Description | Status |
-|--------|----------|-------------|---------|
-| GET | `/` | API information | ✅ Working |
-| GET | `/health` | Health check | ✅ Working |
-| GET | `/api/v1/inspect` | Inspect Spotify URL | ⚠️ Requires credentials |
-| POST | `/api/v1/download` | Start download | ⚠️ Requires credentials |
-| GET | `/api/v1/download/{task_id}/status` | Check download status | ✅ Working |
-| GET | `/api/v1/download/{task_id}/cancel` | Cancel download | ✅ Working |
-| GET | `/api/v1/downloads` | List all downloads | ✅ Working |
+The queue currently runs one download at a time (`MAX_CONCURRENT_DOWNLOADS = 1`).
+Tasks continue on the server when the submitting browser is refreshed or closed.
 
-## 🛠️ Usage Instructions
+## Request Model
 
-### 1. Start the API Server
+`POST /api/v1/download` accepts `DownloadRequest`:
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `spotify_url` | URL | required | Spotify track/album/playlist, YouTube video, or YouTube collection |
+| `download_lyrics` | boolean | `false` | Download synchronized lyrics |
+| `download_cover` | boolean | `true` | Download cover art or thumbnail |
+| `generate_nfo` | boolean | `false` | Generate Jellyfin NFO metadata |
+| `overwrite_existing` | boolean | `false` | Replace existing files |
+| `download_files` | boolean or null | `null` | Deprecated compatibility alias for overwrite behavior |
+| `output_format` | string | `mp3` | `mp3` or `m4a` |
+| `bit_rate` | integer | `256` | Between 64 and 256 kbps |
+| `output_dir` | string or null | `Music` | Optional output directory |
+
+The response contains `task_id`, `status`, `spotify_url`, `content_type`, and a
+message. New tasks start with status `queued`.
+
+## Task Status
+
+`DownloadStatus` includes:
+
+- Lifecycle: `queued`, `processing`, `cancelling`, `cancelled`, `completed`, or `failed`
+- Progress: `progress`, `current_track`, `current_track_number`, and `current_track_status`
+- Counts: `total_tracks`, `completed_tracks`, `failed_tracks`, and `failed_track_names`
+- Per-track events: `track_updates`
+- Metadata: `title` and the full `tracks` list once source metadata is resolved
+- Source/configuration: `spotify_url`, `content_type`, `output_dir`, `output_directory`, `output_format`, and `bit_rate`
+- Queue state: `queue_position` (`1`-based for pending tasks, `0` for the active task)
+- Timing/errors: `started_at`, `completed_at`, and `error_message`
+
+Task and queue state is stored in process memory. It is lost when the API server
+restarts and is not shared between multiple API worker processes.
+
+## Service and Integration
+
+- `app.py` creates the FastAPI application, configures CORS, mounts static UI assets,
+  and registers the download router.
+- `routers/download.py` validates URLs, owns task state, manages queue lifecycle,
+  and exposes the API endpoints above.
+- `services/download_service.py` adapts the existing Spotify and YouTube downloaders
+  to async API calls using an executor for blocking work.
+- Metadata callbacks populate the task title and complete track listing as soon as
+  Spotify metadata is available. YouTube collection titles may be filled when the
+  download result is returned.
+- Spotify inspection and Spotify downloads require configured Spotify credentials.
+
+## Configuration
+
+Relevant `APIConfig` values are:
+
+| Setting | Default |
+|---------|---------|
+| `DEFAULT_OUTPUT_DIR` | `Music` |
+| `MAX_CONCURRENT_DOWNLOADS` | `1` |
+| `DEFAULT_FORMAT` | `mp3` |
+| `API_HOST` | `0.0.0.0` |
+| `API_PORT` | `8000` |
+| `ALLOWED_ORIGINS` | `[*]` |
+
+`SPOTIFYSAVER_OUTPUT_DIR` overrides the default output directory. The output
+directory endpoints are:
+
+- `GET /api/v1/config/output_dir` - Return the configured default directory.
+- `GET /api/v1/config/output_dirs` - List immediate subdirectories under a supplied
+  `root`, or under the configured default directory.
+
+## Running the API
+
+From the repository root:
+
 ```bash
-cd /c/projectos/spotify-saver
-python -m spotifysaver.api.main
+# Poetry
+poetry run uvicorn spotifysaver.api.main:app --reload
+
+# Or the installed script
+spotifysaver-api
 ```
 
-### 2. Access Documentation
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-### 3. Setup Spotify Credentials (for full functionality)
-```bash
-cp .env.example .env
-# Edit .env with your Spotify API credentials
-```
-
-### 4. Test API Endpoints
-```bash
-# Basic endpoints
-curl http://localhost:8000/
-curl http://localhost:8000/health
-curl http://localhost:8000/api/v1/downloads
-
-# With credentials (example)
-curl -X POST "http://localhost:8000/api/v1/download" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "spotify_url": "https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh",
-    "download_lyrics": true,
-    "download_cover": true,
-    "output_format": "m4a"
-  }'
-```
-
-## 🎯 Key Features Implemented
-
-1. **Async Background Processing**: Downloads run in background tasks
-2. **CORS Support**: Configured for web browser access
-3. **Request Validation**: Pydantic schemas for type safety
-4. **Error Handling**: Proper HTTP status codes and error messages
-5. **Task Management**: Track download progress and cancel tasks
-6. **Flexible Configuration**: Environment-based settings
-7. **Integration**: Seamless integration with existing SpotifySaver functionality
-
-## 📁 Files Created/Modified
-
-### New API Files
-- `spotifysaver/api/__init__.py`
-- `spotifysaver/api/app.py`
-- `spotifysaver/api/config.py`
-- `spotifysaver/api/schemas.py`
-- `spotifysaver/api/main.py`
-- `spotifysaver/api/README.md`
-- `spotifysaver/api/examples.py`
-- `spotifysaver/api/routers/__init__.py`
-- `spotifysaver/api/routers/download.py`
-- `spotifysaver/api/services/__init__.py`
-- `spotifysaver/api/services/download_service.py`
-- `.env.example`
-- `test_api.py`
-
-### Modified Files
-- `pyproject.toml` - Added FastAPI dependencies
-
-## 🚀 Next Steps
-
-1. **Add Spotify Credentials**: Set up `.env` file with real credentials
-2. **Test Download Functionality**: Test actual downloads with Spotify URLs
-3. **Frontend Integration**: Use the API from web applications
-4. **Production Deployment**: Deploy with proper ASGI server (gunicorn/uvicorn)
-5. **Authentication**: Add API key authentication if needed
-6. **Rate Limiting**: Implement rate limiting for production use
-
-The FastAPI-based SpotifySaver API is now fully implemented and ready for use!
+The default server URL is `http://127.0.0.1:8000`. Interactive API documentation
+is available at `/docs` and `/redoc`.
