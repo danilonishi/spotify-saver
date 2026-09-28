@@ -20,6 +20,8 @@ The app connects to the Spotify and YouTube Music APIs, retrieves information fr
 
 ## Changes in This Fork
 
+![SpotifySaver web interface](screenshot.jpg)
+
 Compared with the upstream baseline, this branch adds:
 
 - **A server-managed download queue:** Server controlled downloading means you can queue downloads, pause or resume them, and clear queued or completed items. Downloads continue if the browser is refreshed or closed; queue state is held in memory and does not survive an API server restart. The server currently processes one download at a time.
