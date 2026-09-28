@@ -3,6 +3,8 @@ class UIManager {
         this.recentLogs = new Set();
         this.logCooldownTime = 2000; // 2 seconds
         this.saveStateCallback = saveStateCallback;
+        // Set by the app once the DownloadManager exists; invoked with a queue item's task id.
+        this.onRemoveQueueItem = null;
     }
 
     updateUI(downloading, paused = false) {
@@ -66,7 +68,20 @@ class UIManager {
                 ? `Downloading ${Math.round(item.progress)}%`
                 : item.status;
 
-            summary.append(name, status);
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'queue-item-remove-btn';
+            removeBtn.title = 'Remove enqueued item';
+            removeBtn.setAttribute('aria-label', 'Remove enqueued item');
+            removeBtn.textContent = '❌';
+            removeBtn.addEventListener('click', (event) => {
+                // Prevent the click from toggling the parent <details> open/closed.
+                event.preventDefault();
+                event.stopPropagation();
+                this.onRemoveQueueItem?.(item.id, item.status);
+            });
+
+            summary.append(name, status, removeBtn);
             details.appendChild(summary);
 
             const tracks = Array.isArray(item.trackData?.tracks)

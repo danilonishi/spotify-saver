@@ -483,6 +483,21 @@ select:focus {
     color: #2f855a;
 }
 
+.queue-item-remove-btn {
+    flex: 0 0 auto;
+    border: none;
+    background: none;
+    padding: 0 2px;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.queue-item-remove-btn:hover {
+    opacity: 1;
+}
+
 .queue-track-list {
     display: grid;
     gap: 5px;

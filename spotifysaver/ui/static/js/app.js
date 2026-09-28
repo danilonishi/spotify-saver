@@ -4,6 +4,7 @@ class SpotifySaverUI {
         this.stateManager = new StateManager();
         this.uiManager = new UIManager(() => this.saveState());
         this.downloadManager = new DownloadManager(this.apiClient, this.uiManager, () => this.saveState());
+        this.uiManager.onRemoveQueueItem = (taskId, status) => this.downloadManager.cancelItem(taskId, status);
         
         this.isInitialized = false;
         this.retryCount = 0;

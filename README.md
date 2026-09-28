@@ -20,7 +20,9 @@ The app connects to the Spotify and YouTube Music APIs, retrieves information fr
 
 ## Changes in This Fork
 
-![SpotifySaver web interface](screenshot.jpg)
+<p align="center">
+    <img src="screenshot.jpg" alt="SpotifySaver web interface" />
+</p>
 
 Compared with the upstream baseline, this branch adds:
 
@@ -121,8 +123,8 @@ The **documentation for using the API**, on the other hand, can be found in this
 |-------------------|-------------------------------------------------------|-------------------------|
 | `--lyrics`        | Download synchronized lyrics (.lrc)                   | Flag (no value)         |
 | `--output DIR`    | Output directory                                      | Valid path              |
-| `--format FORMAT` | Audio format                                          | `m4a` (default), `mp3`, `opus` |
-| `--bitrate KBPS`  | Audio bitrate                                         | `96`, `128` (default), `192`, `256` |
+| `--format FORMAT` | Audio format                                          | `m4a`, `mp3`(default), `opus` |
+| `--bitrate KBPS`  | Audio bitrate                                         | `96`, `128` , `192`, `256`(default) |
 | `--cover/--no-cover` | Save Spotify cover or embed YouTube thumbnail | Flag (no value)      |
 | `--nfo`           | Generates a .nfo metadata file in the JellyFin format | Flag (no value)         |
 | `--explain`       | Show score breakdown for each track without downloading (for error analysis) | Flag (no value)         |

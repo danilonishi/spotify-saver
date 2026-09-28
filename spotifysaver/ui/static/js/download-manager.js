@@ -483,12 +483,26 @@ class DownloadManager {
         }
     }
 
-    async cancelItem(taskId) {
+    // Removes a single queue item, whether it's still queued, actively
+    // downloading (stopping the current track and any remaining tracks for
+    // it), or already finished.
+    async cancelItem(taskId, status = null) {
+        // Items the server hasn't acknowledged yet (or that already failed
+        // client-side, e.g. submitToServer errors) only exist locally.
+        if (String(taskId).startsWith('local-')) {
+            this.queue = this.queue.filter((item) => item.id !== taskId);
+            this.uiManager.renderDownloadQueue(this.queue);
+            return;
+        }
         try {
-            await this.apiClient.cancelDownload(taskId);
+            if (['completed', 'failed', 'cancelled'].includes(status)) {
+                await this.apiClient.removeDownload(taskId);
+            } else {
+                await this.apiClient.cancelDownload(taskId);
+            }
             await this.pollOnce();
         } catch (error) {
-            this.uiManager.updateStatus(`Could not cancel download: ${error.message}`, 'error');
+            this.uiManager.updateStatus(`Could not remove download: ${error.message}`, 'error');
         }
     }
 
