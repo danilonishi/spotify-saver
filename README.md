@@ -12,6 +12,12 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gabrielbaute/spotify-saver)
 
+> ⚠️This repository is a fork from gabrielbaute's SpotifySaver. It's being developed with quality of life features I missed when using his tool. You can easily see the changes made by clicking [![here](https://github.com/gabrielbaute/spotify-saver/compare/main...danilonishi:spotify-saver:main)].
+
+All-in-one tool for downloading and organizing music with Spotify metadata for Jellyfin.
+
+The app connects to the Spotify and YouTube Music APIs, retrieves information from Spotify, locate the media on Youtube, downloads and extract the audio data, generates an .nfo XML file to complete the metadata required by Jellyfin when building music libraries.
+
 ## Changes in This Fork
 
 Compared with the upstream baseline, this branch adds:
@@ -27,12 +33,6 @@ Compared with the upstream baseline, this branch adds:
 - **Album-numbered playlist tracks.** Tracks were saved with playlist entry number as track number, now they use the album number. This helps avoid duplicate files.
 - **Improved Spotify-youtube accuracy.** Often it matched wrong content from youtube. This will never be 100% but it's much better.
 
-
-> ⚠️This repository is under a strong stage of development, expect constant changes. If you find any mistake or bug, please open an ISSUE.
-
-All-in-one tool for downloading and organizing music with Spotify metadata for Jellyfin.
-
-The app connects to the Spotify and YouTube Music APIs. The goal is to generate an .nfo XML file to complete the metadata required by Jellyfin when building music libraries.
 
 ## 🌟 Features
 - ✅ Download audio from YouTube Music with Spotify metadata
