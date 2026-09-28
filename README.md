@@ -28,8 +28,6 @@ All-in-one tool for downloading and organizing music with Spotify metadata for J
 
 The app connects to the Spotify and YouTube Music APIs. The goal is to generate an .nfo XML file to complete the metadata required by Jellyfin when building music libraries.
 
-Read this file in [Spanish](README_ES.md)
-
 ## 🌟 Features
 - ✅ Download audio from YouTube Music with Spotify metadata
 - ✅ Download YouTube videos, playlists, and album collections with YouTube metadata through the API and web UI
@@ -53,12 +51,12 @@ Read this file in [Spanish](README_ES.md)
 
 ```bash
 # Installation with Poetry (recommended)
-git clone https://github.com/gabrielbaute/spotify-saver.git
+git clone https://github.com/danilonishi/spotify-saver.git
 cd spotify-saver
 poetry install
 
 # Or with pip
-pip install git+https://github.com/gabrielbaute/spotify-saver.git
+pip install git+https://github.com/danilonishi/spotify-saver.git
 ```
 
 ⚠️ Spotify URLs require a Spotify developer app with a client ID and client secret in the project's `.env` file. Direct YouTube downloads do not require Spotify credentials.
@@ -78,7 +76,7 @@ This will create a local `.env` file with the environment variables that will be
 |---------------------------|--------------------------------------------|-----------------------------------|
 | `SPOTIFY_CLIENT_ID`       | ID of the Spotify app you created          | -                                 |
 | `SPOTIFY_CLIENT_SECRET`   | Secret key generated for your Spotify app  | -                                 |
-| `SPOTIFY_REDIRECT_URI`    | Spotify API Validation URI                 | `http://localhost:8888/callback`  |
+| `SPOTIFY_REDIRECT_URI`    | Spotify API Validation URI                 | `http://127.0.0.1:8888/callback`  |
 | `SPOTIFYSAVER_OUTPUT_DIR` | Custom directory path (optional)           | `./Music`                         |
 | `YTDLP_COOKIES_PATH`      | Cookie file path (optional)                | -                                 |
 | `API_PORT`                | API server port (optional)                 | `8000`                            |
@@ -91,7 +89,9 @@ You can also check the .example.env file
 
 ## 📚 Documentation
 
-We maintain a [documentation with Deepwiki](https://deepwiki.com/gabrielbaute/spotify-saver), which constantly tree the repository. You can consult it at all times.
+The original maintainer of the repository owns a [documentation with Deepwiki](https://deepwiki.com/gabrielbaute/spotify-saver). You can consult it at all times.
+
+⚠️ The original documentation on Deepwiki does not reflect changes in this repository.
 
 The **documentation for using the API**, on the other hand, can be found in this same repository here: [API Documentation](API_IMPLEMENTATION_SUMMARY.md)
 
@@ -157,7 +157,7 @@ To use the API, you need to have the API server running. You can start it with t
 spotifysaver-api
 ```
 
-The server will run at `http://localhost:8000` by default. The API accepts Spotify track, album, and playlist URLs, as well as direct YouTube video and collection URLs. Active downloads can be cancelled with `POST /api/v1/download/{task_id}/cancel`. You can find the [API documentation here](API_IMPLEMENTATION_SUMMARY.md), which describes the technical aspects and usage in detail.
+The server will run at `http://127.0.0.1:8000` by default. The API accepts Spotify track, album, and playlist URLs, as well as direct YouTube video and collection URLs. Active downloads can be cancelled with `POST /api/v1/download/{task_id}/cancel`. You can find the [API documentation here](API_IMPLEMENTATION_SUMMARY.md), which describes the technical aspects and usage in detail.
 
 ## 🖥️ Web Interface (UI)
 
@@ -168,7 +168,7 @@ SpotifySaver now includes a modern web interface that makes it easy to download 
 spotifysaver-api
 ```
 
-This will start the API server with an integrated web interface that you can access at `http://localhost:8000`. The web interface provides:
+This will start the API server with an integrated web interface that you can access at `http://127.0.0.1:8000`. The web interface provides:
 
 - **Easy URL input**: Paste a Spotify track, album, or playlist link, a YouTube video, or a YouTube album/playlist link
 - **Full configuration**: All download options available through an intuitive interface
@@ -189,128 +189,16 @@ This will start the API server with an integrated web interface that you can acc
 - ✅ Error handling and user feedback
 
 **Default Access:**
-- Web Interface & API: `http://localhost:8000`
-- API Documentation: `http://localhost:8000/docs`
+- Web Interface & API: `http://127.0.0.1:8000`
+- API Documentation: `http://127.0.0.1:8000/docs`
 
 ## 🐳 Docker Support
 
-SpotifySaver is available as a Docker container with full web interface support. Choose between GitHub Container Registry or building locally.
+The original SpotifySaver is available as a Docker container with full web interface support. Choose between GitHub Container Registry or building locally.
 
-### 🚀 Quick Start with Docker Compose
+⚠️ The docker repository does **not** have the features from this branch.
 
-1. **Create configuration files:**
-```bash
-# Create directories
-mkdir -p music config
-
-# Create environment file
-cat > .env << EOF
-SPOTIFY_CLIENT_ID=your_client_id_here
-SPOTIFY_CLIENT_SECRET=your_client_secret_here
-SPOTIFY_REDIRECT_URI=http://localhost:8000/callback
-EOF
-```
-
-2. **Run with Docker Compose:**
-```bash
-# Using pre-built image from GitHub Registry
-docker compose up -d
-
-# Or build locally
-docker compose up --build
-```
-
-3. **Access the web interface:**
-   - 🌐 **Web UI & API**: http://localhost:8000
-   - 📚 **API Docs**: http://localhost:8000/docs
-
-### 📦 Using GitHub Container Registry
-
-**Pull and run directly:**
-```bash
-# Pull latest version
-docker pull ghcr.io/gabrielbaute/spotify-saver:latest
-
-# Run container
-docker run -d \
-  --name spotifysaver \
-  -p 8000:8000 \
-  -v ./music:/music \
-  -v ./config:/config \
-  -e SPOTIFY_CLIENT_ID=your_client_id \
-  -e SPOTIFY_CLIENT_SECRET=your_client_secret \
-  ghcr.io/gabrielbaute/spotify-saver:latest
-```
-
-**Available tags:**
-- `latest` - Latest stable release
-- `0.6.3-test-2` - Specific version
-- `0.6` - Major.minor version
-
-### 🔧 Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|  
-| `SPOTIFY_CLIENT_ID` | Spotify API Client ID | **Required** |
-| `SPOTIFY_CLIENT_SECRET` | Spotify API Client Secret | **Required** |
-| `SPOTIFY_REDIRECT_URI` | Callback URL | `http://localhost:8000/callback` |
-| `API_PORT` | API server port (includes web UI) | `8000` |
-| `MUSIC_DIR` | Host music directory | `./music` |
-| `CONFIG_DIR` | Host config directory | `./config` |
-| `LOG_LEVEL` | Logging level | `INFO` |
-
-### 🛠️ Custom Docker Compose Configuration
-
-```yaml
-services:
-  spotifysaver:
-    container_name: spotifysaver
-    image: ghcr.io/gabrielbaute/spotify-saver:latest
-    ports:
-      - "${API_PORT:-8000}:8000"
-    environment:
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
-      - SPOTIFY_REDIRECT_URI=${SPOTIFY_REDIRECT_URI:-http://localhost:8000/callback}
-      - SPOTIFYSAVER_LOG_LEVEL=${LOG_LEVEL:-INFO}
-    volumes:
-      - ${MUSIC_DIR:-./music}:/music
-      - ${CONFIG_DIR:-./config}:/config
-      - spotifysaver_logs:/logs
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-volumes:
-  spotifysaver_logs:
-```
-
-### 🔨 Building Locally
-
-```bash
-# Clone repository
-git clone https://github.com/gabrielbaute/spotify-saver.git
-cd spotify-saver
-
-# Build image
-docker build -t spotify-saver .
-
-# Run container
-docker run -d \
-  --name spotifysaver \
-  -p 8000:8000 \
-  -v ./music:/music \
-  -v ./config:/config \
-  -e SPOTIFY_CLIENT_ID=your_client_id \
-  -e SPOTIFY_CLIENT_SECRET=your_client_secret \
-  spotify-saver
-```
-
+Please refer to https://github.com/gabrielbaute/spotify-saver for the original docker installation.
 
 ## 📂 Output Structure
 ```
