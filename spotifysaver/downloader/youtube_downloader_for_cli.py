@@ -202,7 +202,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
     def download_youtube_track_cli(
         self,
         url: str,
-        output_format: AudioFormat = AudioFormat.MP3,
+        output_format: AudioFormat = AudioFormat.M4A,
         bitrate: Bitrate = Bitrate.B128,
         overwrite_existing: bool = False,
         progress_callback: Optional[callable] = None,

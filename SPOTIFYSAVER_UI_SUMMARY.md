@@ -88,7 +88,7 @@ spotifysaver-api --host 0.0.0.0
 
 1. **URL Input**: Validated field for Spotify URLs
 2. **Audio Settings**:
-   - Format: M4A (recommended) or MP3
+   - Format: M4A (default) or MP3
    - Bitrate: 128, 192, 256, 320 kbps, or "Best quality"
 3. **Advanced Options**:
    - Customizable output directory

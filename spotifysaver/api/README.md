@@ -78,7 +78,7 @@ curl "http://localhost:8000/api/v1/inspect?spotify_url=https://open.spotify.com/
 ### POST `/api/v1/download`
 Start a download task.
 
-Accepts individual YouTube/YouTube Music video links, as well as Spotify links and YouTube collections. `output_format` can be `OPUS`, `mp3` or `m4a`.
+Accepts individual YouTube/YouTube Music video links, as well as Spotify links and YouTube collections. `output_format` defaults to `m4a` and can be `OPUS`, `mp3` or `m4a`.
 
 **Request body:**
 ```json
@@ -87,7 +87,7 @@ Accepts individual YouTube/YouTube Music video links, as well as Spotify links a
   "download_lyrics": false,
   "download_cover": true,
   "generate_nfo": false,
-  "output_format": "mp3",
+  "output_format": "m4a",
   "output_dir": "Music"
 }
 ```

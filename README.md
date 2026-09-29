@@ -31,7 +31,7 @@ Compared with the upstream baseline, this branch adds:
 - **Simple download folders in the web UI:** Choose from folders under a configurable media root. Refreshing the page restores the last selected destination after reloading the page. A button for defining the root folder is available in the interface.
 - **Web interface improvements:** Dark mode, collapsible album details and activity log, a clear-URL button for quick mobile pasting, and controls for clearing completed downloads.
 - **Direct youtube downloads.** You can now paste any youtube video or playlist link, and it will download and extract the audio content.
-- **MP3 256kbps as the default for API and web downloads.** Up from 128kbps M4A.
+- **M4A at 256 kbps as the default for API and web downloads.**
 - **Download over 50 tracks per album or playlist.** Downloading large playlists were capped at 50 tracks due to Spotify list being paginated. This is fixed here.
 - **Option to skip files.** Before, files were always redownloaded. Now a check is done before downloading.
 - **Album-numbered playlist tracks.** Tracks were saved with playlist entry number as track number, now they use the album number. This helps avoid duplicate files.
@@ -51,7 +51,7 @@ Compared with the upstream baseline, this branch adds:
 - ✅ RESTful API for integrations
 - ✅ Docker support with auto-builds
 - ✅ Playlist support
-- ✅ MP3 Conversion
+- ✅ M4A and MP3 audio output
 - ✅ Support for 96, 128, 192, and 256 kbps bitrates
 
 ### Requirements
@@ -123,7 +123,7 @@ The **documentation for using the API**, on the other hand, can be found in this
 |-------------------|-------------------------------------------------------|-------------------------|
 | `--lyrics`        | Download synchronized lyrics (.lrc)                   | Flag (no value)         |
 | `--output DIR`    | Output directory                                      | Valid path              |
-| `--format FORMAT` | Audio format                                          | `m4a`, `mp3`(default), `opus` |
+| `--format FORMAT` | Audio format                                          | `m4a` (default), `mp3`, `opus` |
 | `--bitrate KBPS`  | Audio bitrate                                         | `96`, `128` , `192`, `256`(default) |
 | `--cover/--no-cover` | Save Spotify cover or embed YouTube thumbnail | Flag (no value)      |
 | `--nfo`           | Generates a .nfo metadata file in the JellyFin format | Flag (no value)         |
@@ -190,7 +190,7 @@ This will start the API server with an integrated web interface that you can acc
 
 ### Web Interface Features:
 - ✅ URL validation for Spotify and supported YouTube links
-- ✅ Configurable audio format (M4A/MP3) and bitrate (MP3/256 kbps by default)
+- ✅ Configurable audio format (M4A by default, or MP3) and bitrate (256 kbps by default)
 - ✅ Toggle lyrics and NFO file generation
 - ✅ Stop active downloads and choose whether to overwrite existing files
 - ✅ Custom output directory

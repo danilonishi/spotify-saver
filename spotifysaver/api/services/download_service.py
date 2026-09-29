@@ -35,7 +35,7 @@ class DownloadService:
         download_lyrics: bool = False,
         download_cover: bool = True,
         generate_nfo: bool = False,
-        output_format: str = "mp3",
+        output_format: str = APIConfig.DEFAULT_FORMAT,
         bit_rate: int = 256,
         overwrite_existing: bool = False,
     ):

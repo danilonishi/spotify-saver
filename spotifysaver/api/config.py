@@ -18,7 +18,7 @@ class APIConfig:
 
     # File settings
     ALLOWED_FORMATS: List[str] = ["m4a", "mp3"]
-    DEFAULT_FORMAT: str = "mp3"
+    DEFAULT_FORMAT: str = "m4a"
 
     # Service settings
     API_PORT: int = 8000

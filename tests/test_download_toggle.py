@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from spotifysaver.api.schemas import DownloadRequest
+from spotifysaver.api.schemas import DownloadRequest, DownloadStatus
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
 from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
 from spotifysaver.enums import AudioFormat
@@ -20,6 +20,12 @@ def test_download_request_defaults_to_disabled():
     )
 
     assert request.overwrite_existing is False
+
+
+def test_download_status_defaults_to_m4a():
+    status = DownloadStatus(task_id="task-1", status="queued", progress=0)
+
+    assert status.output_format == "m4a"
 
 
 def test_download_request_allows_enabling_downloads():
@@ -43,7 +49,7 @@ def test_download_request_defaults_to_256_kbps_and_accepts_256():
 
     assert default_request.bit_rate == 256
     assert explicit_request.bit_rate == 256
-    assert default_request.output_format == "mp3"
+    assert default_request.output_format == "m4a"
 
 
 def _make_track():

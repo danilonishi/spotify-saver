@@ -2,6 +2,7 @@
 
 from typing import Dict, List, Optional
 from pydantic import BaseModel, HttpUrl, Field
+from .config import APIConfig
 
 
 class DownloadRequest(BaseModel):
@@ -30,7 +31,7 @@ class DownloadRequest(BaseModel):
         description="Deprecated alias kept for backwards compatibility.",
     )
     output_format: str = Field(
-        default="mp3",
+        default=APIConfig.DEFAULT_FORMAT,
         description="Audio format for downloaded files",
         pattern="^(m4a|mp3)$",
     )
@@ -104,7 +105,7 @@ class DownloadStatus(BaseModel):
     failed_tracks: int = 0
     failed_track_names: List[str] = Field(default_factory=list)
     output_directory: Optional[str] = None
-    output_format: str = "mp3"
+    output_format: str = APIConfig.DEFAULT_FORMAT
     bit_rate: Optional[int] = None
     error_message: Optional[str] = None
     started_at: Optional[str] = None

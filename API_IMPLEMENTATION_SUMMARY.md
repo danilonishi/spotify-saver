@@ -53,7 +53,7 @@ Tasks continue on the server when the submitting browser is refreshed or closed.
 | `generate_nfo` | boolean | `false` | Generate Jellyfin NFO metadata |
 | `overwrite_existing` | boolean | `false` | Replace existing files |
 | `download_files` | boolean or null | `null` | Deprecated compatibility alias for overwrite behavior |
-| `output_format` | string | `mp3` | `mp3` or `m4a` |
+| `output_format` | string | `m4a` | `mp3` or `m4a` |
 | `bit_rate` | integer | `256` | Between 64 and 256 kbps |
 | `output_dir` | string or null | `Music` | Optional output directory |
 
@@ -97,7 +97,7 @@ Relevant `APIConfig` values are:
 |---------|---------|
 | `DEFAULT_OUTPUT_DIR` | `Music` |
 | `MAX_CONCURRENT_DOWNLOADS` | `1` |
-| `DEFAULT_FORMAT` | `mp3` |
+| `DEFAULT_FORMAT` | `m4a` |
 | `API_HOST` | `0.0.0.0` |
 | `API_PORT` | `8000` |
 | `ALLOWED_ORIGINS` | `[*]` |
