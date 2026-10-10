@@ -10,6 +10,7 @@ import yt_dlp
 
 from ...config import Config
 from ...downloader import YouTubeDownloader
+from ...downloader.image_downloader import ImageDownloader
 from ...spotlog import get_logger
 from ..config import APIConfig
 
@@ -39,6 +40,7 @@ class VideoDownloadService:
         self.include_subtitles = include_subtitles
         self.overwrite_existing = overwrite_existing
         self.cancellation_event: Optional[Event] = None
+        self.image_downloader = ImageDownloader()
         # Called as (current, total, fraction 0-1 of the current video)
         self.progress_fraction_callback: Optional[Callable[[int, int, float], None]] = None
 
@@ -89,6 +91,43 @@ class VideoDownloadService:
                 raise yt_dlp.utils.DownloadError("Download cancelled by user")
 
         opts.setdefault("progress_hooks", []).append(check)
+
+    def _save_channel_cover(self, video_info: dict, channel_dir: Path) -> None:
+        cover_path = channel_dir / "cover.jpg"
+        if cover_path.exists():
+            return
+
+        channel_url = video_info.get("channel_url") or video_info.get("uploader_url")
+        if not channel_url:
+            logger.warning("No channel URL available to fetch a video cover")
+            return
+
+        try:
+            with yt_dlp.YoutubeDL(
+                {"quiet": True, "extract_flat": True, "playlistend": 0}
+            ) as ydl:
+                channel_info = ydl.extract_info(channel_url, download=False)
+        except Exception as error:
+            logger.warning(f"Could not fetch channel info for cover: {error}")
+            return
+
+        thumbnails = [
+            item
+            for item in (channel_info or {}).get("thumbnails") or []
+            if item.get("url")
+        ]
+        avatars = [item for item in thumbnails if "avatar" in str(item.get("id", ""))]
+        avatars.sort(
+            key=lambda item: (item.get("width") or 0) * (item.get("height") or 0),
+            reverse=True,
+        )
+        avatars.sort(key=lambda item: "uncropped" not in str(item.get("id", "")))
+
+        for avatar in avatars:
+            if self.image_downloader.download_image(avatar["url"], cover_path):
+                logger.info(f"Channel cover saved to {cover_path}")
+                return
+        logger.warning(f"Could not find a channel avatar for {channel_url}")
 
     def _progress_hooks(self, opts: dict, report: Callable[[float], None]) -> None:
         """Report per-video progress: downloading is the first 50%, ffmpeg post-processing the rest."""
@@ -169,7 +208,9 @@ class VideoDownloadService:
             )
             video_info = entry
             channel = video_info.get("channel") or video_info.get("uploader")
-            if not channel:
+            if not channel or not (
+                video_info.get("channel_url") or video_info.get("uploader_url")
+            ):
                 metadata_opts = {
                     "quiet": True,
                     "skip_download": True,
@@ -202,6 +243,7 @@ class VideoDownloadService:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     ydl.download([entry_url])
                 completed += 1
+                self._save_channel_cover(video_info, channel_dir)
                 if track_result_callback:
                     track_result_callback(index, title, "completed")
             except Exception as error:
