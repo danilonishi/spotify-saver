@@ -207,10 +207,14 @@ class SpotifySaverUI {
         document.querySelectorAll('.tab-panel').forEach((panel) => {
             panel.classList.toggle('hidden', panel.id !== `tab-${mode}`);
         });
-        document.getElementById('download-url-group').classList.toggle(
-            'hidden',
-            mode === 'watcher'
-        );
+        const downloadUrlGroup = document.getElementById('download-url-group');
+        if (mode === 'audio' || mode === 'video') {
+            const activePanel = document.getElementById(`tab-${mode}`);
+            activePanel.insertBefore(downloadUrlGroup, activePanel.firstElementChild);
+            downloadUrlGroup.classList.remove('hidden');
+        } else {
+            downloadUrlGroup.classList.add('hidden');
+        }
         document.getElementById('download-btn').classList.toggle(
             'hidden',
             mode === 'watcher'

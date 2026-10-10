@@ -10,7 +10,7 @@
     <!-- Header -->
     <header>
         <h1>🎵 SpotifySaver</h1>
-        <p>Download your music directly to your Jellyfin directory (or your preferred self-hosted music service)</p>
+        <p>Download music or videos directly to your Jellyfin directory (or your preferred self-hosted media service)</p>
     </header>
 
     <!-- Main content -->
@@ -34,8 +34,14 @@
             
                 <!-- Settings download section -->
                 <div class="form-section">
-                    <h2>Download Settings</h2>
-                    
+                    <h2>Download</h2>
+
+                    <div class="tabs" role="tablist" aria-label="Download type">
+                        <button id="tab-audio-btn" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tab-audio" data-tab="audio">Audio</button>
+                        <button id="tab-video-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-video" data-tab="video">Video</button>
+                        <button id="tab-watcher-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-watcher" data-tab="watcher">Channel Watcher</button>
+                    </div>
+
                     <div id="download-url-group" class="form-group">
                         <label for="spotify-url">Spotify or YouTube album/playlist URL:</label>
                         <div class="url-input-group">
@@ -46,12 +52,6 @@
                                 required>
                             <button id="clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear URL">Clear</button>
                         </div>
-                    </div>
-
-                    <div class="tabs" role="tablist" aria-label="Download type">
-                        <button id="tab-audio-btn" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tab-audio" data-tab="audio">Audio</button>
-                        <button id="tab-video-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-video" data-tab="video">Video</button>
-                        <button id="tab-watcher-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-watcher" data-tab="watcher">Channel Watcher</button>
                     </div>
 
                     <div id="tab-audio" class="tab-panel" role="tabpanel" aria-labelledby="tab-audio-btn">
@@ -299,8 +299,8 @@
                         <li class="queue-empty">Queue is empty</li>
                     </ol>
                     <div class="queue-actions">
-                        <button id="stop-download-btn" class="clear-queue-btn" type="button" disabled>Stop Download</button>
-                        <button id="clear-queue-btn" class="clear-queue-btn" type="button" disabled>Clear Queue</button>
+                        <button id="stop-download-btn" class="clear-queue-btn" type="button" disabled>Stop download</button>
+                        <button id="clear-queue-btn" class="clear-queue-btn" type="button" disabled>Clear enqueued</button>
                         <button id="clear-completed-btn" class="clear-queue-btn" type="button" disabled>Clear completed</button>
                     </div>
                 </div>
@@ -362,9 +362,9 @@
     <!-- Load JavaScript modules in dependency order -->
     <script src="/static/js/api-client.js?v=2026-10-10-2"></script>
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
-    <script src="/static/js/ui-manager.js?v=2026-10-10-3"></script>
+    <script src="/static/js/ui-manager.js?v=2026-10-10-4"></script>
     <script src="/static/js/download-manager.js?v=2026-09-27-2"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-10-5"></script>
-    <script src="/static/js/app.js?v=2026-10-10-1"></script>
+    <script src="/static/js/app.js?v=2026-10-10-2"></script>
 </body>
 </html>

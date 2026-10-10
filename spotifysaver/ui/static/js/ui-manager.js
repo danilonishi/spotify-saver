@@ -30,15 +30,15 @@ class UIManager {
         this.updateDownloadButtonLabel();
         if (downloading) {
             stopDownloadBtn.disabled = paused;
-            stopDownloadBtn.textContent = paused ? 'Stopping...' : 'Stop Download';
+            stopDownloadBtn.textContent = paused ? 'Stopping...' : 'Stop download';
             progressContainer.classList.remove('hidden');
         } else if (paused) {
             stopDownloadBtn.disabled = false;
-            stopDownloadBtn.textContent = 'Resume Download';
+            stopDownloadBtn.textContent = 'Resume download';
             progressContainer.classList.add('hidden');
         } else {
             stopDownloadBtn.disabled = true;
-            stopDownloadBtn.textContent = 'Stop Download';
+            stopDownloadBtn.textContent = 'Stop download';
             progressContainer.classList.add('hidden');
             this.updateProgress(0);
         }
