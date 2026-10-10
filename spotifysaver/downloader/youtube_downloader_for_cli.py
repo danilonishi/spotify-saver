@@ -306,7 +306,45 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     output_path.unlink()
                 return make_result(title, output_path, False)
 
+        if output_path.is_file():
+            self._save_youtube_cover(info, output_path.parent / "cover.jpg")
+
         return make_result(title, output_path, output_path.is_file())
+
+    def _save_youtube_cover(self, info: dict, output_path: Path) -> None:
+        """Save the uploader's channel avatar as the artist folder cover."""
+        if output_path.exists():
+            return
+
+        channel_url = info.get("channel_url") or info.get("uploader_url")
+        if not channel_url:
+            self.logger.warning("No channel URL available to fetch a cover")
+            return
+
+        try:
+            with yt_dlp.YoutubeDL(
+                {"quiet": True, "extract_flat": True, "playlistend": 0}
+            ) as ydl:
+                channel_info = ydl.extract_info(channel_url, download=False)
+        except Exception as error:
+            self.logger.warning(f"Could not fetch channel info: {error}")
+            return
+
+        thumbnails = [
+            t for t in (channel_info or {}).get("thumbnails") or [] if t.get("url")
+        ]
+        avatars = [t for t in thumbnails if "avatar" in str(t.get("id", ""))]
+        avatars.sort(
+            key=lambda t: (t.get("width") or 0) * (t.get("height") or 0), reverse=True
+        )
+        # Square avatars are listed after banners; prefer the uncropped avatar
+        avatars.sort(key=lambda t: "uncropped" not in str(t.get("id", "")))
+
+        for thumbnail in avatars:
+            if self.image_downloader.download_image(thumbnail["url"], output_path):
+                self.logger.info(f"Cover saved in: {output_path}")
+                return
+        self.logger.warning("Could not download the channel image")
 
     def download_track_cli(
         self, 
