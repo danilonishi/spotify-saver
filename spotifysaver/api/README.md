@@ -22,6 +22,7 @@ cp .env.example .env
 SPOTIFY_CLIENT_ID=your_client_id_here
 SPOTIFY_CLIENT_SECRET=your_client_secret_here
 SPOTIFYSAVER_OUTPUT_DIR=Music  # Optional
+SPOTIFYSAVER_CHANNEL_WATCHER_DB=~/.spotify-saver/channel-watcher.sqlite3  # Optional
 ```
 
 ### 2. Install Dependencies
@@ -126,6 +127,49 @@ Request cancellation of an active task. The status changes to `cancelling` while
 
 ### GET `/api/v1/downloads`
 List all download tasks.
+
+### Channel watcher
+
+Watched channels are persisted in SQLite at `~/.spotify-saver/channel-watcher.sqlite3`
+by default. Set `SPOTIFYSAVER_CHANNEL_WATCHER_DB` to use another database path.
+The server starts its UTC scheduler with the API and checks due channels after
+startup. Each channel's schedule is saved in the timezone reported by the browser;
+the server converts local schedule times to UTC for execution. A newly added
+channel is checked once immediately to establish a baseline without enumerating
+its historical uploads; videos already present at that time are not downloaded.
+Subsequent checks enqueue uploads published after the prior successful check,
+using the channel's own folder and video settings. Approximate upload dates are
+used to avoid requesting detailed metadata for every historical video. If
+fetching a list fails, its last successful-check timestamp is retained.
+Updating a watched channel recalculates its next check from the new schedule
+without forcing an immediate check. The server terminal logs when a check starts
+and when it completes, including the number of videos found and downloads queued.
+YouTube channel-list requests time out after 90 seconds and report the failure
+in the watched-channel status. On server shutdown, in-flight check tasks are
+cancelled so a slow request does not block the scheduler's shutdown.
+Each check examines at most the latest 20 uploads across a channel's video,
+shorts, and stream tabs. Uploads older than that limit are skipped if more than
+20 were published since the previous successful check.
+Detailed video metadata requests are spaced to reduce YouTube rate limits. If
+YouTube explicitly reports that the session is rate-limited, all channel watcher
+checks pause for one hour, even when channels are scheduled more often. The
+cooldown is persisted across server restarts and displayed in the Channel Watcher
+section of the UI. This pause applies only to watcher checks; separate manual
+downloads are unaffected.
+An existing YouTube rate limit must still expire on YouTube's side; configuring
+`YTDLP_COOKIES_PATH` with a valid browser cookies file may help with access
+restrictions.
+
+Minutely schedules run at the start of every minute. Hourly schedules use only
+the selected minute and run once each hour; daily and weekly schedules use the
+full selected local time. Weekly schedules include a weekday in the selected
+timezone. Daily and weekly scheduled times follow that timezone across
+daylight-saving transitions.
+
+- `GET /api/v1/channel-watcher` lists watched channels and check status.
+- `POST /api/v1/channel-watcher` adds a channel.
+- `PUT /api/v1/channel-watcher/{id}` updates its settings.
+- `DELETE /api/v1/channel-watcher/{id}` stops watching it.
 
 ## 💡 Usage Examples
 

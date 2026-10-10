@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-09-27-4">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-10-2">
 </head>
 <body>
     <!-- Header -->
@@ -36,7 +36,7 @@
                 <div class="form-section">
                     <h2>Download Settings</h2>
                     
-                    <div class="form-group">
+                    <div id="download-url-group" class="form-group">
                         <label for="spotify-url">Spotify or YouTube album/playlist URL:</label>
                         <div class="url-input-group">
                             <input
@@ -51,6 +51,7 @@
                     <div class="tabs" role="tablist" aria-label="Download type">
                         <button id="tab-audio-btn" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tab-audio" data-tab="audio">Audio</button>
                         <button id="tab-video-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-video" data-tab="video">Video</button>
+                        <button id="tab-watcher-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-watcher" data-tab="watcher">Channel Watcher</button>
                     </div>
 
                     <div id="tab-audio" class="tab-panel" role="tabpanel" aria-labelledby="tab-audio-btn">
@@ -187,6 +188,100 @@
                     </div>
                     </div>
 
+                    <div id="tab-watcher" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-watcher-btn">
+                        <div class="form-group">
+                            <label for="watcher-url">Channel URL:</label>
+                            <input type="url" id="watcher-url" placeholder="https://www.youtube.com/@channel" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Download Folder:</label>
+                            <div id="watcher-media-root-display" class="media-root-display"></div>
+                            <div id="watcher-output-dir-options" class="output-dir-options" role="group" aria-label="Watched channel download folder">
+                                <span class="output-dir-message">Loading folders...</span>
+                            </div>
+                            <div class="media-root-controls">
+                                <div class="media-root-buttons">
+                                    <button id="watcher-set-media-root-btn" class="output-dir-button media-root-trigger" type="button">Define base media path</button>
+                                    <button id="watcher-add-folder-btn" class="output-dir-button media-root-trigger" type="button">Add Folder</button>
+                                </div>
+                                <div id="watcher-media-root-editor" class="media-root-editor hidden">
+                                    <label for="watcher-media-root-input">Base video path on the server:</label>
+                                    <input type="text" id="watcher-media-root-input" placeholder="/media/Videos">
+                                    <button id="watcher-apply-media-root-btn" class="output-dir-button" type="button">Apply</button>
+                                </div>
+                                <div id="watcher-add-folder-editor" class="media-root-editor hidden">
+                                    <label for="watcher-new-folder-input">New folder name</label>
+                                    <input type="text" id="watcher-new-folder-input" placeholder="Folder name">
+                                    <button id="watcher-create-folder-btn" class="output-dir-button" type="button">Create Folder</button>
+                                </div>
+                            </div>
+                            <input type="hidden" id="watcher-output-dir" value="">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="watcher-interval">Check interval:</label>
+                                <select id="watcher-interval">
+                                    <option value="minutely">Every minute</option>
+                                    <option value="hourly">Hourly</option>
+                                    <option value="daily" selected>Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                </select>
+                            </div>
+                            <div class="form-group hidden" id="watcher-weekday-group">
+                                <label for="watcher-weekday">Day of week:</label>
+                                <select id="watcher-weekday">
+                                    <option value="0">Monday</option>
+                                    <option value="1">Tuesday</option>
+                                    <option value="2">Wednesday</option>
+                                    <option value="3">Thursday</option>
+                                    <option value="4">Friday</option>
+                                    <option value="5">Saturday</option>
+                                    <option value="6">Sunday</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="watcher-time-group">
+                                <label for="watcher-time">Check time:</label>
+                                <input type="time" id="watcher-time" value="09:00" step="60">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="watcher-video-format">Video Format:</label>
+                                <select id="watcher-video-format">
+                                    <option value="mp4" selected>MP4</option>
+                                    <option value="mkv">MKV</option>
+                                    <option value="webm">WebM</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="watcher-video-resolution">Max Resolution:</label>
+                                <select id="watcher-video-resolution">
+                                    <option value="0" selected>Best available</option>
+                                    <option value="2160">2160p (4K)</option>
+                                    <option value="1440">1440p</option>
+                                    <option value="1080">1080p</option>
+                                    <option value="720">720p</option>
+                                    <option value="480">480p</option>
+                                    <option value="360">360p</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="watcher-include-subtitles">
+                                Include Subtitles
+                            </label>
+                        </div>
+                        <p class="watcher-help">The first successful check establishes a baseline; only later uploads are queued.</p>
+                        <div class="watcher-form-actions">
+                            <button id="watcher-submit-btn" class="download-btn" type="button">Watch Channel</button>
+                            <button id="watcher-cancel-btn" class="clear-queue-btn hidden" type="button">Cancel</button>
+                        </div>
+                    </div>
+
                     <button id="download-btn" class="download-btn">
                         🎵 Start Download
                     </button>
@@ -208,6 +303,14 @@
                         <button id="clear-queue-btn" class="clear-queue-btn" type="button" disabled>Clear Queue</button>
                         <button id="clear-completed-btn" class="clear-queue-btn" type="button" disabled>Clear completed</button>
                     </div>
+                </div>
+
+                <div class="queue-section">
+                    <h2>Channel Watcher</h2>
+                    <p id="channel-watcher-status" class="status-warning hidden" role="status"></p>
+                    <ol id="watched-channel-list" aria-label="Watched channels">
+                        <li class="queue-empty">No watched channels</li>
+                    </ol>
                 </div>
 
                 <!-- Log section -->
@@ -257,10 +360,11 @@
         </div>
     </footer>
     <!-- Load JavaScript modules in dependency order -->
-    <script src="/static/js/api-client.js?v=2026-09-27-2"></script>
+    <script src="/static/js/api-client.js?v=2026-10-10-2"></script>
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
-    <script src="/static/js/ui-manager.js?v=2026-09-27-2"></script>
+    <script src="/static/js/ui-manager.js?v=2026-10-10-3"></script>
     <script src="/static/js/download-manager.js?v=2026-09-27-2"></script>
-    <script src="/static/js/app.js?v=2026-09-27-2"></script>
+    <script src="/static/js/channel-watcher-manager.js?v=2026-10-10-5"></script>
+    <script src="/static/js/app.js?v=2026-10-10-1"></script>
 </body>
 </html>

@@ -145,6 +145,146 @@ class UIManager {
         clearCompletedButton.disabled = !queue.some((item) => item.status === 'completed');
     }
 
+    renderWatchedChannels(channels, status = {}) {
+        const cooldownUntil = status.youtube_cooldown_until
+            ? new Date(status.youtube_cooldown_until)
+            : null;
+        const watcherCoolingDown = cooldownUntil && cooldownUntil > new Date();
+        const list = document.getElementById('watched-channel-list');
+        const expandedItems = new Set(
+            Array.from(list.querySelectorAll('.queue-item-details[open]'), (item) => item.dataset.channelId)
+        );
+        list.replaceChildren();
+
+        if (!channels.length) {
+            const emptyMessage = document.createElement('li');
+            emptyMessage.className = 'queue-empty';
+            emptyMessage.textContent = 'No watched channels';
+            list.appendChild(emptyMessage);
+            return;
+        }
+
+        channels.forEach((channel) => {
+            const entry = document.createElement('li');
+            entry.className = 'queue-item';
+
+            const details = document.createElement('details');
+            details.className = 'queue-item-details watched-channel-details';
+            details.dataset.channelId = channel.id;
+            details.open = expandedItems.has(channel.id);
+
+            const summary = document.createElement('summary');
+            summary.className = 'queue-item-summary';
+
+            const name = document.createElement('span');
+            name.className = 'queue-item-name';
+            name.textContent = channel.title || channel.url;
+
+            const interval = document.createElement('span');
+            interval.className = 'queue-item-status watched-channel-summary-status';
+            const intervalLabel = {
+                minutely: 'Every minute',
+                hourly: 'Hourly',
+                daily: 'Daily',
+                weekly: 'Weekly'
+            }[channel.interval] || channel.interval;
+            const lastCheckedDate = channel.last_checked_at
+                ? new Date(channel.last_checked_at)
+                : null;
+            const checkIsOverdue =
+                !watcherCoolingDown
+                && new Date(channel.next_check_at).getTime() <= Date.now()
+                && !channel.check_started_at;
+            const lastCheckedLabel = lastCheckedDate
+                ? `Last checked ${lastCheckedDate.toLocaleString()}`
+                : 'Not checked yet';
+            const summaryLastChecked = lastCheckedDate
+                ? `Last checked ${lastCheckedDate.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}`
+                : lastCheckedLabel;
+            interval.textContent = checkIsOverdue
+                ? `${intervalLabel} · Check overdue`
+                : `${intervalLabel} · ${summaryLastChecked}`;
+            interval.title = checkIsOverdue
+                ? `${lastCheckedLabel}; scheduled check is overdue and no check is reported in progress`
+                : lastCheckedLabel;
+
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'queue-item-remove-btn';
+            removeButton.title = 'Remove watched channel';
+            removeButton.setAttribute('aria-label', 'Remove watched channel');
+            removeButton.dataset.removeChannel = channel.id;
+            removeButton.textContent = '❌';
+
+            summary.append(name, interval, removeButton);
+            details.appendChild(summary);
+
+            const lastChecked = document.createElement('p');
+            lastChecked.className = 'queue-track-empty watched-channel-check';
+            lastChecked.textContent = channel.last_checked_at
+                ? `Last checked: ${new Date(channel.last_checked_at).toLocaleString()}`
+                : 'Last checked: Not checked yet';
+            details.appendChild(lastChecked);
+
+            const nextCheck = document.createElement('p');
+            nextCheck.className = 'queue-track-empty watched-channel-check';
+            nextCheck.textContent = `Next check: ${new Date(channel.next_check_at).toLocaleString()}`;
+            details.appendChild(nextCheck);
+
+            if (checkIsOverdue) {
+                const overdue = document.createElement('p');
+                overdue.className = 'status-error watched-channel-error';
+                overdue.textContent =
+                    'Scheduled check is overdue, but the server has not reported a check in progress.';
+                details.appendChild(overdue);
+            }
+
+            if (channel.check_started_at) {
+                const checking = document.createElement('p');
+                checking.className = 'queue-track-empty watched-channel-check';
+                checking.textContent =
+                    `Check in progress since: ${new Date(channel.check_started_at).toLocaleString()}`;
+                details.appendChild(checking);
+            }
+
+            if (channel.last_error) {
+                const error = document.createElement('p');
+                error.className = 'status-error watched-channel-error';
+                error.textContent = `Last check failed: ${channel.last_error}`;
+                details.appendChild(error);
+            }
+
+            const editButton = document.createElement('button');
+            editButton.type = 'button';
+            editButton.className = 'output-dir-button watched-channel-edit';
+            editButton.dataset.editChannel = channel.id;
+            editButton.textContent = 'Edit settings';
+            details.appendChild(editButton);
+
+            entry.appendChild(details);
+            list.appendChild(entry);
+        });
+    }
+
+    renderChannelWatcherStatus(status) {
+        const message = document.getElementById('channel-watcher-status');
+        const cooldownUntil = status.youtube_cooldown_until
+            ? new Date(status.youtube_cooldown_until)
+            : null;
+        if (!cooldownUntil || cooldownUntil <= new Date()) {
+            message.textContent = '';
+            message.classList.add('hidden');
+            return;
+        }
+
+        message.textContent =
+            `YouTube rate-limit cooldown active. Channel checks are paused until ${cooldownUntil.toLocaleString()}.`;
+        message.classList.remove('hidden');
+    }
+
     updateQueuedTrackState(queueItemId, trackNumber, state) {
         const details = document.querySelector(`.queue-item-details[data-queue-id="${queueItemId}"]`);
         const track = details?.querySelector(`[data-track-number="${trackNumber}"]`);
@@ -333,5 +473,14 @@ UIManager.PICKERS = {
         rootInput: 'video-media-root-input',
         rootKey: 'spotifysaver_video_media_root',
         selectedKey: 'spotifysaver_selected_video_output_dir'
+    },
+    watcher: {
+        options: 'watcher-output-dir-options',
+        hidden: 'watcher-output-dir',
+        display: 'watcher-media-root-display',
+        rootInput: 'watcher-media-root-input',
+        rootKey: 'spotifysaver_watcher_media_root',
+        selectedKey: 'spotifysaver_watcher_output_dir',
+        mediaType: 'video'
     }
 };

@@ -9,6 +9,11 @@ class SpotifySaverUI {
         this.currentRoots = {};
         this.isInitialized = false;
         this.retryCount = 0;
+        this.channelWatcherManager = new ChannelWatcherManager(
+            this.apiClient,
+            this.uiManager,
+            this
+        );
 
         this.initialize();
     }
@@ -25,6 +30,8 @@ class SpotifySaverUI {
                 this.uiManager.updateStatus('API connected and ready', 'success');
                 await this.loadOutputDirectories();
                 await this.loadAppVersion();
+                await this.channelWatcherManager.load();
+                this.channelWatcherManager.startPolling();
             } else {
                 this.uiManager.updateStatus('API not available. Make sure it is running.', 'error');
             }
@@ -70,7 +77,8 @@ class SpotifySaverUI {
         });
         const pickerIds = {
             audio: { editor: 'media-root-editor', trigger: 'set-media-root-btn', apply: 'apply-media-root-btn', addTrigger: 'add-folder-btn', addEditor: 'add-folder-editor', addInput: 'new-folder-input', create: 'create-folder-btn' },
-            video: { editor: 'video-media-root-editor', trigger: 'video-set-media-root-btn', apply: 'video-apply-media-root-btn', addTrigger: 'video-add-folder-btn', addEditor: 'video-add-folder-editor', addInput: 'video-new-folder-input', create: 'video-create-folder-btn' }
+            video: { editor: 'video-media-root-editor', trigger: 'video-set-media-root-btn', apply: 'video-apply-media-root-btn', addTrigger: 'video-add-folder-btn', addEditor: 'video-add-folder-editor', addInput: 'video-new-folder-input', create: 'video-create-folder-btn' },
+            watcher: { editor: 'watcher-media-root-editor', trigger: 'watcher-set-media-root-btn', apply: 'watcher-apply-media-root-btn', addTrigger: 'watcher-add-folder-btn', addEditor: 'watcher-add-folder-editor', addInput: 'watcher-new-folder-input', create: 'watcher-create-folder-btn' }
         };
         Object.entries(pickerIds).forEach(([kind, ids]) => {
             const picker = UIManager.PICKERS[kind];
@@ -127,7 +135,8 @@ class SpotifySaverUI {
         document.querySelectorAll('.tab-button').forEach((tab) => {
             tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
         });
-        this.switchTab(localStorage.getItem('spotifysaver_active_tab') === 'video' ? 'video' : 'audio');
+        const savedTab = localStorage.getItem('spotifysaver_active_tab');
+        this.switchTab(['audio', 'video', 'watcher'].includes(savedTab) ? savedTab : 'audio');
 
         // Persist checkbox state across reloads
         document.querySelectorAll('.tab-panel input[type="checkbox"]').forEach((box) => {
@@ -140,7 +149,7 @@ class SpotifySaverUI {
         });
 
         // Persist video format and resolution selections across reloads.
-        document.querySelectorAll('#tab-video select').forEach((select) => {
+        document.querySelectorAll('#tab-video select, #tab-watcher select').forEach((select) => {
             const key = `spotifysaver_select_${select.id}`;
             const saved = localStorage.getItem(key);
             if (saved !== null && Array.from(select.options).some((option) => option.value === saved)) {
@@ -156,6 +165,11 @@ class SpotifySaverUI {
         spotifyUrl.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 this.downloadManager.startDownload();
+            }
+        });
+        document.getElementById('watcher-url').addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                this.channelWatcherManager.saveChannel();
             }
         });
 
@@ -193,6 +207,14 @@ class SpotifySaverUI {
         document.querySelectorAll('.tab-panel').forEach((panel) => {
             panel.classList.toggle('hidden', panel.id !== `tab-${mode}`);
         });
+        document.getElementById('download-url-group').classList.toggle(
+            'hidden',
+            mode === 'watcher'
+        );
+        document.getElementById('download-btn').classList.toggle(
+            'hidden',
+            mode === 'watcher'
+        );
         localStorage.setItem('spotifysaver_active_tab', mode);
         this.downloadManager.mode = mode;
         this.uiManager.setActiveMode(mode);
@@ -207,7 +229,10 @@ class SpotifySaverUI {
             }
 
             try {
-                const result = await this.apiClient.getOutputDirectories(savedRoot, kind);
+                const result = await this.apiClient.getOutputDirectories(
+                    savedRoot,
+                    picker.mediaType || kind
+                );
                 this.currentRoots[kind] = result.root;
                 this.uiManager.setOutputDirectories(result.directories, result.root, kind);
             } catch (error) {
@@ -227,12 +252,19 @@ class SpotifySaverUI {
         }
 
         try {
-            const result = await this.apiClient.getOutputDirectories(rootPath, kind);
+            const result = await this.apiClient.getOutputDirectories(
+                rootPath,
+                picker.mediaType || kind
+            );
             localStorage.setItem(picker.rootKey, result.root);
             this.currentRoots[kind] = result.root;
             this.uiManager.setOutputDirectories(result.directories, result.root, kind);
             document.getElementById(
-                kind === 'video' ? 'video-media-root-editor' : 'media-root-editor'
+                {
+                    audio: 'media-root-editor',
+                    video: 'video-media-root-editor',
+                    watcher: 'watcher-media-root-editor'
+                }[kind]
             ).classList.add('hidden');
             this.uiManager.updateStatus('Base media path updated', 'success');
         } catch (error) {
@@ -242,7 +274,12 @@ class SpotifySaverUI {
 
     async createFolder(kind) {
         const picker = UIManager.PICKERS[kind];
-        const input = document.getElementById(kind === 'video' ? 'video-new-folder-input' : 'new-folder-input');
+        const inputId = {
+            audio: 'new-folder-input',
+            video: 'video-new-folder-input',
+            watcher: 'watcher-new-folder-input'
+        }[kind];
+        const input = document.getElementById(inputId);
         const name = input.value.trim();
         const root = this.currentRoots[kind];
         if (!name) {
@@ -257,16 +294,41 @@ class SpotifySaverUI {
         try {
             const created = await this.apiClient.createOutputDirectory(root, name);
             localStorage.setItem(picker.selectedKey, created.path);
-            const result = await this.apiClient.getOutputDirectories(root, kind);
+            const result = await this.apiClient.getOutputDirectories(
+                root,
+                picker.mediaType || kind
+            );
             this.uiManager.setOutputDirectories(result.directories, result.root, kind);
             input.value = '';
             document.getElementById(
-                kind === 'video' ? 'video-add-folder-editor' : 'add-folder-editor'
+                {
+                    audio: 'add-folder-editor',
+                    video: 'video-add-folder-editor',
+                    watcher: 'watcher-add-folder-editor'
+                }[kind]
             ).classList.add('hidden');
             this.uiManager.updateStatus(`Folder "${created.name}" created`, 'success');
         } catch (error) {
             this.uiManager.updateStatus(error.message, 'error');
         }
+
+    }
+
+    async selectWatcherOutputDirectory(outputDir) {
+        const rootPath = this.uiManager.getParentPath(outputDir);
+        if (!rootPath) {
+            throw new Error('Could not determine the watched channel folder parent');
+        }
+        const result = await this.apiClient.getOutputDirectories(rootPath, 'video');
+        this.currentRoots.watcher = result.root;
+        this.uiManager.setOutputDirectories(result.directories, result.root, 'watcher');
+        const button = Array.from(
+            document.querySelectorAll('#watcher-output-dir-options [data-output-dir]')
+        ).find((option) => option.dataset.outputDir === outputDir);
+        if (!button) {
+            throw new Error('The watched channel folder is no longer available');
+        }
+        this.uiManager.selectOutputDirectory(button, 'watcher');
     }
 
     async loadAppVersion() {

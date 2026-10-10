@@ -519,6 +519,15 @@ select:focus {
     text-transform: capitalize;
 }
 
+.watched-channel-summary-status {
+    flex: 0 1 260px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: none;
+    white-space: nowrap;
+}
+
 .queue-item-downloading .queue-item-status {
     color: #2b6cb0;
 }
@@ -589,6 +598,46 @@ select:focus {
     padding: 8px 0;
     color: #718096;
     font-size: 14px;
+}
+
+#watched-channel-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.watched-channel-check {
+    padding-bottom: 6px;
+}
+
+.watched-channel-error {
+    margin: 0 10px 8px 24px;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+}
+
+.watched-channel-edit {
+    margin: 0 10px 10px 24px;
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.watcher-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.watcher-help {
+    margin: 0 0 16px;
+    color: #718096;
+    font-size: 13px;
+}
+
+.watcher-form-actions .download-btn {
+    margin: 0;
 }
 
 .clear-queue-btn {

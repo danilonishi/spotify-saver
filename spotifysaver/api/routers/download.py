@@ -35,6 +35,7 @@ router = APIRouter()
 tasks: Dict[str, DownloadStatus] = {}
 requests_by_task: Dict[str, DownloadRequest] = {}
 cancellation_events: Dict[str, Event] = {}
+download_archives: Dict[str, str] = {}
 
 # Server-owned download queue: the server decides when each task actually
 # starts running, so downloads keep progressing even if every browser tab
@@ -211,6 +212,7 @@ async def cancel_download(task_id: str):
         task.status = "cancelled"
         task.error_message = "Cancelled by user before it started"
         task.completed_at = datetime.now().isoformat()
+        download_archives.pop(task_id, None)
         return {"message": "Queued download removed"}
 
     cancellation_event = cancellation_events.get(task_id)
@@ -239,6 +241,7 @@ async def remove_download(task_id: str):
     tasks.pop(task_id, None)
     requests_by_task.pop(task_id, None)
     cancellation_events.pop(task_id, None)
+    download_archives.pop(task_id, None)
     if task_id in order:
         order.remove(task_id)
     return {"message": "Task removed"}
@@ -327,6 +330,7 @@ async def clear_completed():
             tasks.pop(task_id, None)
             requests_by_task.pop(task_id, None)
             cancellation_events.pop(task_id, None)
+            download_archives.pop(task_id, None)
             if task_id in order:
                 order.remove(task_id)
             removed += 1
@@ -343,6 +347,7 @@ async def clear_queue():
             task = tasks.pop(task_id, None)
             requests_by_task.pop(task_id, None)
             cancellation_events.pop(task_id, None)
+            download_archives.pop(task_id, None)
             if task_id in order:
                 order.remove(task_id)
             if task is not None:
@@ -447,6 +452,7 @@ async def download_task(task_id: str, request: DownloadRequest):
                 video_resolution=request.video_resolution,
                 include_subtitles=request.include_subtitles,
                 overwrite_existing=request.overwrite_existing,
+                download_archive=download_archives.get(task_id),
             )
         else:
             download_service = DownloadService(
@@ -556,6 +562,55 @@ async def download_task(task_id: str, request: DownloadRequest):
     finally:
         if tasks.get(task_id) is not None and tasks[task_id].status != "queued":
             cancellation_events.pop(task_id, None)
+            download_archives.pop(task_id, None)
+
+
+async def enqueue_watched_video(channel: dict, video_url: str) -> None:
+    """Place a watched upload into the same server-owned queue as manual downloads."""
+    video_id = video_url.rsplit("=", 1)[-1].split("&", 1)[0]
+    for task_id, request in requests_by_task.items():
+        if (
+            request.media_type == "video"
+            and str(request.spotify_url).endswith(video_id)
+            and download_archives.get(task_id) == channel["download_archive"]
+            and tasks.get(task_id)
+            and tasks[task_id].status in {"queued", "processing", "cancelling"}
+        ):
+            return
+
+    request = DownloadRequest(
+        spotify_url=video_url,
+        output_dir=channel["output_dir"],
+        media_type="video",
+        video_format=channel["video_format"],
+        video_resolution=channel["video_resolution"],
+        include_subtitles=channel["include_subtitles"],
+        overwrite_existing=False,
+    )
+    task_id = str(uuid.uuid4())
+    content_type = "track"
+    tasks[task_id] = DownloadStatus(
+        task_id=task_id,
+        status="queued",
+        progress=0,
+        total_tracks=0,
+        completed_tracks=0,
+        failed_tracks=0,
+        started_at=datetime.now().isoformat(),
+        output_format=request.output_format,
+        bit_rate=request.bit_rate,
+        spotify_url=video_url,
+        output_dir=request.output_dir,
+        content_type=content_type,
+        media_type="video",
+        title=str(channel.get("video_title") or "Watched channel upload"),
+    )
+    requests_by_task[task_id] = request
+    download_archives[task_id] = channel["download_archive"]
+    order.append(task_id)
+    async with queue_lock:
+        pending.append(task_id)
+    asyncio.create_task(_try_start_next())
 
 
 @router.get("/config/output_dir")

@@ -35,3 +35,15 @@ class APIConfig:
     def get_video_dir(cls) -> str:
         """Get the video output directory from environment or default."""
         return os.getenv("SPOTIFYSAVER_VIDEO_DIR", cls.DEFAULT_VIDEO_DIR)
+
+    @classmethod
+    def get_channel_watcher_db_path(cls) -> str:
+        """Get the persistent database path for watched channels."""
+        return os.getenv(
+            "SPOTIFYSAVER_CHANNEL_WATCHER_DB",
+            os.path.join(
+                os.path.expanduser("~"),
+                ".spotify-saver",
+                "channel-watcher.sqlite3",
+            ),
+        )

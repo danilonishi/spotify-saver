@@ -1,0 +1,203 @@
+class ChannelWatcherManager {
+    constructor(apiClient, uiManager, app) {
+        this.apiClient = apiClient;
+        this.uiManager = uiManager;
+        this.app = app;
+        this.channels = [];
+        this.editingChannelId = null;
+        this.pollTimer = null;
+        this.refreshInProgress = false;
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        document.getElementById('watcher-interval').addEventListener('change', () => {
+            this.updateWeekdayVisibility();
+        });
+        document.getElementById('watcher-submit-btn').addEventListener('click', () => {
+            this.saveChannel();
+        });
+        document.getElementById('watcher-cancel-btn').addEventListener('click', () => {
+            this.cancelEdit();
+        });
+        document.getElementById('watched-channel-list').addEventListener('click', (event) => {
+            const editButton = event.target.closest('[data-edit-channel]');
+            if (editButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.beginEdit(editButton.dataset.editChannel);
+                return;
+            }
+            const removeButton = event.target.closest('[data-remove-channel]');
+            if (removeButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.removeChannel(removeButton.dataset.removeChannel);
+            }
+        });
+    }
+
+    async load() {
+        const [channels, status] = await Promise.all([
+            this.apiClient.getWatchedChannels(),
+            this.apiClient.getChannelWatcherStatus()
+        ]);
+        this.channels = channels;
+        this.uiManager.renderWatchedChannels(this.channels, status);
+        this.uiManager.renderChannelWatcherStatus(status);
+    }
+
+    startPolling() {
+        if (this.pollTimer) return;
+        const scheduleRefresh = (delay) => {
+            this.pollTimer = setTimeout(async () => {
+                this.pollTimer = null;
+                if (this.refreshInProgress) {
+                    scheduleRefresh(15000);
+                    return;
+                }
+
+                this.refreshInProgress = true;
+                try {
+                    await this.load();
+                } catch (error) {
+                    console.warn('Could not refresh watched channels:', error);
+                } finally {
+                    this.refreshInProgress = false;
+                    const hasActiveCheck = this.channels.some(
+                        (channel) => channel.check_started_at
+                    );
+                    scheduleRefresh(hasActiveCheck ? 15000 : 60000);
+                }
+            }, delay);
+        };
+        scheduleRefresh(60000);
+    }
+
+    async saveChannel() {
+        const url = document.getElementById('watcher-url').value.trim();
+        const outputDir = document.getElementById('watcher-output-dir').value;
+        const checkTime = document.getElementById('watcher-time').value;
+        if (!url) {
+            this.uiManager.updateStatus('Enter a YouTube channel URL', 'error');
+            return;
+        }
+        if (!outputDir) {
+            this.uiManager.updateStatus('Choose a download folder for this channel', 'error');
+            return;
+        }
+        if (!checkTime) {
+            this.uiManager.updateStatus('Choose a check time', 'error');
+            return;
+        }
+
+        const [checkHour, checkMinute] = checkTime.split(':').map(Number);
+        const settings = {
+            platform: 'youtube',
+            url,
+            output_dir: outputDir,
+            interval: document.getElementById('watcher-interval').value,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+            check_hour: checkHour,
+            check_minute: checkMinute,
+            check_weekday: document.getElementById('watcher-interval').value === 'weekly'
+                ? Number(document.getElementById('watcher-weekday').value)
+                : null,
+            video_format: document.getElementById('watcher-video-format').value,
+            video_resolution: Number(document.getElementById('watcher-video-resolution').value),
+            include_subtitles: document.getElementById('watcher-include-subtitles').checked
+        };
+
+        const submit = document.getElementById('watcher-submit-btn');
+        submit.disabled = true;
+        try {
+            if (this.editingChannelId) {
+                await this.apiClient.updateWatchedChannel(this.editingChannelId, settings);
+                this.uiManager.updateStatus('Watched channel settings saved', 'success');
+            } else {
+                await this.apiClient.createWatchedChannel(settings);
+                this.uiManager.updateStatus('Channel added to the watch list', 'success');
+            }
+            await this.load();
+            this.cancelEdit();
+        } catch (error) {
+            this.uiManager.updateStatus(error.message, 'error');
+        } finally {
+            submit.disabled = false;
+        }
+    }
+
+    async beginEdit(channelId) {
+        const channel = this.channels.find((item) => item.id === channelId);
+        if (!channel) return;
+        this.editingChannelId = channel.id;
+        document.getElementById('watcher-url').value = channel.url;
+        document.getElementById('watcher-interval').value = channel.interval;
+        const localNextCheck = new Date(channel.next_check_at);
+        document.getElementById('watcher-weekday').value = String(
+            (localNextCheck.getDay() + 6) % 7
+        );
+        document.getElementById('watcher-time').value =
+            `${String(localNextCheck.getHours()).padStart(2, '0')}:${String(localNextCheck.getMinutes()).padStart(2, '0')}`;
+        document.getElementById('watcher-video-format').value = channel.video_format;
+        document.getElementById('watcher-video-resolution').value = String(channel.video_resolution);
+        document.getElementById('watcher-include-subtitles').checked = channel.include_subtitles;
+        document.getElementById('watcher-submit-btn').textContent = 'Save';
+        document.getElementById('watcher-cancel-btn').classList.remove('hidden');
+        this.updateWeekdayVisibility();
+        this.app.switchTab('watcher');
+        try {
+            await this.app.selectWatcherOutputDirectory(channel.output_dir);
+        } catch (error) {
+            this.uiManager.updateStatus(error.message, 'error');
+        }
+    }
+
+    async removeChannel(channelId) {
+        const channel = this.channels.find((item) => item.id === channelId);
+        if (!channel || !confirm(`Stop watching "${channel.title || channel.url}"?`)) return;
+        try {
+            await this.apiClient.deleteWatchedChannel(channelId);
+            if (this.editingChannelId === channelId) this.cancelEdit();
+            await this.load();
+            this.uiManager.updateStatus('Channel removed from the watch list', 'success');
+        } catch (error) {
+            this.uiManager.updateStatus(error.message, 'error');
+        }
+    }
+
+    cancelEdit() {
+        this.editingChannelId = null;
+        document.getElementById('watcher-url').value = '';
+        document.getElementById('watcher-interval').value = 'daily';
+        document.getElementById('watcher-weekday').value = '0';
+        document.getElementById('watcher-time').value = '09:00';
+        document.getElementById('watcher-video-format').value = 'mp4';
+        document.getElementById('watcher-video-resolution').value = '0';
+        document.getElementById('watcher-include-subtitles').checked = false;
+        document.getElementById('watcher-submit-btn').textContent = 'Watch Channel';
+        document.getElementById('watcher-cancel-btn').classList.add('hidden');
+        this.updateWeekdayVisibility();
+        document.getElementById('watcher-output-dir').value = '';
+        document.querySelectorAll('#watcher-output-dir-options [data-output-dir]').forEach((button) => {
+            button.classList.remove('selected');
+            button.setAttribute('aria-pressed', 'false');
+        });
+        const defaultFolder = document.querySelector(
+            '#watcher-output-dir-options [data-output-dir]'
+        );
+        if (defaultFolder) {
+            this.uiManager.selectOutputDirectory(defaultFolder, 'watcher');
+        }
+    }
+
+    updateWeekdayVisibility() {
+        const interval = document.getElementById('watcher-interval').value;
+        document.getElementById('watcher-weekday-group').classList.toggle(
+            'hidden', interval !== 'weekly'
+        );
+        document.getElementById('watcher-time-group').classList.toggle(
+            'hidden', interval === 'minutely'
+        );
+    }
+}

@@ -1,13 +1,15 @@
 """FastAPI Application Factory"""
 
 from pathlib import Path
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import download
+from .routers import channel_watcher, download
 from .config import APIConfig
+from .services import ChannelWatcherService
 from .. import __version__
 
 # Get the absolute path to the UI directory
@@ -21,12 +23,23 @@ def create_app() -> FastAPI:
     Returns:
         FastAPI: Configured FastAPI application instance
     """
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        watcher = ChannelWatcherService(enqueue_video=download.enqueue_watched_video)
+        app.state.channel_watcher = watcher
+        watcher.start()
+        try:
+            yield
+        finally:
+            await watcher.stop()
+
     app = FastAPI(
         title="SpotifySaver API",
         description="Download music from Spotify via YouTube Music with metadata preservation",
         version=__version__,
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     # Mount static files (only if directory exists)
@@ -44,6 +57,9 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(download.router, prefix="/api/v1", tags=["download"])
+    app.include_router(
+        channel_watcher.router, prefix="/api/v1", tags=["channel-watcher"]
+    )
 
     # Serve the main HTML file
     @app.get("/", tags=["UI"])

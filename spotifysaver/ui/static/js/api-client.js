@@ -299,4 +299,69 @@ class ApiClient {
 
         return await response.json();
     }
+
+    async getWatchedChannels() {
+        const response = await fetch(`${this.apiUrl}/channel-watcher`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) {
+            throw new Error('Could not fetch watched channels');
+        }
+        return response.json();
+    }
+
+    async getChannelWatcherStatus() {
+        const response = await fetch(`${this.apiUrl}/channel-watcher/status`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) {
+            throw new Error('Could not fetch channel watcher status');
+        }
+        return response.json();
+    }
+
+    async createWatchedChannel(settings) {
+        return this.sendWatchedChannelRequest('/channel-watcher', 'POST', settings);
+    }
+
+    async updateWatchedChannel(channelId, settings) {
+        return this.sendWatchedChannelRequest(
+            `/channel-watcher/${encodeURIComponent(channelId)}`,
+            'PUT',
+            settings
+        );
+    }
+
+    async sendWatchedChannelRequest(path, method, settings) {
+        const response = await fetch(`${this.apiUrl}${path}`, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not save watched channel');
+        }
+        return response.json();
+    }
+
+    async deleteWatchedChannel(channelId) {
+        const response = await fetch(
+            `${this.apiUrl}/channel-watcher/${encodeURIComponent(channelId)}`,
+            {
+                method: 'DELETE',
+                headers: { 'Accept': 'application/json' }
+            }
+        );
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not remove watched channel');
+        }
+        return response.json();
+    }
 }

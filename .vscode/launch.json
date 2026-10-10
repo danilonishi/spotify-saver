@@ -8,7 +8,7 @@
             "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
             "module": "uvicorn",
             "args": [
-                "spotifysaver.api.main:run_server",
+                "spotifysaver.api.main:app",
                 "--reload"
             ],
             "jinja": true,

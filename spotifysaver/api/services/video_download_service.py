@@ -33,12 +33,14 @@ class VideoDownloadService:
         video_resolution: int = 0,
         include_subtitles: bool = False,
         overwrite_existing: bool = False,
+        download_archive: Optional[str] = None,
     ):
         self.output_dir = Path(output_dir or APIConfig.get_output_dir())
         self.video_format = video_format
         self.video_resolution = video_resolution
         self.include_subtitles = include_subtitles
         self.overwrite_existing = overwrite_existing
+        self.download_archive = download_archive
         self.cancellation_event: Optional[Event] = None
         self.image_downloader = ImageDownloader()
         # Called as (current, total, fraction 0-1 of the current video)
@@ -73,6 +75,8 @@ class VideoDownloadService:
             "retries": 5,
             "fragment_retries": 5,
         }
+        if self.download_archive:
+            opts["download_archive"] = self.download_archive
         if self.include_subtitles:
             opts["writesubtitles"] = True
             opts["subtitleslangs"] = ["all", "-live_chat"]

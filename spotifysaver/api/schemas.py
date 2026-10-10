@@ -16,12 +16,8 @@ class DownloadRequest(BaseModel):
     download_lyrics: bool = Field(
         default=False, description="Whether to download synchronized lyrics"
     )
-    download_cover: bool = Field(
-        default=True, description="Whether to download cover art"
-    )
-    generate_nfo: bool = Field(
-        default=False, description="Whether to generate NFO metadata files"
-    )
+    download_cover: bool = Field(default=True, description="Whether to download cover art")
+    generate_nfo: bool = Field(default=False, description="Whether to generate NFO metadata files")
     overwrite_existing: bool = Field(
         default=False,
         description="Whether to overwrite local files that already exist. Missing files are always downloaded.",
@@ -38,7 +34,8 @@ class DownloadRequest(BaseModel):
     bit_rate: int = Field(
         default=256,
         description="Bit rate for audio files in kbps",
-        ge=64, le=256,  # Valid range for MP3 bit rates
+        ge=64,
+        le=256,  # Valid range for MP3 bit rates
     )
     output_dir: Optional[str] = Field(
         default="Music", description="Custom output directory (optional)"
@@ -62,6 +59,51 @@ class DownloadRequest(BaseModel):
     include_subtitles: bool = Field(
         default=False, description="Whether to download subtitles for videos"
     )
+
+
+class WatchedChannelRequest(BaseModel):
+    """Settings required to watch a channel for new content."""
+
+    platform: str = Field(default="youtube", pattern="^youtube$")
+    url: str
+    output_dir: str
+    interval: str = Field(pattern="^(minutely|hourly|daily|weekly)$")
+    timezone: str = Field(default="UTC", description="IANA timezone for the selected schedule")
+    check_hour: int = Field(ge=0, le=23)
+    check_minute: int = Field(ge=0, le=59)
+    check_weekday: Optional[int] = Field(default=None, ge=0, le=6)
+    video_format: str = Field(default="mp4", pattern="^(mp4|mkv|webm)$")
+    video_resolution: int = Field(default=0, ge=0, le=4320)
+    include_subtitles: bool = False
+
+
+class WatchedChannel(BaseModel):
+    """Persisted watched channel settings and last successful check."""
+
+    id: str
+    platform: str
+    url: str
+    title: Optional[str] = None
+    output_dir: str
+    interval: str
+    timezone: str
+    check_hour: int
+    check_minute: int
+    check_weekday: Optional[int] = None
+    video_format: str
+    video_resolution: int
+    include_subtitles: bool
+    created_at: str
+    last_checked_at: Optional[str] = None
+    check_started_at: Optional[str] = None
+    next_check_at: str
+    last_error: Optional[str] = None
+
+
+class ChannelWatcherStatus(BaseModel):
+    """Global channel watcher state that applies to all watched channels."""
+
+    youtube_cooldown_until: Optional[str] = None
 
 
 class TrackInfo(BaseModel):
@@ -103,9 +145,7 @@ class DownloadResponse(BaseModel):
     task_id: str = Field(..., description="Unique task identifier")
     status: str = Field(..., description="Current status of the download")
     spotify_url: str = Field(..., description="Original Spotify or YouTube source URL")
-    content_type: str = Field(
-        ..., description="Type of content (track, album, playlist)"
-    )
+    content_type: str = Field(..., description="Type of content (track, album, playlist)")
     message: str = Field(..., description="Status message")
 
 
