@@ -139,6 +139,16 @@ class SpotifySaverUI {
             box.addEventListener('change', () => localStorage.setItem(key, box.checked));
         });
 
+        // Persist video format and resolution selections across reloads.
+        document.querySelectorAll('#tab-video select').forEach((select) => {
+            const key = `spotifysaver_select_${select.id}`;
+            const saved = localStorage.getItem(key);
+            if (saved !== null && Array.from(select.options).some((option) => option.value === saved)) {
+                select.value = saved;
+            }
+            select.addEventListener('change', () => localStorage.setItem(key, select.value));
+        });
+
         clearQueueBtn.addEventListener('click', () => this.downloadManager.clearQueue());
         clearCompletedBtn.addEventListener('click', () => this.downloadManager.clearCompleted());
         
