@@ -12,6 +12,7 @@ class APIConfig:
 
     # API settings
     DEFAULT_OUTPUT_DIR: str = "Music"
+    DEFAULT_VIDEO_DIR: str = "Videos"
     # Number of downloads the server queue runs at the same time; the rest
     # wait in the queue and are started automatically as slots free up.
     MAX_CONCURRENT_DOWNLOADS: int = 1
@@ -29,3 +30,8 @@ class APIConfig:
     def get_output_dir(cls) -> str:
         """Get the output directory from environment or default."""
         return os.getenv("SPOTIFYSAVER_OUTPUT_DIR", cls.DEFAULT_OUTPUT_DIR)
+
+    @classmethod
+    def get_video_dir(cls) -> str:
+        """Get the video output directory from environment or default."""
+        return os.getenv("SPOTIFYSAVER_VIDEO_DIR", cls.DEFAULT_VIDEO_DIR)

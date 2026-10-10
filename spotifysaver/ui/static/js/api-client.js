@@ -71,11 +71,12 @@ class ApiClient {
         }
     }
 
-    async getOutputDirectories(rootPath = null) {
+    async getOutputDirectories(rootPath = null, mediaType = 'audio') {
         const url = new URL(`${this.apiUrl}/config/output_dirs`);
         if (rootPath) {
             url.searchParams.set('root', rootPath);
         }
+        url.searchParams.set('media_type', mediaType);
 
         const response = await fetch(url, {
             method: 'GET',
@@ -92,6 +93,22 @@ class ApiClient {
             root: data.root,
             directories: data.directories || []
         };
+    }
+
+    async createOutputDirectory(rootPath, name) {
+        const response = await fetch(`${this.apiUrl}/config/output_dirs`, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ root: rootPath, name })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not create the folder');
+        }
+
+        return response.json();
     }
 
     async getAppVersion() {

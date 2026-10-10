@@ -10,14 +10,28 @@ class DownloadManager {
         this.queuePaused = false;
         this.pollTimer = null;
         this.pollInterval = 2000;
+        this.mode = 'audio';
     }
 
     getFormData() {
+        if (this.mode === 'video') {
+            return {
+                spotify_url: document.getElementById('spotify-url').value,
+                media_type: 'video',
+                output_dir: document.getElementById('video-output-dir').value,
+                video_format: document.getElementById('video-format').value,
+                video_resolution: parseInt(document.getElementById('video-resolution').value),
+                include_subtitles: document.getElementById('include-subtitles').checked,
+                overwrite_existing: document.getElementById('video-overwrite-existing').checked
+            };
+        }
+
         const bitrateValue = document.getElementById('bitrate').value;
         const bitrate = bitrateValue === 'best' ? 256 : parseInt(bitrateValue);
         
         return {
             spotify_url: document.getElementById('spotify-url').value,
+            media_type: 'audio',
             output_dir: document.getElementById('output-dir').value,
             output_format: document.getElementById('format').value,
             bit_rate: bitrate,
@@ -41,6 +55,18 @@ class DownloadManager {
             return false;
         }
         
+        if (formData.media_type === 'video') {
+            if (!this.isYouTubeCollectionUrl(formData.spotify_url) &&
+                !this.isYouTubeTrackUrl(formData.spotify_url)) {
+                this.uiManager.updateStatus(
+                    'Video downloads need a YouTube video or playlist link.',
+                    'error'
+                );
+                return false;
+            }
+            return true;
+        }
+
         if (!formData.spotify_url.includes('spotify.com') &&
             !this.isYouTubeCollectionUrl(formData.spotify_url) &&
             !this.isYouTubeTrackUrl(formData.spotify_url)) {
@@ -169,7 +195,8 @@ class DownloadManager {
         }
 
         const formData = this.getFormData();
-        const queueKey = this.getQueueKey(formData.spotify_url);
+        const queueKey = this.getQueueKey(formData.spotify_url) +
+            (formData.media_type === 'video' ? ':video' : '');
         const duplicate = this.queue.find((item) => item.key === queueKey &&
             ['queued', 'downloading', 'paused'].includes(item.status));
         if (duplicate) {
@@ -262,12 +289,14 @@ class DownloadManager {
             const existing = existingById.get(task.task_id);
             const item = existing || {
                 id: task.task_id,
-                key: this.getQueueKey(task.spotify_url || ''),
+                key: this.getQueueKey(task.spotify_url || '') +
+                    (task.media_type === 'video' ? ':video' : ''),
                 url: task.spotify_url || '',
                 title: this.getQueueTitle(task.spotify_url || ''),
                 formData: {
                     spotify_url: task.spotify_url,
                     output_dir: task.output_dir,
+                    media_type: task.media_type,
                     output_format: task.output_format,
                     bit_rate: task.bit_rate
                 },

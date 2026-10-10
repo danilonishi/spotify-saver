@@ -43,6 +43,25 @@ class DownloadRequest(BaseModel):
     output_dir: Optional[str] = Field(
         default="Music", description="Custom output directory (optional)"
     )
+    media_type: str = Field(
+        default="audio",
+        description="Kind of download: 'audio' or 'video' (video requires a YouTube URL)",
+        pattern="^(audio|video)$",
+    )
+    video_format: str = Field(
+        default="mp4",
+        description="Container for video downloads",
+        pattern="^(mp4|mkv|webm)$",
+    )
+    video_resolution: int = Field(
+        default=0,
+        description="Maximum video height in pixels; 0 means best available",
+        ge=0,
+        le=4320,
+    )
+    include_subtitles: bool = Field(
+        default=False, description="Whether to download subtitles for videos"
+    )
 
 
 class TrackInfo(BaseModel):
@@ -113,6 +132,7 @@ class DownloadStatus(BaseModel):
     spotify_url: Optional[str] = None
     output_dir: Optional[str] = None
     content_type: Optional[str] = None
+    media_type: str = "audio"
     title: Optional[str] = Field(
         default=None,
         description="Display name (album/playlist/track title) once resolved",

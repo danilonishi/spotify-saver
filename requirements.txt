@@ -61,5 +61,5 @@ uvicorn==0.34.3
 watchfiles==1.1.0
 websockets==15.0.1
 yarg==0.1.10
-yt-dlp==2025.9.26
+yt-dlp==2026.8.19
 ytmusicapi==1.10.3

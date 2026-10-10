@@ -48,6 +48,12 @@
                         </div>
                     </div>
 
+                    <div class="tabs" role="tablist" aria-label="Download type">
+                        <button id="tab-audio-btn" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tab-audio" data-tab="audio">Audio</button>
+                        <button id="tab-video-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-video" data-tab="video">Video</button>
+                    </div>
+
+                    <div id="tab-audio" class="tab-panel" role="tabpanel" aria-labelledby="tab-audio-btn">
                     <div class="form-group">
                         <label>Download Folder:</label>
                         <div id="media-root-display" class="media-root-display"></div>
@@ -55,11 +61,19 @@
                             <span id="output-dir-message">Loading folders...</span>
                         </div>
                         <div class="media-root-controls">
-                            <button id="set-media-root-btn" class="output-dir-button media-root-trigger" type="button">Define base media path</button>
+                            <div class="media-root-buttons">
+                                <button id="set-media-root-btn" class="output-dir-button media-root-trigger" type="button">Define base media path</button>
+                                <button id="add-folder-btn" class="output-dir-button media-root-trigger" type="button">Add Folder</button>
+                            </div>
                             <div id="media-root-editor" class="media-root-editor hidden">
                                 <label for="media-root-input">Base media path on the server:</label>
                                 <input type="text" id="media-root-input" placeholder="/media/Music">
                                 <button id="apply-media-root-btn" class="output-dir-button" type="button">Apply</button>
+                            </div>
+                            <div id="add-folder-editor" class="media-root-editor hidden">
+                                <label for="new-folder-input">New folder name</label>
+                                <input type="text" id="new-folder-input" placeholder="Folder name">
+                                <button id="create-folder-btn" class="output-dir-button" type="button">Create Folder</button>
                             </div>
                         </div>
                         <input type="hidden" id="output-dir" value="">
@@ -105,6 +119,72 @@
                             <input type="checkbox" id="overwrite-existing">
                             Overwrite if exists locally
                         </label>
+                    </div>
+                    </div>
+
+                    <div id="tab-video" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-video-btn">
+                    <div class="form-group">
+                        <label>Download Folder:</label>
+                        <div id="video-media-root-display" class="media-root-display"></div>
+                        <div id="video-output-dir-options" class="output-dir-options" role="group" aria-label="Video download folder">
+                            <span class="output-dir-message">Loading folders...</span>
+                        </div>
+                        <div class="media-root-controls">
+                            <div class="media-root-buttons">
+                                <button id="video-set-media-root-btn" class="output-dir-button media-root-trigger" type="button">Define base media path</button>
+                                <button id="video-add-folder-btn" class="output-dir-button media-root-trigger" type="button">Add Folder</button>
+                            </div>
+                            <div id="video-media-root-editor" class="media-root-editor hidden">
+                                <label for="video-media-root-input">Base video path on the server:</label>
+                                <input type="text" id="video-media-root-input" placeholder="/media/Videos">
+                                <button id="video-apply-media-root-btn" class="output-dir-button" type="button">Apply</button>
+                            </div>
+                            <div id="video-add-folder-editor" class="media-root-editor hidden">
+                                <label for="video-new-folder-input">New folder name</label>
+                                <input type="text" id="video-new-folder-input" placeholder="Folder name">
+                                <button id="video-create-folder-btn" class="output-dir-button" type="button">Create Folder</button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="video-output-dir" value="">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="video-format">Video Format:</label>
+                            <select id="video-format">
+                                <option value="mp4" selected>MP4</option>
+                                <option value="mkv">MKV</option>
+                                <option value="webm">WebM</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="video-resolution">Max Resolution:</label>
+                            <select id="video-resolution">
+                                <option value="0" selected>Best available</option>
+                                <option value="2160">2160p (4K)</option>
+                                <option value="1440">1440p</option>
+                                <option value="1080">1080p</option>
+                                <option value="720">720p</option>
+                                <option value="480">480p</option>
+                                <option value="360">360p</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="include-subtitles">
+                            Include Subtitles
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="video-overwrite-existing">
+                            Overwrite if exists locally
+                        </label>
+                    </div>
                     </div>
 
                     <button id="download-btn" class="download-btn">

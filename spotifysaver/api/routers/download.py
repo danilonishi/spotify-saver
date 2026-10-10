@@ -1,6 +1,7 @@
 """Download endpoints for the SpotifySaver API"""
 
 import asyncio
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Dict
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from ..schemas import (
     DownloadRequest,
@@ -19,7 +21,7 @@ from ..schemas import (
     PlaylistInfo,
     TrackInfo,
 )
-from ..services import DownloadService
+from ..services import DownloadService, VideoDownloadService
 from ...downloader import YouTubeDownloader
 from ...services import SpotifyAPI
 from ...spotlog import get_logger
@@ -132,6 +134,11 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
         # Generate unique task ID
         task_id = str(uuid.uuid4())
         spotify_url = str(request.spotify_url)
+        if request.media_type == "video" and not YouTubeDownloader.is_youtube_url(spotify_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Video downloads require a YouTube video or playlist URL.",
+            )
         content_type = _content_type_for_url(spotify_url)
 
         # Create initial task status
@@ -148,6 +155,7 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
             spotify_url=spotify_url,
             output_dir=request.output_dir,
             content_type=content_type,
+            media_type=request.media_type,
         )
         tasks[task_id] = task_status
         requests_by_task[task_id] = request
@@ -432,15 +440,24 @@ async def download_task(task_id: str, request: DownloadRequest):
         task.status = "processing"
 
         # Initialize the download service
-        download_service = DownloadService(
-            output_dir=request.output_dir,
-            download_lyrics=request.download_lyrics,
-            download_cover=request.download_cover,
-            generate_nfo=request.generate_nfo,
-            output_format=request.output_format,
-            bit_rate=request.bit_rate,
-            overwrite_existing=request.overwrite_existing or bool(request.download_files),
-        )
+        if request.media_type == "video":
+            download_service = VideoDownloadService(
+                output_dir=request.output_dir,
+                video_format=request.video_format,
+                video_resolution=request.video_resolution,
+                include_subtitles=request.include_subtitles,
+                overwrite_existing=request.overwrite_existing,
+            )
+        else:
+            download_service = DownloadService(
+                output_dir=request.output_dir,
+                download_lyrics=request.download_lyrics,
+                download_cover=request.download_cover,
+                generate_nfo=request.generate_nfo,
+                output_format=request.output_format,
+                bit_rate=request.bit_rate,
+                overwrite_existing=request.overwrite_existing or bool(request.download_files),
+            )
 
         # Progress callback
         def progress_callback(current: int, total: int, track_name: str):
@@ -538,10 +555,52 @@ async def get_default_output_dir():
     return {"output_dir": APIConfig.get_output_dir()}
 
 
+class CreateFolderRequest(BaseModel):
+    root: str
+    name: str
+
+
+@router.post("/config/output_dirs")
+async def create_output_directory(request: CreateFolderRequest):
+    """Creates a new folder directly inside the given base media path."""
+    name = request.name.strip()
+    if (
+        not name
+        or name in (".", "..")
+        or re.search(r'[<>:"/\\|?*\x00-\x1f]', name)
+        or name.endswith(".")
+    ):
+        raise HTTPException(status_code=400, detail="Invalid folder name")
+
+    output_root = Path(request.root).expanduser().resolve()
+    if not output_root.is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail="Base media path must be an existing directory",
+        )
+
+    new_directory = output_root / name
+    try:
+        new_directory.mkdir()
+    except FileExistsError:
+        raise HTTPException(status_code=409, detail="A folder with that name already exists")
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=f"Could not create folder: {e}")
+    return {"name": new_directory.name, "path": str(new_directory)}
+
+
 @router.get("/config/output_dirs")
-async def get_output_directories(root: str | None = None):
-    """Returns immediate subdirectories of the configured music directory."""
-    output_root = Path(root or APIConfig.get_output_dir()).expanduser().resolve()
+async def get_output_directories(root: str | None = None, media_type: str = "audio"):
+    """Returns immediate subdirectories of the configured audio or video directory."""
+    if media_type not in ("audio", "video"):
+        raise HTTPException(status_code=400, detail="media_type must be 'audio' or 'video'")
+    if root:
+        output_root = Path(root).expanduser().resolve()
+    elif media_type == "video":
+        output_root = Path(APIConfig.get_video_dir()).expanduser().resolve()
+        output_root.mkdir(parents=True, exist_ok=True)
+    else:
+        output_root = Path(APIConfig.get_output_dir()).expanduser().resolve()
     if not output_root.is_dir():
         raise HTTPException(
             status_code=400,

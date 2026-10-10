@@ -122,6 +122,45 @@ main {
     transform: translateY(1px);
 }
 
+.tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 0;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.tab-button {
+    padding: 10px 22px;
+    border: 2px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    background: transparent;
+    color: #4a5568;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: -2px;
+}
+
+.tab-button:hover {
+    background: #edf2f7;
+}
+
+.tab-button.active {
+    background: #fff;
+    border-color: #e2e8f0;
+    color: #2d3748;
+    border-bottom: 2px solid #fff;
+}
+
+.tab-panel {
+    border: 2px solid #e2e8f0;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
 .form-group {
     margin-bottom: 20px;
 }
@@ -179,6 +218,12 @@ main {
 
 .media-root-controls {
     margin-top: 10px;
+}
+
+.media-root-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .media-root-editor {
@@ -839,6 +884,25 @@ select:focus {
 
     body.dark-mode .url-clear-btn:hover {
         background: #374252;
+    }
+
+    body.dark-mode .tabs,
+    body.dark-mode .tab-panel {
+        border-color: #465263;
+    }
+
+    body.dark-mode .tab-button {
+        color: #d1d5db;
+    }
+
+    body.dark-mode .tab-button:hover {
+        background: #2b3541;
+    }
+
+    body.dark-mode .tab-button.active {
+        background: #252d38;
+        border-color: #465263;
+        border-bottom-color: #252d38;
     }
 
     body.dark-mode #status-message,

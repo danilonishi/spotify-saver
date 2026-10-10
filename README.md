@@ -28,7 +28,8 @@ Compared with the upstream baseline, this branch adds:
 
 - **A server-managed download queue:** Server controlled downloading means you can queue downloads, pause or resume them, and clear queued or completed items. Downloads continue if the browser is refreshed or closed; queue state is held in memory and does not survive an API server restart. The server currently processes one download at a time.
 - **Queue and track visibility:** Download names and track listings are reported by the server and shown to other connected browsers, regardless if they're the one that submitted the download.
-- **Simple download folders in the web UI:** Choose from folders under a configurable media root. Refreshing the page restores the last selected destination after reloading the page. A button for defining the root folder is available in the interface.
+- **Simple download folders in the web UI:** Choose from folders under a configurable media root, shown as a path with the selected folder in bold. Use `[Parent]` to go up a level and double-click a folder to make it the new root. Refreshing the page restores the last selected destination. Audio and video each keep their own root and selection.
+- **Audio and Video tabs:** The Video tab downloads YouTube videos or playlists as MP4/MKV/WebM with a maximum resolution and optional subtitles, into a separate video folder (default `Videos`, override with `SPOTIFYSAVER_VIDEO_DIR`). The download button follows the active tab. Video downloads require ffmpeg for merging streams.
 - **Web interface improvements:** Dark mode, collapsible album details and activity log, a clear-URL button for quick mobile pasting, and controls for clearing completed downloads.
 - **Direct youtube downloads.** You can now paste any youtube video or playlist link, and it will download and extract the audio content.
 - **M4A at 256 kbps as the default for API and web downloads.**

@@ -5,6 +5,19 @@ class UIManager {
         this.saveStateCallback = saveStateCallback;
         // Set by the app once the DownloadManager exists; invoked with a queue item's task id.
         this.onRemoveQueueItem = null;
+        this.activeMode = 'audio';
+        this.downloading = false;
+    }
+
+    setActiveMode(mode) {
+        this.activeMode = mode;
+        this.updateDownloadButtonLabel();
+    }
+
+    updateDownloadButtonLabel() {
+        const icon = this.activeMode === 'video' ? '🎬' : '🎵';
+        document.getElementById('download-btn').textContent =
+            this.downloading ? 'Enqueue Download' : `${icon} Start Download`;
     }
 
     updateUI(downloading, paused = false) {
@@ -13,7 +26,8 @@ class UIManager {
         const progressContainer = document.getElementById('progress-container');
 
         downloadBtn.disabled = false;
-        downloadBtn.textContent = downloading ? 'Enqueue Download' : '🎵 Start Download';
+        this.downloading = downloading;
+        this.updateDownloadButtonLabel();
         if (downloading) {
             stopDownloadBtn.disabled = paused;
             stopDownloadBtn.textContent = paused ? 'Stopping...' : 'Stop Download';
@@ -210,14 +224,15 @@ class UIManager {
         return icon;
     }
 
-    setOutputDirectories(directories, rootPath) {
-        const options = document.getElementById('output-dir-options');
-        const outputDirInput = document.getElementById('output-dir');
-        const mediaRootInput = document.getElementById('media-root-input');
+    setOutputDirectories(directories, rootPath, kind = 'audio') {
+        const picker = UIManager.PICKERS[kind];
+        const options = document.getElementById(picker.options);
+        const outputDirInput = document.getElementById(picker.hidden);
+        const mediaRootInput = document.getElementById(picker.rootInput);
         options.replaceChildren();
         if (rootPath) {
             mediaRootInput.value = rootPath;
-            this.updatePathDisplay(rootPath);
+            this.updatePathDisplay(rootPath, '', kind);
 
             const parentPath = this.getParentPath(rootPath);
             if (parentPath) {
@@ -233,13 +248,13 @@ class UIManager {
         if (!directories.length) {
             outputDirInput.value = '';
             const message = document.createElement('span');
-            message.id = 'output-dir-message';
-            message.textContent = 'No folders are available in the configured music directory.';
+            message.className = 'output-dir-message';
+            message.textContent = 'No folders are available in the configured directory.';
             options.appendChild(message);
             return;
         }
 
-        const savedPath = localStorage.getItem('spotifysaver_selected_output_dir');
+        const savedPath = localStorage.getItem(picker.selectedKey);
         let selectedButton = null;
         directories.forEach((directory, index) => {
             const button = document.createElement('button');
@@ -254,7 +269,7 @@ class UIManager {
                 selectedButton = button;
             }
         });
-        this.selectOutputDirectory(selectedButton);
+        this.selectOutputDirectory(selectedButton, kind);
     }
 
     getParentPath(path) {
@@ -267,21 +282,22 @@ class UIManager {
         return /^[A-Za-z]:$/.test(parent) ? parent + trimmed[index] : parent;
     }
 
-    selectOutputDirectory(button) {
-        const options = document.getElementById('output-dir-options');
-        const outputDirInput = document.getElementById('output-dir');
+    selectOutputDirectory(button, kind = 'audio') {
+        const picker = UIManager.PICKERS[kind];
+        const options = document.getElementById(picker.options);
+        const outputDirInput = document.getElementById(picker.hidden);
         options.querySelectorAll('.output-dir-button').forEach((option) => {
             const isSelected = option === button;
             option.classList.toggle('selected', isSelected);
             option.setAttribute('aria-pressed', String(isSelected));
         });
         outputDirInput.value = button.dataset.outputDir;
-        localStorage.setItem('spotifysaver_selected_output_dir', button.dataset.outputDir);
-        this.updatePathDisplay(document.getElementById('media-root-input').value, button.textContent);
+        localStorage.setItem(picker.selectedKey, button.dataset.outputDir);
+        this.updatePathDisplay(document.getElementById(picker.rootInput).value, button.textContent, kind);
     }
 
-    updatePathDisplay(rootPath, folderName = '') {
-        const display = document.getElementById('media-root-display');
+    updatePathDisplay(rootPath, folderName = '', kind = 'audio') {
+        const display = document.getElementById(UIManager.PICKERS[kind].display);
         display.replaceChildren(document.createTextNode(rootPath));
         if (!folderName) return;
         const separator = rootPath.includes('\\') && !rootPath.includes('/') ? '\\' : '/';
@@ -300,3 +316,22 @@ class UIManager {
         }
     }
 }
+
+UIManager.PICKERS = {
+    audio: {
+        options: 'output-dir-options',
+        hidden: 'output-dir',
+        display: 'media-root-display',
+        rootInput: 'media-root-input',
+        rootKey: 'spotifysaver_media_root',
+        selectedKey: 'spotifysaver_selected_output_dir'
+    },
+    video: {
+        options: 'video-output-dir-options',
+        hidden: 'video-output-dir',
+        display: 'video-media-root-display',
+        rootInput: 'video-media-root-input',
+        rootKey: 'spotifysaver_video_media_root',
+        selectedKey: 'spotifysaver_selected_video_output_dir'
+    }
+};

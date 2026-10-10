@@ -6,6 +6,7 @@ class SpotifySaverUI {
         this.downloadManager = new DownloadManager(this.apiClient, this.uiManager, () => this.saveState());
         this.uiManager.onRemoveQueueItem = (taskId, status) => this.downloadManager.cancelItem(taskId, status);
         
+        this.currentRoots = {};
         this.isInitialized = false;
         this.retryCount = 0;
 
@@ -49,11 +50,6 @@ class SpotifySaverUI {
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const clearQueueBtn = document.getElementById('clear-queue-btn');
         const clearCompletedBtn = document.getElementById('clear-completed-btn');
-        const outputDirOptions = document.getElementById('output-dir-options');
-        const setMediaRootBtn = document.getElementById('set-media-root-btn');
-        const mediaRootEditor = document.getElementById('media-root-editor');
-        const mediaRootInput = document.getElementById('media-root-input');
-        const applyMediaRootBtn = document.getElementById('apply-media-root-btn');
         
         downloadBtn.addEventListener('click', () => this.downloadManager.startDownload());
         stopDownloadBtn.addEventListener('click', () => this.downloadManager.stopDownload());
@@ -72,37 +68,69 @@ class SpotifySaverUI {
         themeToggleBtn.addEventListener('click', () => {
             setDarkMode(!document.body.classList.contains('dark-mode'));
         });
-        outputDirOptions.addEventListener('click', (event) => {
-            const parentButton = event.target.closest('button[data-parent-dir]');
-            if (parentButton) {
-                this.applyMediaRoot(parentButton.dataset.parentDir);
-                return;
-            }
-            const button = event.target.closest('button[data-output-dir]');
-            if (button) {
-                this.uiManager.selectOutputDirectory(button);
-            }
+        const pickerIds = {
+            audio: { editor: 'media-root-editor', trigger: 'set-media-root-btn', apply: 'apply-media-root-btn', addTrigger: 'add-folder-btn', addEditor: 'add-folder-editor', addInput: 'new-folder-input', create: 'create-folder-btn' },
+            video: { editor: 'video-media-root-editor', trigger: 'video-set-media-root-btn', apply: 'video-apply-media-root-btn', addTrigger: 'video-add-folder-btn', addEditor: 'video-add-folder-editor', addInput: 'video-new-folder-input', create: 'video-create-folder-btn' }
+        };
+        Object.entries(pickerIds).forEach(([kind, ids]) => {
+            const picker = UIManager.PICKERS[kind];
+            const options = document.getElementById(picker.options);
+            const editor = document.getElementById(ids.editor);
+            const rootInput = document.getElementById(picker.rootInput);
+
+            options.addEventListener('click', (event) => {
+                const parentButton = event.target.closest('button[data-parent-dir]');
+                if (parentButton) {
+                    this.applyMediaRoot(kind, parentButton.dataset.parentDir);
+                    return;
+                }
+                const button = event.target.closest('button[data-output-dir]');
+                if (button) {
+                    this.uiManager.selectOutputDirectory(button, kind);
+                }
+            });
+            options.addEventListener('dblclick', (event) => {
+                const button = event.target.closest('button[data-output-dir]');
+                if (button) {
+                    this.applyMediaRoot(kind, button.dataset.outputDir);
+                }
+            });
+            document.getElementById(ids.trigger).addEventListener('click', () => {
+                editor.classList.toggle('hidden');
+                if (!editor.classList.contains('hidden')) {
+                    rootInput.focus();
+                }
+            });
+            document.getElementById(ids.apply).addEventListener('click', () => this.applyMediaRoot(kind));
+
+            const addEditor = document.getElementById(ids.addEditor);
+            const addInput = document.getElementById(ids.addInput);
+            document.getElementById(ids.addTrigger).addEventListener('click', () => {
+                addEditor.classList.toggle('hidden');
+                if (!addEditor.classList.contains('hidden')) {
+                    addInput.focus();
+                }
+            });
+            document.getElementById(ids.create).addEventListener('click', () => this.createFolder(kind));
+            addInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    this.createFolder(kind);
+                }
+            });
+            rootInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    this.applyMediaRoot(kind);
+                }
+            });
         });
-        outputDirOptions.addEventListener('dblclick', (event) => {
-            const button = event.target.closest('button[data-output-dir]');
-            if (button) {
-                this.applyMediaRoot(button.dataset.outputDir);
-            }
+
+        document.querySelectorAll('.tab-button').forEach((tab) => {
+            tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
         });
-        setMediaRootBtn.addEventListener('click', () => {
-            mediaRootEditor.classList.toggle('hidden');
-            if (!mediaRootEditor.classList.contains('hidden')) {
-                mediaRootInput.focus();
-            }
-        });
-        applyMediaRootBtn.addEventListener('click', () => this.applyMediaRoot());
+        this.switchTab(localStorage.getItem('spotifysaver_active_tab') === 'video' ? 'video' : 'audio');
+
         clearQueueBtn.addEventListener('click', () => this.downloadManager.clearQueue());
         clearCompletedBtn.addEventListener('click', () => this.downloadManager.clearCompleted());
-        mediaRootInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                this.applyMediaRoot();
-            }
-        });
         
         // Allow starting a download with Enter
         spotifyUrl.addEventListener('keypress', (e) => {
@@ -136,23 +164,42 @@ class SpotifySaverUI {
         this.stateManager.saveState();
     }
 
-    async loadOutputDirectories() {
-        const savedRoot = localStorage.getItem('spotifysaver_media_root');
-        if (savedRoot) {
-            document.getElementById('media-root-input').value = savedRoot;
-        }
+    switchTab(mode) {
+        document.querySelectorAll('.tab-button').forEach((tab) => {
+            const active = tab.dataset.tab === mode;
+            tab.classList.toggle('active', active);
+            tab.setAttribute('aria-selected', String(active));
+        });
+        document.querySelectorAll('.tab-panel').forEach((panel) => {
+            panel.classList.toggle('hidden', panel.id !== `tab-${mode}`);
+        });
+        localStorage.setItem('spotifysaver_active_tab', mode);
+        this.downloadManager.mode = mode;
+        this.uiManager.setActiveMode(mode);
+    }
 
-        try {
-            const result = await this.apiClient.getOutputDirectories(savedRoot);
-            this.uiManager.setOutputDirectories(result.directories, result.root);
-        } catch (error) {
-            console.warn('Could not load download folders:', error);
-            this.uiManager.setOutputDirectories([], '');
+    async loadOutputDirectories() {
+        for (const kind of Object.keys(UIManager.PICKERS)) {
+            const picker = UIManager.PICKERS[kind];
+            const savedRoot = localStorage.getItem(picker.rootKey);
+            if (savedRoot) {
+                document.getElementById(picker.rootInput).value = savedRoot;
+            }
+
+            try {
+                const result = await this.apiClient.getOutputDirectories(savedRoot, kind);
+                this.currentRoots[kind] = result.root;
+                this.uiManager.setOutputDirectories(result.directories, result.root, kind);
+            } catch (error) {
+                console.warn(`Could not load ${kind} download folders:`, error);
+                this.uiManager.setOutputDirectories([], '', kind);
+            }
         }
     }
 
-    async applyMediaRoot(path = null) {
-        const rootInput = document.getElementById('media-root-input');
+    async applyMediaRoot(kind = 'audio', path = null) {
+        const picker = UIManager.PICKERS[kind];
+        const rootInput = document.getElementById(picker.rootInput);
         const rootPath = (path || rootInput.value).trim();
         if (!rootPath) {
             this.uiManager.updateStatus('Enter a base media path', 'error');
@@ -160,11 +207,43 @@ class SpotifySaverUI {
         }
 
         try {
-            const result = await this.apiClient.getOutputDirectories(rootPath);
-            localStorage.setItem('spotifysaver_media_root', result.root);
-            this.uiManager.setOutputDirectories(result.directories, result.root);
-            document.getElementById('media-root-editor').classList.add('hidden');
+            const result = await this.apiClient.getOutputDirectories(rootPath, kind);
+            localStorage.setItem(picker.rootKey, result.root);
+            this.currentRoots[kind] = result.root;
+            this.uiManager.setOutputDirectories(result.directories, result.root, kind);
+            document.getElementById(
+                kind === 'video' ? 'video-media-root-editor' : 'media-root-editor'
+            ).classList.add('hidden');
             this.uiManager.updateStatus('Base media path updated', 'success');
+        } catch (error) {
+            this.uiManager.updateStatus(error.message, 'error');
+        }
+    }
+
+    async createFolder(kind) {
+        const picker = UIManager.PICKERS[kind];
+        const input = document.getElementById(kind === 'video' ? 'video-new-folder-input' : 'new-folder-input');
+        const name = input.value.trim();
+        const root = this.currentRoots[kind];
+        if (!name) {
+            this.uiManager.updateStatus('Enter a folder name', 'error');
+            return;
+        }
+        if (!root) {
+            this.uiManager.updateStatus('Define a base media path first', 'error');
+            return;
+        }
+
+        try {
+            const created = await this.apiClient.createOutputDirectory(root, name);
+            localStorage.setItem(picker.selectedKey, created.path);
+            const result = await this.apiClient.getOutputDirectories(root, kind);
+            this.uiManager.setOutputDirectories(result.directories, result.root, kind);
+            input.value = '';
+            document.getElementById(
+                kind === 'video' ? 'video-add-folder-editor' : 'add-folder-editor'
+            ).classList.add('hidden');
+            this.uiManager.updateStatus(`Folder "${created.name}" created`, 'success');
         } catch (error) {
             this.uiManager.updateStatus(error.message, 'error');
         }
