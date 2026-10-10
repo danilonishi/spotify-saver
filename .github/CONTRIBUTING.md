@@ -7,7 +7,7 @@ Welcome to Spotifysaver. This document establishes some conventions and good pra
 ### 🧰 Requirements
 Before you begin, make sure you have installed:
 
-- Python (> 3.9)
+- Python (3.10 or newer)
 - Poetry (https://python-poetry.org/)
 - Git (https://git-scm.com/)
 - An editor like VS Code (it is recommended to use the shared configuration in `.vscode/`)
