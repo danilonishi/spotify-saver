@@ -30,6 +30,7 @@ Compared with the upstream baseline, this branch adds:
 - **Queue and track visibility:** Download names and track listings are reported by the server and shown to other connected browsers, regardless if they're the one that submitted the download.
 - **Simple download folders in the web UI:** Choose from folders under a configurable media root, shown as a path with the selected folder in bold. Use `[Parent]` to go up a level and double-click a folder to make it the new root. Refreshing the page restores the last selected destination. Audio and video each keep their own root and selection.
 - **Audio and Video tabs:** The Video tab downloads YouTube videos or playlists as MP4/MKV/WebM with a maximum resolution and optional subtitles, into a separate video folder (default `Videos`, override with `SPOTIFYSAVER_VIDEO_DIR`). The download button follows the active tab. Video downloads require ffmpeg for merging streams.
+- **Channel Watcher:** Watch YouTube channels for new uploads on a minutely, hourly, daily, or weekly schedule. Each watched channel has its own download folder, video format, resolution, and subtitle settings; checks continue on the server and are visible in the web UI.
 - **Web interface improvements:** Dark mode, collapsible album details and activity log, a clear-URL button for quick mobile pasting, and controls for clearing completed downloads.
 - **Direct youtube downloads.** You can now paste any youtube video or playlist link, and it will download and extract the audio content.
 - **M4A at 256 kbps as the default for API and web downloads.**
@@ -42,6 +43,7 @@ Compared with the upstream baseline, this branch adds:
 ## 🌟 Features
 - ✅ Download audio from YouTube Music with Spotify metadata
 - ✅ Download YouTube videos, playlists, and album collections with YouTube metadata through the API and web UI
+- ✅ Schedule automatic checks for watched YouTube channels from the web interface
 - ✅ Download YouTube playlists and album collections from the CLI
 - ✅ Synchronized lyrics (.lrc) from LRC Lib
 - ✅ Generate Jellyfin-compatible `.nfo` metadata files
@@ -186,6 +188,7 @@ This will start the API server with an integrated web interface that you can acc
 - **Real-time progress**: Monitor download progress and see detailed logs
 - **Download cancellation**: Stop an active download
 - **Overwrite control**: Keep existing files by default or replace them on request
+- **Channel Watcher**: Add YouTube channels, configure each channel's schedule and video download settings, and view last-check or rate-limit cooldown status
 - **Responsive design**: Works on desktop and mobile devices
 - **Automatic browser opening**: Opens your default browser automatically
 
@@ -196,6 +199,8 @@ This will start the API server with an integrated web interface that you can acc
 - ✅ Stop active downloads and choose whether to overwrite existing files
 - ✅ Custom output directory
 - ✅ Real-time download progress
+- ✅ Scheduled YouTube channel checks with per-channel download settings
+- ✅ Channel check status and YouTube rate-limit cooldown visibility
 - ✅ Activity log with timestamps
 - ✅ Error handling and user feedback
 
