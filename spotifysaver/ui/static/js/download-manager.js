@@ -439,6 +439,20 @@ class DownloadManager {
             this.uiManager.updateStatus('Waiting for a free download slot...', 'info');
         } else if (!this.queue.length) {
             this.uiManager.updateProgress(0);
+        } else {
+            // Replace a stale "Downloading ..." line once everything has finished.
+            const statusEl = document.getElementById('status-message');
+            if (statusEl && statusEl.textContent.startsWith('Downloading ')) {
+                const last = this.queue[this.queue.length - 1];
+                if (last.status === 'completed') {
+                    this.uiManager.updateProgress(100);
+                    this.uiManager.updateStatus(`Completed ${last.title}`, 'success');
+                } else if (last.status === 'failed') {
+                    this.uiManager.updateStatus(`Failed ${last.title}`, 'error');
+                } else {
+                    this.uiManager.updateStatus('Download stopped.', 'info');
+                }
+            }
         }
 
         // Nothing left to track: stop polling instead of spamming the API

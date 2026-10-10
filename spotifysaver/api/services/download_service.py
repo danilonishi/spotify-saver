@@ -62,6 +62,18 @@ class DownloadService:
         self.spotify = None
         self.searcher = None
         self.downloader = YouTubeDownloaderForCLI(base_dir=self.output_dir)
+        # Called as (current, total, fraction 0-1 of the current item)
+        self.progress_fraction_callback: Optional[Callable[[int, int, float], None]] = None
+        self._position = (1, 1)
+        self.downloader.progress_fraction_callback = self._report_fraction
+
+    def _report_fraction(self, fraction: float, info: dict) -> None:
+        if not self.progress_fraction_callback:
+            return
+        index, total = self._position
+        if info.get("playlist_index") and info.get("playlist_count"):
+            index, total = int(info["playlist_index"]), int(info["playlist_count"])
+        self.progress_fraction_callback(index, total, fraction)
 
     async def download_from_url(
         self,
@@ -86,6 +98,13 @@ class DownloadService:
             Dict containing download results and statistics
         """
         self.cancellation_event = cancellation_event
+        user_progress_callback = progress_callback
+
+        def progress_callback(idx: int, total: int, name: str):
+            self._position = (idx, total)
+            if user_progress_callback:
+                user_progress_callback(idx, total, name)
+
         try:
             if YouTubeDownloader.is_youtube_collection_url(spotify_url):
                 return await self._download_youtube_playlist(
@@ -93,7 +112,7 @@ class DownloadService:
                 )
             if YouTubeDownloader.is_youtube_track_url(spotify_url):
                 return await self._download_youtube_track(
-                    spotify_url, progress_callback
+                    spotify_url, progress_callback, title_callback
                 )
 
             self.spotify = SpotifyAPI()
@@ -146,8 +165,15 @@ class DownloadService:
         self,
         track_url: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        title_callback: Optional[Callable[[str], None]] = None,
     ) -> Dict[str, Any]:
         """Download one YouTube video as the selected audio format."""
+        def titled_progress(idx: int, total: int, name: str):
+            if title_callback:
+                title_callback(name)
+            if progress_callback:
+                progress_callback(idx, total, name)
+
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
@@ -156,7 +182,7 @@ class DownloadService:
             self.output_format,
             self.bit_rate,
             self.overwrite_existing,
-            progress_callback,
+            titled_progress,
             self.cancellation_event,
             SpotifyAPI.resolve_youtube_track_title,
         )
@@ -176,6 +202,7 @@ class DownloadService:
         if tracks_callback:
             tracks_callback([_track_to_dict(track, getattr(track, "number", 1) or 1)])
 
+        self._position = (1, 1)
         if progress_callback:
             progress_callback(1, 1, track.name)
 
@@ -211,6 +238,7 @@ class DownloadService:
 
         # Create a wrapper for the progress callback
         def sync_progress_callback(idx: int, total: int, name: str):
+            self._position = (idx, total)
             if progress_callback:
                 progress_callback(idx, total, name)
 
@@ -263,6 +291,7 @@ class DownloadService:
 
         # Create a wrapper for the progress callback
         def sync_progress_callback(idx: int, total: int, name: str):
+            self._position = (idx, total)
             if progress_callback:
                 progress_callback(idx, total, name)
 

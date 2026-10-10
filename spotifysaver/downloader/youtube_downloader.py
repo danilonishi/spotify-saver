@@ -7,7 +7,7 @@ import requests
 import yt_dlp
 from threading import Event
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 from urllib.parse import parse_qs, urlparse
 
 from spotifysaver.services import YoutubeMusicSearcher, LrclibAPI
@@ -31,6 +31,9 @@ class YouTubeDownloader:
         lrc_client: LRC Lib API client for lyrics
         image_downloader: Image downloader instance
     """
+
+    # Optional (fraction 0-1, yt-dlp info dict) callback: download = first 50%, ffmpeg = rest
+    progress_fraction_callback: Optional[Callable[[float, dict], None]] = None
 
     def __init__(self, base_dir: str = "Music"):
         """Initialize the YouTube downloader.
@@ -201,7 +204,38 @@ class YouTubeDownloader:
             "force_keyframes_at_cuts": True,
         }
 
+        self._add_progress_split_hooks(opts)
         return opts
+
+    def _add_progress_split_hooks(self, opts: dict) -> None:
+        """Split per-item progress: downloading is 50%, ffmpeg post-processing the other 50%."""
+
+        def report(fraction: float, info: dict) -> None:
+            callback = self.progress_fraction_callback
+            if callback:
+                callback(fraction, info or {})
+
+        pp_done: dict = {}
+
+        def on_download(status: dict) -> None:
+            if status.get("status") == "finished":
+                fraction = 1.0
+            else:
+                done = status.get("downloaded_bytes") or 0
+                size = status.get("total_bytes") or status.get("total_bytes_estimate") or 0
+                fraction = min(done / size, 1.0) if size else 0.0
+            report(0.5 * fraction, status.get("info_dict"))
+
+        def on_postprocess(status: dict) -> None:
+            info = status.get("info_dict") or {}
+            key = info.get("id")
+            if status.get("status") == "finished":
+                pp_done[key] = pp_done.get(key, 0) + 1
+            expected = max(len(opts.get("postprocessors") or []), 1)
+            report(0.5 + 0.5 * min(pp_done.get(key, 0) / expected, 1.0), info)
+
+        opts.setdefault("progress_hooks", []).append(on_download)
+        opts.setdefault("postprocessor_hooks", []).append(on_postprocess)
 
     def _get_ydl_logger(self):
         """Create a yt-dlp logger that integrates with the application logger.

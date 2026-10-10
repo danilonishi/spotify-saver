@@ -39,6 +39,8 @@ class VideoDownloadService:
         self.include_subtitles = include_subtitles
         self.overwrite_existing = overwrite_existing
         self.cancellation_event: Optional[Event] = None
+        # Called as (current, total, fraction 0-1 of the current video)
+        self.progress_fraction_callback: Optional[Callable[[int, int, float], None]] = None
 
     def _format_selector(self) -> str:
         height = f"[height<={self.video_resolution}]" if self.video_resolution else ""
@@ -87,6 +89,39 @@ class VideoDownloadService:
                 raise yt_dlp.utils.DownloadError("Download cancelled by user")
 
         opts.setdefault("progress_hooks", []).append(check)
+
+    def _progress_hooks(self, opts: dict, report: Callable[[float], None]) -> None:
+        """Report per-video progress: downloading is the first 50%, ffmpeg post-processing the rest."""
+        expected_pp = (1 if "+" in opts["format"] else 0) + (1 if self.include_subtitles else 0)
+        state = {"finished": set(), "pp_done": 0, "streams": 2 if "+" in opts["format"] else 1}
+        subtitle_exts = (".vtt", ".srt", ".ttml", ".srv1", ".srv2", ".srv3", ".json3")
+
+        def on_download(status: Dict[str, Any]) -> None:
+            filename = status.get("filename") or ""
+            if filename.endswith(subtitle_exts):
+                return
+            requested = (status.get("info_dict") or {}).get("requested_formats")
+            if requested:
+                state["streams"] = len(requested)
+            if status.get("status") == "finished":
+                state["finished"].add(filename)
+                fraction = 1.0
+            else:
+                done = status.get("downloaded_bytes") or 0
+                size = status.get("total_bytes") or status.get("total_bytes_estimate") or 0
+                fraction = min(done / size, 1.0) if size else 0.0
+            streams = max(state["streams"], 1)
+            completed = min(len(state["finished"]) - (1 if status.get("status") == "finished" else 0), streams)
+            report(0.5 * min((completed + fraction) / streams, 1.0))
+
+        def on_postprocess(status: Dict[str, Any]) -> None:
+            if status.get("status") == "finished":
+                state["pp_done"] += 1
+            if expected_pp:
+                report(0.5 + 0.5 * min(state["pp_done"] / expected_pp, 1.0))
+
+        opts.setdefault("progress_hooks", []).append(on_download)
+        opts.setdefault("postprocessor_hooks", []).append(on_postprocess)
 
     def _resolve_entries(self, url: str) -> tuple[str, list[dict]]:
         """Return (collection title, entries) without downloading anything."""
@@ -138,6 +173,11 @@ class VideoDownloadService:
             template = str(output_dir / f"{prefix}{_sanitize(title)}.%(ext)s")
             opts = self._ydl_opts(template)
             self._cancel_hook(opts)
+            if self.progress_fraction_callback:
+                self._progress_hooks(
+                    opts,
+                    lambda fraction, i=index: self.progress_fraction_callback(i, total, fraction),
+                )
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     ydl.download([entry_url])

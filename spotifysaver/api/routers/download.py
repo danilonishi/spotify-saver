@@ -466,7 +466,16 @@ async def download_task(task_id: str, request: DownloadRequest):
             task.current_track_status = "downloading"
             task.completed_tracks = current - 1  # current is 1-based
             task.total_tracks = total
-            task.progress = int((current / total) * 100) if total > 0 else 0
+            task.progress = int(((current - 1) / total) * 100) if total > 0 else 0
+
+        # Each item's share of the bar: download is 50%, ffmpeg post-processing 50%
+        def fraction_callback(current: int, total: int, fraction: float):
+            if total > 0:
+                task.progress = max(
+                    task.progress, int(((current - 1 + fraction) / total) * 100)
+                )
+
+        download_service.progress_fraction_callback = fraction_callback
 
         def track_result_callback(current: int, track_name: str, result: str):
             task.current_track = track_name
