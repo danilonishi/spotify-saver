@@ -129,6 +129,16 @@ class SpotifySaverUI {
         });
         this.switchTab(localStorage.getItem('spotifysaver_active_tab') === 'video' ? 'video' : 'audio');
 
+        // Persist checkbox state across reloads
+        document.querySelectorAll('.tab-panel input[type="checkbox"]').forEach((box) => {
+            const key = `spotifysaver_checkbox_${box.id}`;
+            const saved = localStorage.getItem(key);
+            if (saved !== null) {
+                box.checked = saved === 'true';
+            }
+            box.addEventListener('change', () => localStorage.setItem(key, box.checked));
+        });
+
         clearQueueBtn.addEventListener('click', () => this.downloadManager.clearQueue());
         clearCompletedBtn.addEventListener('click', () => this.downloadManager.clearCompleted());
         
