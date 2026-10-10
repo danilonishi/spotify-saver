@@ -217,6 +217,17 @@ class UIManager {
         options.replaceChildren();
         if (rootPath) {
             mediaRootInput.value = rootPath;
+            this.updatePathDisplay(rootPath);
+
+            const parentPath = this.getParentPath(rootPath);
+            if (parentPath) {
+                const parentButton = document.createElement('button');
+                parentButton.type = 'button';
+                parentButton.className = 'output-dir-button parent-dir-button';
+                parentButton.dataset.parentDir = parentPath;
+                parentButton.textContent = '[Parent]';
+                options.appendChild(parentButton);
+            }
         }
 
         if (!directories.length) {
@@ -246,6 +257,16 @@ class UIManager {
         this.selectOutputDirectory(selectedButton);
     }
 
+    getParentPath(path) {
+        const trimmed = path.replace(/[\\/]+$/, '');
+        const index = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+        if (index < 0) return null;
+        if (index === 0) return trimmed.length > 1 ? trimmed.slice(0, 1) : null;
+        const parent = trimmed.slice(0, index);
+        // Keep drive roots such as "C:" usable as "C:\"
+        return /^[A-Za-z]:$/.test(parent) ? parent + trimmed[index] : parent;
+    }
+
     selectOutputDirectory(button) {
         const options = document.getElementById('output-dir-options');
         const outputDirInput = document.getElementById('output-dir');
@@ -256,6 +277,20 @@ class UIManager {
         });
         outputDirInput.value = button.dataset.outputDir;
         localStorage.setItem('spotifysaver_selected_output_dir', button.dataset.outputDir);
+        this.updatePathDisplay(document.getElementById('media-root-input').value, button.textContent);
+    }
+
+    updatePathDisplay(rootPath, folderName = '') {
+        const display = document.getElementById('media-root-display');
+        display.replaceChildren(document.createTextNode(rootPath));
+        if (!folderName) return;
+        const separator = rootPath.includes('\\') && !rootPath.includes('/') ? '\\' : '/';
+        if (!/[\\/]$/.test(rootPath)) {
+            display.appendChild(document.createTextNode(separator));
+        }
+        const strong = document.createElement('strong');
+        strong.textContent = folderName;
+        display.appendChild(strong);
     }
 
     async setAppVersion(version) {

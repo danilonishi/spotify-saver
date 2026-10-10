@@ -73,9 +73,20 @@ class SpotifySaverUI {
             setDarkMode(!document.body.classList.contains('dark-mode'));
         });
         outputDirOptions.addEventListener('click', (event) => {
+            const parentButton = event.target.closest('button[data-parent-dir]');
+            if (parentButton) {
+                this.applyMediaRoot(parentButton.dataset.parentDir);
+                return;
+            }
             const button = event.target.closest('button[data-output-dir]');
             if (button) {
                 this.uiManager.selectOutputDirectory(button);
+            }
+        });
+        outputDirOptions.addEventListener('dblclick', (event) => {
+            const button = event.target.closest('button[data-output-dir]');
+            if (button) {
+                this.applyMediaRoot(button.dataset.outputDir);
             }
         });
         setMediaRootBtn.addEventListener('click', () => {
@@ -140,9 +151,9 @@ class SpotifySaverUI {
         }
     }
 
-    async applyMediaRoot() {
+    async applyMediaRoot(path = null) {
         const rootInput = document.getElementById('media-root-input');
-        const rootPath = rootInput.value.trim();
+        const rootPath = (path || rootInput.value).trim();
         if (!rootPath) {
             this.uiManager.updateStatus('Enter a base media path', 'error');
             return;

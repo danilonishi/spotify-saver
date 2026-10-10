@@ -170,6 +170,13 @@ main {
     transform: translateY(0);
 }
 
+.media-root-display {
+    font-family: monospace;
+    font-size: 1.05em;
+    margin-bottom: 8px;
+    word-break: break-all;
+}
+
 .media-root-controls {
     margin-top: 10px;
 }
