@@ -155,7 +155,8 @@ class VideoDownloadService:
         if title_callback:
             title_callback(collection or entries[0].get("title") or "YouTube video")
 
-        output_dir = self.output_dir / _sanitize(collection) if collection else self.output_dir
+        output_dir = self.output_dir
+        channel_dirs: set[Path] = set()
         completed = 0
         failed_names: list[str] = []
 
@@ -166,11 +167,30 @@ class VideoDownloadService:
             entry_url = entry.get("webpage_url") or entry.get("url") or (
                 f"https://www.youtube.com/watch?v={entry['id']}" if entry.get("id") else url
             )
+            video_info = entry
+            channel = video_info.get("channel") or video_info.get("uploader")
+            if not channel:
+                metadata_opts = {
+                    "quiet": True,
+                    "skip_download": True,
+                    "cookiefile": (
+                        str(Config.YTDLP_COOKIES_PATH)
+                        if Config.YTDLP_COOKIES_PATH
+                        else None
+                    ),
+                }
+                with yt_dlp.YoutubeDL(metadata_opts) as ydl:
+                    video_info = ydl.extract_info(entry_url, download=False)
+                channel = video_info.get("channel") or video_info.get("uploader")
+                title = video_info.get("title") or title
+            channel_dir = self.output_dir / _sanitize(channel or "Unknown Channel")
+            channel_dir.mkdir(parents=True, exist_ok=True)
+            channel_dirs.add(channel_dir)
             if progress_callback:
                 progress_callback(index, total, title)
 
             prefix = f"{index:02d} - " if collection else ""
-            template = str(output_dir / f"{prefix}{_sanitize(title)}.%(ext)s")
+            template = str(channel_dir / f"{prefix}{_sanitize(title)}.%(ext)s")
             opts = self._ydl_opts(template)
             self._cancel_hook(opts)
             if self.progress_fraction_callback:
@@ -200,7 +220,9 @@ class VideoDownloadService:
             "failed_tracks": len(failed_names),
             "failed_track_names": failed_names,
             "total_tracks": total,
-            "output_directory": str(output_dir),
+            "output_directory": str(next(iter(channel_dirs)))
+            if len(channel_dirs) == 1
+            else str(output_dir),
         }
 
     async def download_from_url(
