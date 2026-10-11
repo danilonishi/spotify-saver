@@ -108,7 +108,11 @@ class DownloadService:
         try:
             if YouTubeDownloader.is_youtube_collection_url(spotify_url):
                 return await self._download_youtube_playlist(
-                    spotify_url, progress_callback, track_result_callback
+                    spotify_url,
+                    progress_callback,
+                    track_result_callback,
+                    title_callback,
+                    tracks_callback,
                 )
             if YouTubeDownloader.is_youtube_track_url(spotify_url):
                 return await self._download_youtube_track(
@@ -143,6 +147,8 @@ class DownloadService:
         playlist_url: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         track_result_callback: Optional[Callable[[int, str, str], None]] = None,
+        title_callback: Optional[Callable[[str], None]] = None,
+        tracks_callback: Optional[Callable[[list], None]] = None,
     ) -> Dict[str, Any]:
         """Download a YouTube playlist or YouTube Music album collection."""
         loop = asyncio.get_event_loop()
@@ -158,6 +164,8 @@ class DownloadService:
             track_result_callback,
             False,
             self.cancellation_event,
+            title_callback,
+            tracks_callback,
         )
         return {"content_type": "playlist", **result}
 

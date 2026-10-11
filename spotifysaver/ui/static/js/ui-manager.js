@@ -124,7 +124,10 @@ class UIManager {
                     const seconds = String(duration % 60).padStart(2, '0');
                     const info = document.createElement('span');
                     info.className = 'queue-track-info';
-                    info.textContent = `${trackNumber}. ${track.name} — ${(track.artists || []).join(', ')} [${minutes}:${seconds}]`;
+                    const artists = (track.artists || []).join(', ');
+                    const artistsText = artists ? ` — ${artists}` : '';
+                    const durationText = duration ? ` [${minutes}:${seconds}]` : '';
+                    info.textContent = `${trackNumber}. ${track.name}${artistsText}${durationText}`;
 
                     trackEntry.append(icon, info);
                     trackList.appendChild(trackEntry);

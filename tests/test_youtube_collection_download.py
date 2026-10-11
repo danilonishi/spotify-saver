@@ -91,7 +91,12 @@ def test_youtube_collection_download_embeds_metadata_and_reports_failures(
                 "title": "Album: Sample",
                 "playlist_count": 2,
                 "entries": [
-                    {"id": "success", "title": "First Track"},
+                    {
+                        "id": "success",
+                        "title": "First Track",
+                        "channel": "Sample Artist",
+                        "duration": 195,
+                    },
                     {"id": "failure", "title": "Second Track"},
                 ],
             }
@@ -131,11 +136,15 @@ def test_youtube_collection_download_embeds_metadata_and_reports_failures(
     (existing_dir / "01 - First Track.m4a").touch()
     progress = []
     track_results = []
+    titles = []
+    queue_tracks = []
 
     result = downloader.download_youtube_playlist_cli(
         ALBUM_URL,
         progress_callback=lambda *args: progress.append(args),
         track_result_callback=lambda *args: track_results.append(args),
+        title_callback=titles.append,
+        tracks_callback=queue_tracks.extend,
     )
 
     assert result["completed_tracks"] == 1
@@ -146,6 +155,25 @@ def test_youtube_collection_download_embeds_metadata_and_reports_failures(
     assert track_results == [
         (1, "First Track", "completed"),
         (2, "Second Track", "error"),
+    ]
+    assert titles == ["Album: Sample"]
+    assert queue_tracks == [
+        {
+            "name": "First Track",
+            "artists": ["Sample Artist"],
+            "album_name": "Album: Sample",
+            "duration": 195,
+            "number": 1,
+            "uri": "https://www.youtube.com/watch?v=success",
+        },
+        {
+            "name": "Second Track",
+            "artists": [],
+            "album_name": "Album: Sample",
+            "duration": 0,
+            "number": 2,
+            "uri": "https://www.youtube.com/watch?v=failure",
+        },
     ]
     assert any(
         processor["key"] == "FFmpegMetadata"
@@ -161,12 +189,27 @@ def test_youtube_collection_download_embeds_metadata_and_reports_failures(
 
 def test_api_routes_youtube_collection_without_spotify_client():
     cancellation_event = Event()
+    titles = []
+    queue_tracks = []
 
     class FakeDownloader:
         def download_youtube_playlist_cli(self, *args):
             assert args[0] == ALBUM_URL
             assert args[7] is False
             assert args[8] is cancellation_event
+            args[9]("Sample Album")
+            args[10](
+                [
+                    {
+                        "name": "First Track",
+                        "artists": ["Sample Artist"],
+                        "album_name": "Sample Album",
+                        "duration": 195,
+                        "number": 1,
+                        "uri": "https://www.youtube.com/watch?v=success",
+                    }
+                ]
+            )
             return {
                 "collection_name": "Sample Album",
                 "completed_tracks": 1,
@@ -185,12 +228,19 @@ def test_api_routes_youtube_collection_without_spotify_client():
     service.overwrite_existing = False
 
     result = asyncio.run(
-        service.download_from_url(ALBUM_URL, cancellation_event=cancellation_event)
+        service.download_from_url(
+            ALBUM_URL,
+            cancellation_event=cancellation_event,
+            title_callback=titles.append,
+            tracks_callback=queue_tracks.extend,
+        )
     )
 
     assert result["content_type"] == "playlist"
     assert result["completed_tracks"] == 1
     assert result["total_tracks"] == 1
+    assert titles == ["Sample Album"]
+    assert queue_tracks[0]["name"] == "First Track"
 
 
 def test_api_routes_direct_youtube_track_without_spotify_client():

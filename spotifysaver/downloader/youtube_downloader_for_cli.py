@@ -49,6 +49,8 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         track_result_callback: Optional[callable] = None,
         dry_run: bool = False,
         cancellation_event: Optional[Event] = None,
+        title_callback: Optional[callable] = None,
+        tracks_callback: Optional[callable] = None,
     ) -> dict:
         """Download a YouTube playlist or YouTube Music album collection."""
         if not self.is_youtube_collection_url(url):
@@ -94,6 +96,34 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             entries = collection["entries"]
             total = collection.get("playlist_count") or len(entries)
             total = int(total)
+            if title_callback:
+                title_callback(collection_name)
+            if tracks_callback:
+                tracks = []
+                for index, entry in enumerate(entries, start=1):
+                    entry = entry or {}
+                    video_id = entry.get("id")
+                    video_url = entry.get("webpage_url") or entry.get("original_url")
+                    if not video_url:
+                        source_url = entry.get("url")
+                        if isinstance(source_url, str) and source_url.startswith(
+                            ("http://", "https://")
+                        ):
+                            video_url = source_url
+                        elif video_id:
+                            video_url = f"https://www.youtube.com/watch?v={video_id}"
+                    channel = entry.get("channel") or entry.get("uploader")
+                    tracks.append(
+                        {
+                            "name": entry.get("title") or f"Track {index}",
+                            "artists": [channel] if channel else [],
+                            "album_name": collection_name,
+                            "duration": int(entry.get("duration") or 0),
+                            "number": index,
+                            "uri": video_url or "",
+                        }
+                    )
+                tracks_callback(tracks)
 
             if dry_run:
                 return {
