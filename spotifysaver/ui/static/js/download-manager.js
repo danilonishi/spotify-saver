@@ -9,7 +9,7 @@ class DownloadManager {
         this.localIdCounter = 0;
         this.queuePaused = false;
         this.pollTimer = null;
-        this.pollInterval = 2000;
+        this.pollInterval = 5000;
         this.mode = 'audio';
     }
 
@@ -249,12 +249,6 @@ class DownloadManager {
         this.pollTimer = setInterval(() => this.pollOnce(), this.pollInterval);
     }
 
-    stopPolling() {
-        if (!this.pollTimer) return;
-        clearInterval(this.pollTimer);
-        this.pollTimer = null;
-    }
-
     async pollOnce() {
         try {
             const data = await this.apiClient.getQueue();
@@ -453,12 +447,6 @@ class DownloadManager {
                     this.uiManager.updateStatus('Download stopped.', 'info');
                 }
             }
-        }
-
-        // Nothing left to track: stop polling instead of spamming the API
-        // forever; startDownload()/stopDownload() restart it on demand.
-        if (!hasWork) {
-            this.stopPolling();
         }
 
         if (this.saveStateCallback) this.saveStateCallback();
