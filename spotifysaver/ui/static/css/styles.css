@@ -520,12 +520,17 @@ select:focus {
 }
 
 .watched-channel-summary-status {
-    flex: 0 1 260px;
+    flex: none;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     text-transform: none;
     white-space: nowrap;
+}
+
+.watched-channel-details > .queue-item-summary {
+    display: grid;
+    grid-template-columns: 6px minmax(0, 1fr) minmax(0, 35%) auto;
 }
 
 .queue-item-downloading .queue-item-status {
