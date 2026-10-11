@@ -51,6 +51,10 @@ paused: bool = False
 # (as opposed to being cancelled/removed by the user); these get put back
 # at the front of the queue instead of being marked as cancelled.
 paused_task_ids: set[str] = set()
+# Paused tasks cleared from the queue remain alive until their worker exits.
+discard_after_stop: set[str] = set()
+# Partially completed paused tasks remain in history after their worker exits.
+preserve_after_stop: set[str] = set()
 queue_lock = asyncio.Lock()
 
 
@@ -94,6 +98,30 @@ def _queue_snapshot() -> list[DownloadStatus]:
     return snapshot
 
 
+def _retain_finished_tracks(task: DownloadStatus) -> None:
+    """Keep completed/failed playlist rows after clearing its remaining tracks."""
+    finished_updates = [
+        update
+        for update in task.track_updates
+        if update.get("status") in {"completed", "error"}
+    ]
+    finished_numbers = {update.get("track_number") for update in finished_updates}
+    task.tracks = [
+        track for track in task.tracks if track.number in finished_numbers
+    ]
+    task.completed_tracks = sum(
+        update.get("status") == "completed" for update in finished_updates
+    )
+    task.failed_tracks = sum(
+        update.get("status") == "error" for update in finished_updates
+    )
+    task.failed_track_names = [
+        str(update["track_name"])
+        for update in finished_updates
+        if update.get("status") == "error" and update.get("track_name")
+    ]
+
+
 async def _try_start_next() -> None:
     """Start queued tasks while there is a free execution slot."""
     async with queue_lock:
@@ -116,7 +144,19 @@ async def _run_task(task_id: str, request: DownloadRequest) -> None:
     finally:
         active.discard(task_id)
         task = tasks.get(task_id)
-        if task is not None and task.status == "queued":
+        if task_id in discard_after_stop:
+            discard_after_stop.discard(task_id)
+            paused_task_ids.discard(task_id)
+            tasks.pop(task_id, None)
+            requests_by_task.pop(task_id, None)
+            cancellation_events.pop(task_id, None)
+            download_archives.pop(task_id, None)
+        elif task_id in preserve_after_stop:
+            preserve_after_stop.discard(task_id)
+            paused_task_ids.discard(task_id)
+            if task is not None:
+                _retain_finished_tracks(task)
+        elif task is not None and task.status == "queued":
             # Interrupted by a queue pause; keep it first in line to resume.
             async with queue_lock:
                 if task_id not in pending:
@@ -201,7 +241,7 @@ async def cancel_download(task_id: str):
         raise HTTPException(status_code=404, detail="Task not found")
 
     task = tasks[task_id]
-    if task.status in ["completed", "failed", "cancelled"]:
+    if task.status in ["completed", "completed_with_errors", "failed", "cancelled"]:
         raise HTTPException(
             status_code=400, detail=f"Cannot cancel task with status: {task.status}"
         )
@@ -234,7 +274,12 @@ async def remove_download(task_id: str):
     task = tasks.get(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    if task.status not in ["completed", "failed", "cancelled"]:
+    if task.status not in [
+        "completed",
+        "completed_with_errors",
+        "failed",
+        "cancelled",
+    ]:
         raise HTTPException(
             status_code=400, detail=f"Cannot remove task with status: {task.status}"
         )
@@ -256,7 +301,8 @@ async def list_downloads():
     if not tasks:
         return JSONResponse(status_code=204, content={"message": "No download tasks found"})
     tasks_completed = [
-        task for task in tasks.values() if task.status in ["completed", "failed", "cancelled"]
+        task for task in tasks.values()
+        if task.status in ["completed", "completed_with_errors", "failed", "cancelled"]
     ]
     tasks_pending = [task for task in tasks.values() if task.status == "queued"]
     tasks_processing = [
@@ -323,7 +369,7 @@ async def clear_completed():
     removed = 0
     for task_id in list(tasks.keys()):
         task = tasks[task_id]
-        if task.status in ["completed", "failed", "cancelled"]:
+        if task.status in ["completed", "completed_with_errors", "failed", "cancelled"]:
             tasks.pop(task_id, None)
             requests_by_task.pop(task_id, None)
             cancellation_events.pop(task_id, None)
@@ -336,12 +382,42 @@ async def clear_completed():
 
 @router.delete("/queue")
 async def clear_queue():
-    """Remove queued (not yet started) tasks, keeping active downloads running."""
+    """Clear queued work and the remaining tracks of active playlist downloads."""
     removed = 0
+
+    def has_completed_tracks(task: DownloadStatus) -> bool:
+        return task.completed_tracks > 0 or any(
+            update.get("status") == "completed" for update in task.track_updates
+        )
+
+    def is_playlist_download(task_id: str, task: DownloadStatus) -> bool:
+        request = requests_by_task.get(task_id)
+        return (
+            request is not None
+            and request.media_type == "audio"
+            and task.content_type in {"playlist", "album"}
+            and task.total_tracks > 1
+        )
+
     async with queue_lock:
         for task_id in list(pending):
             pending.remove(task_id)
-            task = tasks.pop(task_id, None)
+            task = tasks.get(task_id)
+            if (
+                task is not None
+                and task.error_message == "Paused by user"
+                and has_completed_tracks(task)
+            ):
+                task.status = "cancelled"
+                task.error_message = "Remaining tracks cleared by user"
+                task.completed_at = datetime.now().isoformat()
+                _retain_finished_tracks(task)
+                cancellation_events.pop(task_id, None)
+                paused_task_ids.discard(task_id)
+                removed += 1
+                continue
+
+            tasks.pop(task_id, None)
             requests_by_task.pop(task_id, None)
             cancellation_events.pop(task_id, None)
             download_archives.pop(task_id, None)
@@ -349,6 +425,42 @@ async def clear_queue():
                 order.remove(task_id)
             if task is not None:
                 removed += 1
+        for task_id in list(active - paused_task_ids):
+            task = tasks.get(task_id)
+            if task is None or task.status != "processing":
+                continue
+            if not is_playlist_download(task_id, task):
+                continue
+
+            cancellation_event = cancellation_events.get(task_id)
+            if cancellation_event is None:
+                continue
+            cancellation_event.set()
+            task.status = "cancelling"
+            task.error_message = "Remaining tracks cleared by user"
+            if has_completed_tracks(task):
+                preserve_after_stop.add(task_id)
+                _retain_finished_tracks(task)
+            else:
+                discard_after_stop.add(task_id)
+                if task_id in order:
+                    order.remove(task_id)
+            removed += 1
+        for task_id in list(active & paused_task_ids):
+            task = tasks.get(task_id)
+            if task is None or task.status != "queued":
+                continue
+            paused_task_ids.discard(task_id)
+            if has_completed_tracks(task):
+                preserve_after_stop.add(task_id)
+                task.status = "cancelling"
+                task.error_message = "Remaining tracks cleared by user"
+                _retain_finished_tracks(task)
+            else:
+                discard_after_stop.add(task_id)
+                if task_id in order:
+                    order.remove(task_id)
+            removed += 1
     return {"message": f"Removed {removed} queued task(s)", "removed": removed}
 
 
@@ -431,7 +543,11 @@ async def download_task(task_id: str, request: DownloadRequest):
             task.error_message = "Paused by user"
         else:
             task.status = "cancelled"
-            task.error_message = "Task cancelled by user"
+            task.error_message = (
+                "Remaining tracks cleared by user"
+                if task_id in preserve_after_stop
+                else "Task cancelled by user"
+            )
         task.completed_at = datetime.now().isoformat()
 
     try:
@@ -440,6 +556,14 @@ async def download_task(task_id: str, request: DownloadRequest):
             mark_interrupted(task)
             return
         task.status = "processing"
+        is_youtube_collection = (
+            request.media_type == "audio"
+            and YouTubeDownloader.is_youtube_collection_url(str(request.spotify_url))
+        )
+        if is_youtube_collection:
+            task.playlist_verification = (
+                "rechecking" if task.tracks else "checking"
+            )
 
         # Initialize the download service
         if request.media_type == "video":
@@ -463,13 +587,24 @@ async def download_task(task_id: str, request: DownloadRequest):
             )
 
         # Progress callback
+        started_track_numbers = set()
+
         def progress_callback(current: int, total: int, track_name: str):
+            task.playlist_verification = None
             task.current_track = track_name
             task.current_track_number = current
             task.current_track_status = "downloading"
-            task.completed_tracks = current - 1  # current is 1-based
             task.total_tracks = total
             task.progress = int(((current - 1) / total) * 100) if total > 0 else 0
+            if current not in started_track_numbers:
+                started_track_numbers.add(current)
+                task.track_updates.append(
+                    {
+                        "track_number": current,
+                        "track_name": track_name,
+                        "status": "downloading",
+                    }
+                )
 
         # Each item's share of the bar: download is 50%, ffmpeg post-processing 50%
         def fraction_callback(current: int, total: int, fraction: float):
@@ -501,6 +636,7 @@ async def download_task(task_id: str, request: DownloadRequest):
         def tracks_callback(track_list: list):
             task.tracks = [TrackInfo(**track) for track in track_list]
             task.total_tracks = len(task.tracks)
+            task.playlist_verification = None
 
         # Perform the download
         result = await download_service.download_from_url(
@@ -520,7 +656,12 @@ async def download_task(task_id: str, request: DownloadRequest):
         completed_tracks = result.get("completed_tracks", 0)
         failed_tracks = result.get("failed_tracks", 0)
         failed_track_names = result.get("failed_track_names", [])
-        task.status = "failed" if failed_tracks > 0 and completed_tracks == 0 else "completed"
+        if failed_tracks and completed_tracks:
+            task.status = "completed_with_errors"
+        elif failed_tracks:
+            task.status = "failed"
+        else:
+            task.status = "completed"
         task.progress = 100
         task.completed_tracks = completed_tracks
         task.failed_tracks = failed_tracks
@@ -540,21 +681,25 @@ async def download_task(task_id: str, request: DownloadRequest):
         logger.info(f"Download task {task_id} completed successfully")
 
     except Exception as e:
-        logger.error(f"Download task {task_id} failed: {str(e)}", exc_info=True)
         task = tasks[task_id]
         if cancellation_event.is_set():
             mark_interrupted(task)
-        elif task.completed_tracks > 0:
-            task.status = "completed"
-            task.error_message = (
-                f"Download finished with an error after {task.completed_tracks} " f"track(s): {e}"
-            )
         else:
-            task.status = "failed"
-            task.error_message = str(e)
+            logger.error(f"Download task {task_id} failed: {str(e)}", exc_info=True)
+            if task.completed_tracks > 0:
+                task.status = "completed"
+                task.error_message = (
+                    f"Download finished with an error after {task.completed_tracks} "
+                    f"track(s): {e}"
+                )
+            else:
+                task.status = "failed"
+                task.error_message = str(e)
         task.completed_at = datetime.now().isoformat()
     finally:
         task = tasks.get(task_id)
+        if task is not None:
+            task.playlist_verification = None
         archive_path = download_archives.get(task_id)
         request = requests_by_task.get(task_id)
         if archive_path and request is not None and task is not None:
@@ -569,7 +714,12 @@ async def download_task(task_id: str, request: DownloadRequest):
                     )
                 except OSError:
                     logger.exception("Could not read watched-video archive %s", archive)
-            if task.status in {"completed", "failed", "cancelled"}:
+            if task.status in {
+                "completed",
+                "completed_with_errors",
+                "failed",
+                "cancelled",
+            }:
                 status = (
                     "downloaded"
                     if archived

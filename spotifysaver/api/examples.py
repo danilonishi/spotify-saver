@@ -78,7 +78,12 @@ class SpotifySaverAPIClient:
             if status.get("current_track"):
                 print(f"Current track: {status['current_track']}")
 
-            if status["status"] in ["completed", "failed", "cancelled"]:
+            if status["status"] in [
+                "completed",
+                "completed_with_errors",
+                "failed",
+                "cancelled",
+            ]:
                 return status
 
             time.sleep(2)

@@ -5,6 +5,8 @@ from pathlib import Path
 from threading import Event
 from typing import Dict, Optional, Callable, Any
 
+from yt_dlp.utils import DownloadCancelled
+
 from ...services import SpotifyAPI, YoutubeMusicSearcher
 from ...downloader import YouTubeDownloader, YouTubeDownloaderForCLI
 from ...enums import AudioFormat, Bitrate
@@ -138,6 +140,8 @@ class DownloadService:
             else:
                 raise ValueError("Invalid Spotify URL type")
 
+        except DownloadCancelled:
+            raise
         except Exception as e:
             logger.error(f"Error downloading from {spotify_url}: {str(e)}", exc_info=True)
             raise

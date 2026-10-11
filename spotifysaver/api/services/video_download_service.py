@@ -93,7 +93,7 @@ class VideoDownloadService:
 
         def check(_status):
             if event.is_set():
-                raise yt_dlp.utils.DownloadError("Download cancelled by user")
+                raise yt_dlp.utils.DownloadCancelled("Download cancelled by user")
 
         opts.setdefault("progress_hooks", []).append(check)
 

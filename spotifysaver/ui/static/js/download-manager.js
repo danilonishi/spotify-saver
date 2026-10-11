@@ -208,7 +208,9 @@ class DownloadManager {
             id: `local-${++this.localIdCounter}`,
             key: queueKey,
             url: formData.spotify_url,
+            isYouTubeCollection: this.isYouTubeCollectionUrl(formData.spotify_url),
             title: this.getQueueTitle(formData.spotify_url),
+            resolvedTitle: null,
             formData,
             status: 'queued',
             progress: 0,
@@ -267,7 +269,7 @@ class DownloadManager {
             case 'queued':
                 return this.queuePaused && task.error_message === 'Paused by user' ? 'paused' : 'queued';
             case 'cancelled':
-                return 'failed';
+                return 'cancelled';
             default:
                 return task.status; // completed, failed
         }
@@ -286,13 +288,16 @@ class DownloadManager {
                 key: this.getQueueKey(task.spotify_url || '') +
                     (task.media_type === 'video' ? ':video' : ''),
                 url: task.spotify_url || '',
+                isYouTubeCollection: this.isYouTubeCollectionUrl(task.spotify_url || ''),
                 title: this.getQueueTitle(task.spotify_url || ''),
+                resolvedTitle: task.title || null,
                 formData: {
                     spotify_url: task.spotify_url,
                     output_dir: task.output_dir,
                     media_type: task.media_type,
                     output_format: task.output_format,
-                    bit_rate: task.bit_rate
+                    bit_rate: task.bit_rate,
+                    content_type: task.content_type
                 },
                 trackData: null,
                 trackStates: new Map(),
@@ -317,13 +322,24 @@ class DownloadManager {
         item.failed_track_names = task.failed_track_names || [];
         item.output_directory = task.output_directory;
         item.queue_position = task.queue_position;
+        item.playlistVerification = task.playlist_verification;
+        item.formData = { ...item.formData, content_type: task.content_type };
         if (task.spotify_url) item.url = task.spotify_url;
+        item.isYouTubeCollection = this.isYouTubeCollectionUrl(item.url);
+        if (task.title) item.resolvedTitle = task.title;
         // Prefer the server-resolved display name (e.g. real album title)
         // over the URL-derived placeholder used before it's known.
         if (task.title) item.title = task.title;
         // The server resolves the full track listing once, so every client
         // (not just the one that started the download) can render it.
-        if (!item.trackData && Array.isArray(task.tracks) && task.tracks.length) {
+        if (
+            Array.isArray(task.tracks) &&
+            (
+                task.tracks.length ||
+                ['completed', 'failed', 'cancelled'].includes(task.status) ||
+                task.error_message === 'Remaining tracks cleared by user'
+            )
+        ) {
             item.trackData = { tracks: task.tracks };
         }
         item.status = this.mapServerStatus(task);
@@ -332,7 +348,9 @@ class DownloadManager {
         // by the next track before the browser polls again.
         const trackUpdates = task.track_updates || [];
         trackUpdates.slice(item.trackUpdateCursor).forEach((update) => {
-            const resultState = update.status === 'error'
+            const resultState = update.status === 'downloading'
+                ? 'downloading'
+                : update.status === 'error'
                 ? 'error'
                 : update.status === 'completed'
                     ? 'completed'
@@ -349,11 +367,6 @@ class DownloadManager {
         if (task.status === 'processing' && task.current_track_number) {
             if (task.current_track_status !== 'error' && task.current_track_status !== 'completed') {
                 this.updateTrackState(item, task.current_track_number, 'downloading');
-            }
-            for (let i = 1; i < task.current_track_number; i += 1) {
-                if (item.trackStates.has(i) && item.trackStates.get(i) !== 'error') {
-                    this.updateTrackState(item, i, 'completed');
-                }
             }
         }
 
@@ -386,18 +399,19 @@ class DownloadManager {
 
     logTerminalStateOnce(item, task) {
         if (item.loggedTerminal) return;
-        if (!['completed', 'failed', 'cancelled'].includes(task.status)) return;
+        if (!['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(task.status)) return;
         item.loggedTerminal = true;
 
-        if (task.status === 'completed') {
+        if (['completed', 'completed_with_errors'].includes(task.status)) {
             const summary = task.total_tracks
                 ? `Downloaded ${task.completed_tracks}/${task.total_tracks} tracks`
                 : 'Download completed successfully';
-            const hasFailures = (task.failed_track_names || []).length > 0;
+            const hasFailures = task.status === 'completed_with_errors' ||
+                (task.failed_track_names || []).length > 0;
             this.uiManager.addLogEntry(summary, hasFailures ? 'error' : 'success');
             if (item.trackData && item.trackData.tracks) {
                 item.trackData.tracks.forEach((track, index) => {
-                    const trackKey = index + 1;
+                    const trackKey = track.number || index + 1;
                     const state = (task.failed_track_names || []).includes(track.name) ? 'error' : 'completed';
                     this.updateTrackState(item, trackKey, state);
                 });
@@ -426,7 +440,14 @@ class DownloadManager {
 
         if (active) {
             this.uiManager.updateProgress(active.progress || 0);
-            this.uiManager.updateStatus(`Downloading ${active.title}... ${Math.round(active.progress || 0)}%`, 'info');
+            const checkingPlaylistEntries = active.playlistVerification;
+            const playlistTitle = active.resolvedTitle;
+            this.uiManager.updateStatus(
+                checkingPlaylistEntries
+                    ? `${checkingPlaylistEntries === 'rechecking' ? 'Re-verifying' : 'Checking'} YouTube playlist entries${playlistTitle ? ` for ${playlistTitle}` : ''}...`
+                    : `Downloading ${active.title}... ${Math.round(active.progress || 0)}%`,
+                'info'
+            );
         } else if (this.queuePaused && hasWork) {
             this.uiManager.updateStatus('Queue paused. Resume to continue.', 'info');
         } else if (hasWork) {
@@ -441,6 +462,9 @@ class DownloadManager {
                 if (last.status === 'completed') {
                     this.uiManager.updateProgress(100);
                     this.uiManager.updateStatus(`Completed ${last.title}`, 'success');
+                } else if (last.status === 'completed_with_errors') {
+                    this.uiManager.updateProgress(100);
+                    this.uiManager.updateStatus(`Completed ${last.title} with errors`, 'error');
                 } else if (last.status === 'failed') {
                     this.uiManager.updateStatus(`Failed ${last.title}`, 'error');
                 } else {
@@ -526,7 +550,7 @@ class DownloadManager {
             return;
         }
         try {
-            if (['completed', 'failed', 'cancelled'].includes(status)) {
+            if (['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(status)) {
                 await this.apiClient.removeDownload(taskId);
             } else {
                 await this.apiClient.cancelDownload(taskId);

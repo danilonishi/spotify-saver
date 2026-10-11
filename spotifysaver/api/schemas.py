@@ -177,6 +177,10 @@ class DownloadStatus(BaseModel):
         default=None,
         description="Display name (album/playlist/track title) once resolved",
     )
+    playlist_verification: Optional[str] = Field(
+        default=None,
+        description="Playlist metadata phase: checking or rechecking",
+    )
     tracks: List[TrackInfo] = Field(
         default_factory=list,
         description="Full track listing, populated once metadata is resolved",

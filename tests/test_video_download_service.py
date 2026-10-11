@@ -1,7 +1,25 @@
+from threading import Event
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from spotifysaver.api.services.video_download_service import VideoDownloadService
+from yt_dlp.utils import DownloadCancelled
+
+
+def test_video_cancellation_hook_uses_yt_dlp_cancel_signal():
+    cancellation_event = Event()
+    service = VideoDownloadService()
+    options = {}
+    service.cancellation_event = cancellation_event
+    service._cancel_hook(options)
+    cancellation_event.set()
+
+    try:
+        options["progress_hooks"][0]({})
+    except DownloadCancelled:
+        pass
+    else:
+        raise AssertionError("Expected yt-dlp's dedicated cancellation exception")
 
 
 def test_video_download_writes_description_to_jellyfin_nfo(monkeypatch, tmp_path):

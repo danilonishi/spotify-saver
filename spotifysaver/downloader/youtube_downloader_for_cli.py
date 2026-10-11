@@ -96,6 +96,10 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             entries = collection["entries"]
             total = collection.get("playlist_count") or len(entries)
             total = int(total)
+            display_number_by_playlist_index = {
+                int((entry or {}).get("playlist_index") or display_number): display_number
+                for display_number, entry in enumerate(entries, start=1)
+            }
             if title_callback:
                 title_callback(collection_name)
             if tracks_callback:
@@ -140,12 +144,14 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             failed_track_names = []
             expected_paths = {}
             missing_indexes = []
+            reported_results = set()
             for index, entry in enumerate(entries, start=1):
                 track_name = (entry or {}).get("title") or f"Track {index}"
                 if not entry:
                     failed_track_names.append(track_name)
                     if track_result_callback:
                         track_result_callback(index, track_name, "error")
+                        reported_results.add(index)
                     continue
 
                 entry_info = dict(entry)
@@ -157,33 +163,83 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 )
                 expected_paths[index] = (track_name, expected_path)
                 if expected_path.exists() and not overwrite_existing:
-                    if progress_callback:
-                        progress_callback(index, total, track_name)
+                    if track_result_callback:
+                        track_result_callback(index, track_name, "completed")
+                        reported_results.add(index)
                 else:
                     missing_indexes.append(index)
 
             if missing_indexes:
-                if progress_callback:
-                    started_indexes = set()
+                started_indexes = set()
 
-                    def report_progress(download_info):
-                        if download_info.get("status") != "downloading":
-                            return
-                        info = download_info.get("info_dict") or {}
-                        index = info.get("playlist_index")
-                        if index is None:
-                            return
-                        index = int(index)
-                        if index in started_indexes:
-                            return
-                        started_indexes.add(index)
+                def report_completed_files():
+                    for display_number in started_indexes:
+                        if (
+                            display_number in reported_results
+                            or not expected_paths[display_number][1].exists()
+                        ):
+                            continue
+                        track_name = expected_paths[display_number][0]
+                        if track_result_callback:
+                            track_result_callback(
+                                display_number, track_name, "completed"
+                            )
+                        reported_results.add(display_number)
+
+                def report_progress(download_info):
+                    if download_info.get("status") != "downloading":
+                        return
+                    info = download_info.get("info_dict") or {}
+                    index = info.get("playlist_index")
+                    if index is None:
+                        return
+                    playlist_index = int(index)
+                    display_number = display_number_by_playlist_index.get(playlist_index)
+                    if display_number is None or display_number in started_indexes:
+                        return
+                    report_completed_files()
+                    started_indexes.add(display_number)
+                    if progress_callback:
                         progress_callback(
-                            index,
+                            display_number,
                             total,
-                            info.get("title") or f"Track {index}",
+                            info.get("title") or f"Track {display_number}",
                         )
 
+                if progress_callback:
                     ydl.add_progress_hook(report_progress)
+
+                expected_postprocessors = {
+                    postprocessor.get("key")
+                    for postprocessor in ydl.params.get("postprocessors", [])
+                    if postprocessor.get("key")
+                }
+                finished_postprocessors = {}
+
+                def report_postprocessing(postprocess_info):
+                    if postprocess_info.get("status") != "finished":
+                        return
+                    info = postprocess_info.get("info_dict") or {}
+                    index = info.get("playlist_index")
+                    if index is None:
+                        return
+                    display_number = display_number_by_playlist_index.get(int(index))
+                    if display_number is None or display_number in reported_results:
+                        return
+                    finished = finished_postprocessors.setdefault(display_number, set())
+                    finished.add(postprocess_info.get("postprocessor"))
+                    if (
+                        expected_postprocessors
+                        and expected_postprocessors.issubset(finished)
+                        and expected_paths[display_number][1].exists()
+                    ):
+                        track_name = expected_paths[display_number][0]
+                        if track_result_callback:
+                            track_result_callback(display_number, track_name, "completed")
+                        reported_results.add(display_number)
+
+                if track_result_callback:
+                    ydl.add_postprocessor_hook(report_postprocessing)
 
                 ydl.params["playlist_items"] = ",".join(
                     str(index) for index in missing_indexes
@@ -209,15 +265,17 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             for index, (track_name, expected_path) in expected_paths.items():
                 if expected_path.exists():
                     completed_tracks += 1
-                    if track_result_callback:
+                    if track_result_callback and index not in reported_results:
                         track_result_callback(index, track_name, "completed")
+                        reported_results.add(index)
                 else:
                     self.logger.error(
                         f"YouTube download did not create the expected file: {expected_path}"
                     )
                     failed_track_names.append(track_name)
-                    if track_result_callback:
+                    if track_result_callback and index not in reported_results:
                         track_result_callback(index, track_name, "error")
+                        reported_results.add(index)
 
         return {
             "collection_name": collection_name,

@@ -549,6 +549,10 @@ select:focus {
     color: #2f855a;
 }
 
+.queue-item-completed_with_errors .queue-item-status {
+    color: #b7791f;
+}
+
 .queue-item-remove-btn {
     flex: 0 0 auto;
     border: none;

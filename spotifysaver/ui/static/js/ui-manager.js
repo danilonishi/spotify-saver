@@ -80,7 +80,9 @@ class UIManager {
             status.className = 'queue-item-status';
             status.textContent = item.status === 'downloading' && item.progress != null
                 ? `Downloading ${Math.round(item.progress)}%`
-                : item.status;
+                : item.status === 'completed_with_errors'
+                    ? 'Completed with errors'
+                    : item.status;
 
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
@@ -109,10 +111,10 @@ class UIManager {
 
                 tracks.forEach((track, index) => {
                     const trackNumber = track.number || index + 1;
-                    const trackState = item.trackStates?.get(index + 1) || 'waiting';
+                    const trackState = item.trackStates?.get(trackNumber) || 'waiting';
                     const trackEntry = document.createElement('li');
                     trackEntry.className = `track-state-${trackState}`;
-                    trackEntry.dataset.trackNumber = String(index + 1);
+                    trackEntry.dataset.trackNumber = String(trackNumber);
                     trackEntry.dataset.trackState = trackState;
 
                     const icon = document.createElement('span');
@@ -148,7 +150,14 @@ class UIManager {
             } else {
                 const trackMessage = document.createElement('p');
                 trackMessage.className = 'queue-track-empty';
-                trackMessage.textContent = 'Track details appear when this download starts.';
+                if (item.isYouTubeCollection) {
+                    trackMessage.textContent = item.playlistVerification
+                        ? `${item.playlistVerification === 'rechecking' ? 'Re-verifying' : 'Checking'} YouTube playlist entries${item.resolvedTitle ? ` for ${item.resolvedTitle}` : ''}...`
+                        : 'Playlist entries will be checked when this download starts.';
+                    trackMessage.setAttribute('aria-live', 'polite');
+                } else {
+                    trackMessage.textContent = 'Track details appear when this download starts.';
+                }
                 details.appendChild(trackMessage);
             }
 
@@ -156,8 +165,16 @@ class UIManager {
             list.appendChild(entry);
         });
 
-        clearButton.disabled = !queue.some((item) => item.status !== 'downloading');
-        clearCompletedButton.disabled = !queue.some((item) => item.status === 'completed');
+        clearButton.disabled = !queue.some((item) =>
+            item.status !== 'downloading' ||
+            (
+                ['playlist', 'album'].includes(item.formData?.content_type) &&
+                item.trackData?.tracks?.length > 1
+            )
+        );
+        clearCompletedButton.disabled = !queue.some((item) =>
+            ['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(item.status)
+        );
     }
 
     renderWatchedChannels(channels, status = {}) {

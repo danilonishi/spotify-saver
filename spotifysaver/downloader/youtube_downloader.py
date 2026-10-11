@@ -252,7 +252,7 @@ class YouTubeDownloader:
 
         def cancel_if_requested(_status):
             if cancellation_event.is_set():
-                raise yt_dlp.utils.DownloadError("Download cancelled by user")
+                raise yt_dlp.utils.DownloadCancelled("Download cancelled by user")
 
         ydl_opts.setdefault("progress_hooks", []).append(cancel_if_requested)
 
