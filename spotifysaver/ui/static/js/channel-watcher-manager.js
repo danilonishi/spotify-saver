@@ -7,6 +7,7 @@ class ChannelWatcherManager {
         this.editingChannelId = null;
         this.pollTimer = null;
         this.refreshInProgress = false;
+        this.fastPollingUntil = 0;
         this.bindEvents();
     }
 
@@ -56,29 +57,32 @@ class ChannelWatcherManager {
 
     startPolling() {
         if (this.pollTimer) return;
-        const scheduleRefresh = (delay) => {
-            this.pollTimer = setTimeout(async () => {
-                this.pollTimer = null;
-                if (this.refreshInProgress) {
-                    scheduleRefresh(15000);
-                    return;
-                }
+        this.scheduleRefresh(60000);
+    }
 
-                this.refreshInProgress = true;
-                try {
-                    await this.load();
-                } catch (error) {
-                    console.warn('Could not refresh watched channels:', error);
-                } finally {
-                    this.refreshInProgress = false;
-                    const hasActiveCheck = this.channels.some(
-                        (channel) => channel.check_started_at
-                    );
-                    scheduleRefresh(hasActiveCheck ? 15000 : 60000);
-                }
-            }, delay);
-        };
-        scheduleRefresh(60000);
+    scheduleRefresh(delay) {
+        if (this.pollTimer) clearTimeout(this.pollTimer);
+        this.pollTimer = setTimeout(async () => {
+            this.pollTimer = null;
+            if (this.refreshInProgress) {
+                this.scheduleRefresh(2000);
+                return;
+            }
+
+            this.refreshInProgress = true;
+            try {
+                await this.load();
+            } catch (error) {
+                console.warn('Could not refresh watched channels:', error);
+            } finally {
+                this.refreshInProgress = false;
+                const hasActiveCheck = this.channels.some(
+                    (channel) => channel.check_started_at
+                );
+                const fastPolling = Date.now() < this.fastPollingUntil;
+                this.scheduleRefresh(hasActiveCheck || fastPolling ? 2000 : 60000);
+            }
+        }, delay);
     }
 
     async saveChannel() {
@@ -178,7 +182,13 @@ class ChannelWatcherManager {
         button.disabled = true;
         try {
             await this.apiClient.checkWatchedChannelNow(channelId);
+            this.fastPollingUntil = Date.now() + 30000;
+            if (this.pollTimer) {
+                clearTimeout(this.pollTimer);
+                this.pollTimer = null;
+            }
             await this.load();
+            this.scheduleRefresh(1500);
             this.uiManager.updateStatus('Channel check started', 'success');
         } catch (error) {
             this.uiManager.updateStatus(error.message, 'error');
