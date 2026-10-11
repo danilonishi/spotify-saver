@@ -130,6 +130,18 @@ class UIManager {
                     trackList.appendChild(trackEntry);
                 });
                 details.appendChild(trackList);
+            } else if (item.formData?.media_type === 'video') {
+                const videoDetails = document.createElement('p');
+                videoDetails.className = 'queue-track-empty';
+                videoDetails.textContent = `Video source: ${item.url}`;
+                details.appendChild(videoDetails);
+
+                if (item.output_directory) {
+                    const outputDirectory = document.createElement('p');
+                    outputDirectory.className = 'queue-track-empty';
+                    outputDirectory.textContent = `Saved to: ${item.output_directory}`;
+                    details.appendChild(outputDirectory);
+                }
             } else {
                 const trackMessage = document.createElement('p');
                 trackMessage.className = 'queue-track-empty';
