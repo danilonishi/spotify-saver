@@ -1,4 +1,5 @@
 from threading import Event
+import asyncio
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -20,6 +21,82 @@ def test_video_cancellation_hook_uses_yt_dlp_cancel_signal():
         pass
     else:
         raise AssertionError("Expected yt-dlp's dedicated cancellation exception")
+
+
+def test_video_playlist_reports_entries_to_queue_callback(monkeypatch, tmp_path):
+    entries = [
+        {
+            "id": "video-1",
+            "title": "First Video",
+            "webpage_url": "https://www.youtube.com/watch?v=video-1",
+            "channel": "Sample Channel",
+            "channel_url": "https://www.youtube.com/@sample",
+            "duration": 91,
+        },
+        {
+            "id": "video-2",
+            "title": "Second Video",
+            "webpage_url": "https://www.youtube.com/watch?v=video-2",
+            "channel": "Sample Channel",
+            "channel_url": "https://www.youtube.com/@sample",
+            "duration": 123,
+        },
+    ]
+    queue_tracks = []
+
+    class FakeYoutubeDL:
+        def __init__(self, options):
+            self.options = options
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def download(self, urls):
+            assert len(urls) == 1
+            output_path = Path(self.options["outtmpl"].replace("%(ext)s", "mp4"))
+            output_path.touch()
+
+    service = VideoDownloadService(output_dir=str(tmp_path))
+    monkeypatch.setattr(
+        service,
+        "_resolve_entries",
+        lambda _url: ("Sample Playlist", entries),
+    )
+    monkeypatch.setattr(service, "_save_channel_cover", lambda *_args: None)
+    monkeypatch.setattr(
+        "spotifysaver.api.services.video_download_service.yt_dlp.YoutubeDL",
+        FakeYoutubeDL,
+    )
+
+    result = asyncio.run(
+        service.download_from_url(
+            "https://www.youtube.com/playlist?list=playlist-id",
+            tracks_callback=queue_tracks.extend,
+        )
+    )
+
+    assert result["completed_tracks"] == 2
+    assert queue_tracks == [
+        {
+            "name": "First Video",
+            "artists": ["Sample Channel"],
+            "album_name": "Sample Playlist",
+            "duration": 91,
+            "number": 1,
+            "uri": "https://www.youtube.com/watch?v=video-1",
+        },
+        {
+            "name": "Second Video",
+            "artists": ["Sample Channel"],
+            "album_name": "Sample Playlist",
+            "duration": 123,
+            "number": 2,
+            "uri": "https://www.youtube.com/watch?v=video-2",
+        },
+    ]
 
 
 def test_video_download_writes_description_to_jellyfin_nfo(monkeypatch, tmp_path):

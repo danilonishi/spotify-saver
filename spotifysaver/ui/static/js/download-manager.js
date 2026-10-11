@@ -320,6 +320,7 @@ class DownloadManager {
         item.progress = task.progress || 0;
         item.error_message = task.error_message;
         item.failed_track_names = task.failed_track_names || [];
+        item.warning_message = task.warning_message;
         item.output_directory = task.output_directory;
         item.queue_position = task.queue_position;
         item.playlistVerification = task.playlist_verification;
@@ -363,6 +364,14 @@ class DownloadManager {
             }
         });
         item.trackUpdateCursor = trackUpdates.length;
+
+        if (
+            item.warning_message &&
+            item.lastLoggedWarningMessage !== item.warning_message
+        ) {
+            this.uiManager.addLogEntry(item.warning_message, 'error');
+            item.lastLoggedWarningMessage = item.warning_message;
+        }
 
         if (task.status === 'processing' && task.current_track_number) {
             if (task.current_track_status !== 'error' && task.current_track_status !== 'completed') {
@@ -455,9 +464,17 @@ class DownloadManager {
         } else if (!this.queue.length) {
             this.uiManager.updateProgress(0);
         } else {
-            // Replace a stale "Downloading ..." line once everything has finished.
+            // Replace a stale active-work message once everything has finished.
             const statusEl = document.getElementById('status-message');
-            if (statusEl && statusEl.textContent.startsWith('Downloading ')) {
+            const activeMessagePrefixes = [
+                'Downloading ',
+                'Checking YouTube playlist entries',
+                'Re-verifying YouTube playlist entries'
+            ];
+            if (
+                statusEl &&
+                activeMessagePrefixes.some((prefix) => statusEl.textContent.startsWith(prefix))
+            ) {
                 const last = this.queue[this.queue.length - 1];
                 if (last.status === 'completed') {
                     this.uiManager.updateProgress(100);

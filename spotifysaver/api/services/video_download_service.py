@@ -12,6 +12,7 @@ import yt_dlp
 from ...config import Config
 from ...downloader import YouTubeDownloader
 from ...downloader.image_downloader import ImageDownloader
+from ...spotlog.ydd_logger import YDLLogger
 from ...spotlog import get_logger
 from ..config import APIConfig
 
@@ -43,6 +44,7 @@ class VideoDownloadService:
         self.overwrite_existing = overwrite_existing
         self.download_archive = download_archive
         self.cancellation_event: Optional[Event] = None
+        self.ydl_error_callback: Optional[Callable[[str], None]] = None
         self.image_downloader = ImageDownloader()
         # Called as (current, total, fraction 0-1 of the current video)
         self.progress_fraction_callback: Optional[Callable[[int, int, float], None]] = None
@@ -69,7 +71,7 @@ class VideoDownloadService:
             "overwrites": self.overwrite_existing,
             "noplaylist": True,
             "quiet": True,
-            "logger": None,
+            "logger": YDLLogger(self.ydl_error_callback),
             "cookiefile": (
                 str(Config.YTDLP_COOKIES_PATH) if Config.YTDLP_COOKIES_PATH else None
             ),
@@ -217,12 +219,40 @@ class VideoDownloadService:
         progress_callback: Optional[Callable[[int, int, str], None]],
         track_result_callback: Optional[Callable[[int, str, str], None]],
         title_callback: Optional[Callable[[str], None]],
+        tracks_callback: Optional[Callable[[list], None]] = None,
     ) -> Dict[str, Any]:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         collection, entries = self._resolve_entries(url)
         total = len(entries)
         if title_callback:
             title_callback(collection or entries[0].get("title") or "YouTube video")
+        if collection and tracks_callback:
+            tracks_callback(
+                [
+                    {
+                        "name": entry.get("title") or entry.get("id") or f"Video {index}",
+                        "artists": [
+                            artist
+                            for artist in [
+                                entry.get("channel") or entry.get("uploader")
+                            ]
+                            if artist
+                        ],
+                        "album_name": collection,
+                        "duration": int(entry.get("duration") or 0),
+                        "number": index,
+                        "uri": entry.get("webpage_url")
+                        or entry.get("original_url")
+                        or entry.get("url")
+                        or (
+                            f"https://www.youtube.com/watch?v={entry['id']}"
+                            if entry.get("id")
+                            else ""
+                        ),
+                    }
+                    for index, entry in enumerate(entries, start=1)
+                ]
+            )
 
         output_dir = self.output_dir
         channel_dirs: set[Path] = set()
@@ -349,4 +379,5 @@ class VideoDownloadService:
             progress_callback,
             track_result_callback,
             title_callback,
+            tracks_callback,
         )

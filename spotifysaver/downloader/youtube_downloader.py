@@ -47,6 +47,7 @@ class YouTubeDownloader:
         self.searcher = YoutubeMusicSearcher()
         self.lrc_client = LrclibAPI()
         self.image_downloader = ImageDownloader()
+        self.ydl_error_callback: Optional[Callable[[str], None]] = None
 
     @staticmethod
     def is_youtube_collection_url(url: str) -> bool:
@@ -244,7 +245,7 @@ class YouTubeDownloader:
             YDLLogger: Custom logger for yt-dlp integration
         """
         from spotifysaver.spotlog import YDLLogger
-        return YDLLogger()
+        return YDLLogger(getattr(self, "ydl_error_callback", None))
 
     def _add_cancellation_hook(self, ydl_opts: dict, cancellation_event: Optional[Event]):
         if cancellation_event is None:

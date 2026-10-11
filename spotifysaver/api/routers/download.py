@@ -32,6 +32,22 @@ from ..services.channel_watcher import ChannelWatcherStore, utc_now
 logger = get_logger("API")
 router = APIRouter()
 
+YOUTUBE_RATE_LIMIT_WARNING = (
+    "YouTube rate-limited this session. Some tracks may not have downloaded; "
+    "please retry later."
+)
+
+
+def _is_youtube_rate_limit(message: str) -> bool:
+    normalized = message.lower()
+    return "rate-limit" in normalized or "rate limit" in normalized
+
+
+def _report_yt_dlp_error(task: DownloadStatus, message: str) -> None:
+    if _is_youtube_rate_limit(message):
+        task.warning_message = YOUTUBE_RATE_LIMIT_WARNING
+
+
 # In-memory task storage (in production, use Redis or database)
 tasks: Dict[str, DownloadStatus] = {}
 requests_by_task: Dict[str, DownloadRequest] = {}
@@ -575,6 +591,9 @@ async def download_task(task_id: str, request: DownloadRequest):
                 overwrite_existing=request.overwrite_existing,
                 download_archive=download_archives.get(task_id),
             )
+            download_service.ydl_error_callback = (
+                lambda message: _report_yt_dlp_error(task, message)
+            )
         else:
             download_service = DownloadService(
                 output_dir=request.output_dir,
@@ -585,6 +604,11 @@ async def download_task(task_id: str, request: DownloadRequest):
                 bit_rate=request.bit_rate,
                 overwrite_existing=request.overwrite_existing or bool(request.download_files),
             )
+            downloader = getattr(download_service, "downloader", None)
+            if downloader is not None:
+                downloader.ydl_error_callback = (
+                    lambda message: _report_yt_dlp_error(task, message)
+                )
 
         # Progress callback
         started_track_numbers = set()

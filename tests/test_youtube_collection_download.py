@@ -11,6 +11,8 @@ from yt_dlp.utils import DownloadCancelled
 import spotifysaver.api.routers.download as download_router
 
 from spotifysaver.api.routers.download import (
+    YOUTUBE_RATE_LIMIT_WARNING,
+    _report_yt_dlp_error,
     _run_task,
     active,
     cancel_download,
@@ -40,6 +42,7 @@ from spotifysaver.api.schemas import DownloadRequest, DownloadStatus, TrackInfo
 from spotifysaver.api.services.download_service import DownloadService
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
 from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
+from spotifysaver.spotlog.ydd_logger import YDLLogger
 from spotifysaver.enums import AudioFormat
 import spotifysaver.downloader.youtube_downloader_for_cli as cli_downloader_module
 
@@ -54,6 +57,20 @@ ALBUM_URL = (
     "list=OLAK5uy_nAKi7j0JupK6KpHDrw4zO_zGIOMCs_RdQ"
 )
 TRACK_URL = "https://music.youtube.com/watch?v=YPnMd26jwrU"
+
+
+def test_yt_dlp_rate_limit_error_is_reported_without_flagging_other_errors():
+    task = DownloadStatus(task_id="rate-limit-test", status="processing", progress=0)
+    ydl_logger = YDLLogger(lambda message: _report_yt_dlp_error(task, message))
+
+    ydl_logger.error(
+        "The current session has been rate-limited by YouTube for up to an hour."
+    )
+    assert task.warning_message == YOUTUBE_RATE_LIMIT_WARNING
+
+    task.warning_message = None
+    ydl_logger.error("Requested format is not available.")
+    assert task.warning_message is None
 
 
 def test_youtube_collection_url_detection():
