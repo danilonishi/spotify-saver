@@ -80,6 +80,9 @@ curl "http://localhost:8000/api/v1/inspect?spotify_url=https://open.spotify.com/
 Start a download task.
 
 Accepts individual YouTube/YouTube Music video links, as well as Spotify links and YouTube collections. `output_format` defaults to `m4a` and can be `OPUS`, `mp3` or `m4a`.
+YouTube video downloads write the video description to the `<plot>` field in a
+Jellyfin-compatible `.nfo` file alongside each downloaded video when a
+description is available.
 
 **Request body:**
 ```json

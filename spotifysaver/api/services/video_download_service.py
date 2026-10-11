@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from threading import Event
 from typing import Any, Callable, Dict, Optional
@@ -133,6 +134,31 @@ class VideoDownloadService:
                 return
         logger.warning(f"Could not find a channel avatar for {channel_url}")
 
+    @staticmethod
+    def _write_video_nfo(video_info: dict, nfo_path: Path, title: str) -> None:
+        description = video_info.get("description")
+        if not isinstance(description, str) or not description.strip():
+            return
+
+        root = ET.Element("movie")
+        ET.SubElement(root, "title").text = title
+        ET.SubElement(root, "plot").text = description
+        ET.ElementTree(root).write(nfo_path, encoding="utf-8", xml_declaration=True)
+
+    @staticmethod
+    def _find_downloaded_video(channel_dir: Path, filename_stem: str) -> Optional[Path]:
+        video_extensions = {".mp4", ".mkv", ".webm", ".m4v", ".mov", ".avi", ".3gp"}
+        return next(
+            (
+                path
+                for path in channel_dir.iterdir()
+                if path.is_file()
+                and path.stem == filename_stem
+                and path.suffix.lower() in video_extensions
+            ),
+            None,
+        )
+
     def _progress_hooks(self, opts: dict, report: Callable[[float], None]) -> None:
         """Report per-video progress: downloading is the first 50%, ffmpeg post-processing the rest."""
         expected_pp = (1 if "+" in opts["format"] else 0) + (1 if self.include_subtitles else 0)
@@ -212,8 +238,9 @@ class VideoDownloadService:
             )
             video_info = entry
             channel = video_info.get("channel") or video_info.get("uploader")
-            if not channel or not (
-                video_info.get("channel_url") or video_info.get("uploader_url")
+            if (
+                not channel
+                or not (video_info.get("channel_url") or video_info.get("uploader_url"))
             ):
                 metadata_opts = {
                     "quiet": True,
@@ -237,6 +264,14 @@ class VideoDownloadService:
             prefix = f"{index:02d} - " if collection else ""
             template = str(channel_dir / f"{prefix}{_sanitize(title)}.%(ext)s")
             opts = self._ydl_opts(template)
+
+            def capture_description(status: Dict[str, Any]) -> None:
+                info = status.get("info_dict") or {}
+                description = info.get("description")
+                if isinstance(description, str) and description.strip():
+                    video_info["description"] = description
+
+            opts.setdefault("progress_hooks", []).append(capture_description)
             self._cancel_hook(opts)
             if self.progress_fraction_callback:
                 self._progress_hooks(
@@ -246,6 +281,29 @@ class VideoDownloadService:
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     ydl.download([entry_url])
+                if not video_info.get("description"):
+                    metadata_opts = {
+                        "quiet": True,
+                        "skip_download": True,
+                        "cookiefile": (
+                            str(Config.YTDLP_COOKIES_PATH)
+                            if Config.YTDLP_COOKIES_PATH
+                            else None
+                        ),
+                    }
+                    try:
+                        with yt_dlp.YoutubeDL(metadata_opts) as ydl:
+                            details = ydl.extract_info(entry_url, download=False)
+                        video_info.update(details or {})
+                    except Exception as error:
+                        logger.warning(
+                            "Could not fetch YouTube description for %s: %s",
+                            entry_url,
+                            error,
+                        )
+                video_path = self._find_downloaded_video(channel_dir, f"{prefix}{_sanitize(title)}")
+                if video_path is not None:
+                    self._write_video_nfo(video_info, video_path.with_suffix(".nfo"), title)
                 completed += 1
                 self._save_channel_cover(video_info, channel_dir)
                 if track_result_callback:
