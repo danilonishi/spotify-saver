@@ -28,6 +28,13 @@ class ChannelWatcherManager {
                 this.beginEdit(editButton.dataset.editChannel);
                 return;
             }
+            const checkButton = event.target.closest('[data-check-channel]');
+            if (checkButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.checkChannelNow(checkButton);
+                return;
+            }
             const removeButton = event.target.closest('[data-remove-channel]');
             if (removeButton) {
                 event.preventDefault();
@@ -86,17 +93,20 @@ class ChannelWatcherManager {
             this.uiManager.updateStatus('Choose a download folder for this channel', 'error');
             return;
         }
-        if (!checkTime) {
+        const interval = document.getElementById('watcher-interval').value;
+        if (interval !== 'manual' && !checkTime) {
             this.uiManager.updateStatus('Choose a check time', 'error');
             return;
         }
 
-        const [checkHour, checkMinute] = checkTime.split(':').map(Number);
+        const [checkHour, checkMinute] = checkTime
+            ? checkTime.split(':').map(Number)
+            : [0, 0];
         const settings = {
             platform: 'youtube',
             url,
             output_dir: outputDir,
-            interval: document.getElementById('watcher-interval').value,
+            interval,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
             check_hour: checkHour,
             check_minute: checkMinute,
@@ -133,12 +143,9 @@ class ChannelWatcherManager {
         this.editingChannelId = channel.id;
         document.getElementById('watcher-url').value = channel.url;
         document.getElementById('watcher-interval').value = channel.interval;
-        const localNextCheck = new Date(channel.next_check_at);
-        document.getElementById('watcher-weekday').value = String(
-            (localNextCheck.getDay() + 6) % 7
-        );
+        document.getElementById('watcher-weekday').value = String(channel.check_weekday ?? 0);
         document.getElementById('watcher-time').value =
-            `${String(localNextCheck.getHours()).padStart(2, '0')}:${String(localNextCheck.getMinutes()).padStart(2, '0')}`;
+            `${String(channel.check_hour).padStart(2, '0')}:${String(channel.check_minute).padStart(2, '0')}`;
         document.getElementById('watcher-video-format').value = channel.video_format;
         document.getElementById('watcher-video-resolution').value = String(channel.video_resolution);
         document.getElementById('watcher-include-subtitles').checked = channel.include_subtitles;
@@ -163,6 +170,20 @@ class ChannelWatcherManager {
             this.uiManager.updateStatus('Channel removed from the watch list', 'success');
         } catch (error) {
             this.uiManager.updateStatus(error.message, 'error');
+        }
+    }
+
+    async checkChannelNow(button) {
+        const channelId = button.dataset.checkChannel;
+        button.disabled = true;
+        try {
+            await this.apiClient.checkWatchedChannelNow(channelId);
+            await this.load();
+            this.uiManager.updateStatus('Channel check started', 'success');
+        } catch (error) {
+            this.uiManager.updateStatus(error.message, 'error');
+        } finally {
+            button.disabled = false;
         }
     }
 
@@ -197,7 +218,7 @@ class ChannelWatcherManager {
             'hidden', interval !== 'weekly'
         );
         document.getElementById('watcher-time-group').classList.toggle(
-            'hidden', interval === 'minutely'
+            'hidden', interval === 'manual'
         );
     }
 }

@@ -6,7 +6,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 
 from ..schemas import ChannelWatcherStatus, WatchedChannel, WatchedChannelRequest
-from ..services.channel_watcher import ChannelWatcherService, utc_now
+from ..services.channel_watcher import (
+    ChannelWatcherService,
+    YouTubeCooldownActive,
+    utc_now,
+)
 
 router = APIRouter()
 
@@ -38,6 +42,24 @@ async def list_watched_channels(request: Request):
 async def get_channel_watcher_status(request: Request):
     """Return global watcher state, including any active YouTube cooldown."""
     return {"youtube_cooldown_until": _service(request).store.get_youtube_cooldown_until()}
+
+
+@router.post("/channel-watcher/{channel_id}/check", status_code=202)
+async def check_watched_channel_now(channel_id: str, request: Request):
+    """Queue an immediate check for a watched channel."""
+    service = _service(request)
+    if service.store.get_channel(channel_id) is None:
+        raise HTTPException(status_code=404, detail="Watched channel not found")
+    try:
+        started = service.start_manual_check(channel_id)
+    except YouTubeCooldownActive as error:
+        raise HTTPException(
+            status_code=429,
+            detail=f"YouTube channel checks are paused until {error.cooldown_until}",
+        ) from error
+    if not started:
+        raise HTTPException(status_code=409, detail="A check is already in progress")
+    return {"message": "Channel check started"}
 
 
 @router.post("/channel-watcher", response_model=WatchedChannel, status_code=201)

@@ -67,7 +67,7 @@ class WatchedChannelRequest(BaseModel):
     platform: str = Field(default="youtube", pattern="^youtube$")
     url: str
     output_dir: str
-    interval: str = Field(pattern="^(minutely|hourly|daily|weekly)$")
+    interval: str = Field(pattern="^(manual|hourly|daily|weekly)$")
     timezone: str = Field(default="UTC", description="IANA timezone for the selected schedule")
     check_hour: int = Field(ge=0, le=23)
     check_minute: int = Field(ge=0, le=59)

@@ -26,6 +26,7 @@ from ...downloader import YouTubeDownloader
 from ...services import SpotifyAPI
 from ...spotlog import get_logger
 from ..config import APIConfig
+from ..services.channel_watcher import ChannelWatcherStore, utc_now
 
 
 logger = get_logger("API")
@@ -253,13 +254,9 @@ async def list_downloads():
     Returns a dictionary with keys for completed, pending, and processing tasks.
     """
     if not tasks:
-        return JSONResponse(
-            status_code=204, content={"message": "No download tasks found"}
-        )
+        return JSONResponse(status_code=204, content={"message": "No download tasks found"})
     tasks_completed = [
-        task
-        for task in tasks.values()
-        if task.status in ["completed", "failed", "cancelled"]
+        task for task in tasks.values() if task.status in ["completed", "failed", "cancelled"]
     ]
     tasks_pending = [task for task in tasks.values() if task.status == "queued"]
     tasks_processing = [
@@ -477,9 +474,7 @@ async def download_task(task_id: str, request: DownloadRequest):
         # Each item's share of the bar: download is 50%, ffmpeg post-processing 50%
         def fraction_callback(current: int, total: int, fraction: float):
             if total > 0:
-                task.progress = max(
-                    task.progress, int(((current - 1 + fraction) / total) * 100)
-                )
+                task.progress = max(task.progress, int(((current - 1 + fraction) / total) * 100))
 
         download_service.progress_fraction_callback = fraction_callback
 
@@ -552,15 +547,45 @@ async def download_task(task_id: str, request: DownloadRequest):
         elif task.completed_tracks > 0:
             task.status = "completed"
             task.error_message = (
-                f"Download finished with an error after {task.completed_tracks} "
-                f"track(s): {e}"
+                f"Download finished with an error after {task.completed_tracks} " f"track(s): {e}"
             )
         else:
             task.status = "failed"
             task.error_message = str(e)
         task.completed_at = datetime.now().isoformat()
     finally:
-        if tasks.get(task_id) is not None and tasks[task_id].status != "queued":
+        task = tasks.get(task_id)
+        archive_path = download_archives.get(task_id)
+        request = requests_by_task.get(task_id)
+        if archive_path and request is not None and task is not None:
+            video_id = str(request.spotify_url).rsplit("=", 1)[-1].split("&", 1)[0]
+            archived = False
+            archive = Path(archive_path)
+            if archive.is_file():
+                try:
+                    archived = any(
+                        line.strip().endswith(f" {video_id}")
+                        for line in archive.read_text(encoding="utf-8").splitlines()
+                    )
+                except OSError:
+                    logger.exception("Could not read watched-video archive %s", archive)
+            if task.status in {"completed", "failed", "cancelled"}:
+                status = (
+                    "downloaded"
+                    if archived
+                    else ("skipped" if task.status == "cancelled" else "failed")
+                )
+                try:
+                    ChannelWatcherStore().update_video_status(
+                        archive.stem,
+                        video_id,
+                        status,
+                        utc_now(),
+                        task.error_message,
+                    )
+                except Exception:
+                    logger.exception("Could not persist watched-video task result for %s", video_id)
+        if task is not None and task.status != "queued":
             cancellation_events.pop(task_id, None)
             download_archives.pop(task_id, None)
 

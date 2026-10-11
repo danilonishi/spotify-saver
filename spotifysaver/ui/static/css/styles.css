@@ -619,7 +619,18 @@ select:focus {
 }
 
 .watched-channel-edit {
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.watched-channel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     margin: 0 10px 10px 24px;
+}
+
+.watched-channel-check-now {
     padding: 6px 10px;
     font-size: 13px;
 }

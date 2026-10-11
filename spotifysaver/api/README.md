@@ -136,20 +136,32 @@ The server starts its UTC scheduler with the API and checks due channels after
 startup. Each channel's schedule is saved in the timezone reported by the browser;
 the server converts local schedule times to UTC for execution. A newly added
 channel is checked once immediately to establish a baseline without enumerating
-its historical uploads; videos already present at that time are not downloaded.
-Subsequent checks enqueue uploads published after the prior successful check,
-using the channel's own folder and video settings. Approximate upload dates are
-used to avoid requesting detailed metadata for every historical video. If
-fetching a list fails, its last successful-check timestamp is retained.
+its full upload history; recent upload IDs are saved as the starting cursor and
+are not downloaded. Subsequent checks scan the channel's YouTube uploads
+playlist newest-first, stop at the saved video-ID cursor, and re-scan a 20-video
+overlap to catch uploads that become visible late. The server persists discovered
+video IDs and their states (`discovered`, `queued`, `downloaded`, `skipped`, or
+`failed`) before advancing the cursor. Failed or interrupted candidates are
+retried on a later check. A 20-new-upload safety limit applies per check; if
+there are more, the cursor stays in place and remaining uploads are handled on
+later checks. This uses yt-dlp and does not require a YouTube API key.
+
+`last_checked_at` records the last successful check for UI/status only; it is
+not used to decide whether an upload is new. Existing watched channels are
+migrated by treating up to the latest 20 previously untracked uploads as
+recovery candidates and establishing a cursor, while older entries in the
+overlap are marked as baseline. The next scheduled check is calculated from
+completion time. If fetching a list fails, its last successful-check timestamp
+is retained.
 Updating a watched channel recalculates its next check from the new schedule
 without forcing an immediate check. The server terminal logs when a check starts
 and when it completes, including the number of videos found and downloads queued.
 YouTube channel-list requests time out after 90 seconds and report the failure
 in the watched-channel status. On server shutdown, in-flight check tasks are
 cancelled so a slow request does not block the scheduler's shutdown.
-Each check examines at most the latest 20 uploads across a channel's video,
-shorts, and stream tabs. Uploads older than that limit are skipped if more than
-20 were published since the previous successful check.
+Each check discovers at most 20 new uploads. If more are waiting, discovery
+resumes from the persisted video-ID cursor on a later check instead of skipping
+the remaining uploads.
 Detailed video metadata requests are spaced to reduce YouTube rate limits. If
 YouTube explicitly reports that the session is rate-limited, all channel watcher
 checks pause for one hour, even when channels are scheduled more often. The
@@ -160,15 +172,18 @@ An existing YouTube rate limit must still expire on YouTube's side; configuring
 `YTDLP_COOKIES_PATH` with a valid browser cookies file may help with access
 restrictions.
 
-Minutely schedules run at the start of every minute. Hourly schedules use only
-the selected minute and run once each hour; daily and weekly schedules use the
-full selected local time. Weekly schedules include a weekday in the selected
-timezone. Daily and weekly scheduled times follow that timezone across
-daylight-saving transitions.
+Hourly schedules use only the selected minute and run once each hour; daily
+and weekly schedules use the full selected local time. Weekly schedules include
+a weekday in the selected timezone. Daily and weekly scheduled times follow
+that timezone across daylight-saving transitions. Manual schedules never run
+automatically. The Check now action starts an immediate one-off check; requests
+are rejected while that channel is already checking or during a YouTube cooldown.
+Existing minutely schedules are migrated to hourly to avoid frequent requests.
 
 - `GET /api/v1/channel-watcher` lists watched channels and check status.
 - `POST /api/v1/channel-watcher` adds a channel.
 - `PUT /api/v1/channel-watcher/{id}` updates its settings.
+- `POST /api/v1/channel-watcher/{id}/check` starts an immediate check.
 - `DELETE /api/v1/channel-watcher/{id}` stops watching it.
 
 ## 💡 Usage Examples

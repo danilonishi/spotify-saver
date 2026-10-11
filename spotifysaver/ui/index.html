@@ -223,7 +223,7 @@
                             <div class="form-group">
                                 <label for="watcher-interval">Check interval:</label>
                                 <select id="watcher-interval">
-                                    <option value="minutely">Every minute</option>
+                                    <option value="manual">Manual</option>
                                     <option value="hourly">Hourly</option>
                                     <option value="daily" selected>Daily</option>
                                     <option value="weekly">Weekly</option>
@@ -275,7 +275,7 @@
                                 Include Subtitles
                             </label>
                         </div>
-                        <p class="watcher-help">The first successful check establishes a baseline; only later uploads are queued.</p>
+                        <p class="watcher-help">The first successful check establishes a baseline; only later uploads are queued. Manual channels are checked only when you select Check now.</p>
                         <div class="watcher-form-actions">
                             <button id="watcher-submit-btn" class="download-btn" type="button">Watch Channel</button>
                             <button id="watcher-cancel-btn" class="clear-queue-btn hidden" type="button">Cancel</button>

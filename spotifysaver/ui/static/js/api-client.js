@@ -334,6 +334,21 @@ class ApiClient {
         );
     }
 
+    async checkWatchedChannelNow(channelId) {
+        const response = await fetch(
+            `${this.apiUrl}/channel-watcher/${encodeURIComponent(channelId)}/check`,
+            {
+                method: 'POST',
+                headers: { 'Accept': 'application/json' }
+            }
+        );
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not start channel check');
+        }
+        return response.json();
+    }
+
     async sendWatchedChannelRequest(path, method, settings) {
         const response = await fetch(`${this.apiUrl}${path}`, {
             method,

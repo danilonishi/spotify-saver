@@ -183,7 +183,7 @@ class UIManager {
             const interval = document.createElement('span');
             interval.className = 'queue-item-status watched-channel-summary-status';
             const intervalLabel = {
-                minutely: 'Every minute',
+                manual: 'Manual',
                 hourly: 'Hourly',
                 daily: 'Daily',
                 weekly: 'Weekly'
@@ -191,8 +191,8 @@ class UIManager {
             const lastCheckedDate = channel.last_checked_at
                 ? new Date(channel.last_checked_at)
                 : null;
-            const checkIsOverdue =
-                !watcherCoolingDown
+            const checkIsOverdue = channel.interval !== 'manual'
+                && !watcherCoolingDown
                 && new Date(channel.next_check_at).getTime() <= Date.now()
                 && !channel.check_started_at;
             const lastCheckedLabel = lastCheckedDate
@@ -204,12 +204,16 @@ class UIManager {
                     minute: '2-digit'
                 })}`
                 : lastCheckedLabel;
-            interval.textContent = checkIsOverdue
-                ? `${intervalLabel} · Check overdue`
-                : `${intervalLabel} · ${summaryLastChecked}`;
-            interval.title = checkIsOverdue
-                ? `${lastCheckedLabel}; scheduled check is overdue and no check is reported in progress`
-                : lastCheckedLabel;
+            interval.textContent = channel.interval === 'manual'
+                ? `${intervalLabel} · ${summaryLastChecked}`
+                : checkIsOverdue
+                    ? `${intervalLabel} · Check overdue`
+                    : `${intervalLabel} · ${summaryLastChecked}`;
+            interval.title = channel.interval === 'manual'
+                ? `${lastCheckedLabel}; checks run only when started manually`
+                : checkIsOverdue
+                    ? `${lastCheckedLabel}; scheduled check is overdue and no check is reported in progress`
+                    : lastCheckedLabel;
 
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
@@ -229,10 +233,12 @@ class UIManager {
                 : 'Last checked: Not checked yet';
             details.appendChild(lastChecked);
 
-            const nextCheck = document.createElement('p');
-            nextCheck.className = 'queue-track-empty watched-channel-check';
-            nextCheck.textContent = `Next check: ${new Date(channel.next_check_at).toLocaleString()}`;
-            details.appendChild(nextCheck);
+            if (channel.interval !== 'manual') {
+                const nextCheck = document.createElement('p');
+                nextCheck.className = 'queue-track-empty watched-channel-check';
+                nextCheck.textContent = `Next check: ${new Date(channel.next_check_at).toLocaleString()}`;
+                details.appendChild(nextCheck);
+            }
 
             if (checkIsOverdue) {
                 const overdue = document.createElement('p');
@@ -257,12 +263,25 @@ class UIManager {
                 details.appendChild(error);
             }
 
+            const actions = document.createElement('div');
+            actions.className = 'watched-channel-actions';
+
+            const checkButton = document.createElement('button');
+            checkButton.type = 'button';
+            checkButton.className = 'output-dir-button watched-channel-check-now';
+            checkButton.dataset.checkChannel = channel.id;
+            checkButton.textContent = channel.check_started_at ? 'Checking…' : 'Check now';
+            checkButton.disabled = Boolean(
+                channel.check_started_at || watcherCoolingDown
+            );
+
             const editButton = document.createElement('button');
             editButton.type = 'button';
             editButton.className = 'output-dir-button watched-channel-edit';
             editButton.dataset.editChannel = channel.id;
             editButton.textContent = 'Edit settings';
-            details.appendChild(editButton);
+            actions.append(checkButton, editButton);
+            details.appendChild(actions);
 
             entry.appendChild(details);
             list.appendChild(entry);

@@ -1,12 +1,13 @@
 """Persistent, platform-aware scheduling of channel checks."""
 
 import asyncio
+import json
 import sqlite3
 import threading
 import time as time_module
 import uuid
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
-from itertools import islice
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional, Protocol
 from urllib.parse import urlparse
@@ -25,6 +26,7 @@ CHANNEL_LIST_TIMEOUT_SECONDS = 90
 MAX_CHANNEL_VIDEOS_PER_CHECK = 20
 YOUTUBE_VIDEO_METADATA_INTERVAL_SECONDS = 5
 YOUTUBE_RATE_LIMIT_COOLDOWN_SECONDS = 60 * 60
+CHANNEL_DISCOVERY_OVERLAP = 20
 
 
 def utc_now() -> datetime:
@@ -59,8 +61,8 @@ def next_check_time(
 ) -> datetime:
     """Return the next local schedule occurrence as a UTC datetime."""
     after = after.astimezone(UTC)
-    if interval == "minutely":
-        return after.replace(second=0, microsecond=0) + timedelta(minutes=1)
+    if interval == "manual":
+        return datetime.max.replace(tzinfo=UTC)
 
     zone = _get_timezone(timezone_name)
 
@@ -167,13 +169,25 @@ def _published_datetime(entry: dict[str, Any]) -> tuple[Optional[datetime], Opti
 class ChannelProvider(Protocol):
     """Platform adapter used by the scheduler to enumerate published content."""
 
-    def list_videos(
-        self, channel_url: str, published_after: Optional[datetime] = None
-    ) -> tuple[str, list[dict[str, Any]]]:
+    def scan_videos(
+        self,
+        channel_url: str,
+        cursor_video_id: Optional[str],
+        known_video_ids: set[str],
+        limit: int,
+    ) -> "ChannelScan":
         ...
 
     def video_metadata(self, video_url: str) -> dict[str, Any]:
         ...
+
+
+@dataclass
+class ChannelScan:
+    title: str
+    entries: list[dict[str, Any]]
+    newest_video_id: Optional[str]
+    cursor_reached: bool
 
 
 class YouTubeChannelProvider:
@@ -211,54 +225,68 @@ class YouTubeChannelProvider:
             normalized.append(item)
         return normalized
 
-    @classmethod
-    def _recent_entries(
-        cls,
-        playlist: dict[str, Any],
-        published_after: datetime,
-        limit: int = MAX_CHANNEL_VIDEOS_PER_CHECK,
-    ) -> list[dict[str, Any]]:
-        recent = []
-        for entry in islice(playlist.get("entries") or [], limit):
-            if not entry:
-                continue
-            if entry.get("_type") in {"playlist", "multi_video"}:
-                recent.extend(
-                    cls._recent_entries(
-                        entry,
-                        published_after,
-                        limit - len(recent),
-                    )
-                )
-                continue
-            item = cls._normalize_upload_dates([entry])[0]
-            upload_date = item.get("upload_date")
-            if (
-                isinstance(upload_date, str)
-                and len(upload_date) == 8
-                and upload_date.isdigit()
-                and datetime.strptime(upload_date, "%Y%m%d").date() < published_after.date()
-            ):
-                break
-            recent.append(item)
-        return recent
-
-    def list_videos(
-        self, channel_url: str, published_after: Optional[datetime] = None
-    ) -> tuple[str, list[dict[str, Any]]]:
+    def scan_videos(
+        self,
+        channel_url: str,
+        cursor_video_id: Optional[str],
+        known_video_ids: set[str],
+        limit: int,
+    ) -> ChannelScan:
         with yt_dlp.YoutubeDL(self._options()) as ydl:
-            info = ydl.extract_info(
+            channel_info = ydl.extract_info(
                 channel_url,
                 download=False,
                 process=False,
             )
-            if not info or info.get("entries") is None:
-                raise ValueError("YouTube did not return a channel video list")
-            entries = (
-                self._recent_entries(info, published_after) if published_after is not None else []
+            if not channel_info:
+                raise ValueError("YouTube did not return channel metadata")
+            channel_id = str(channel_info.get("channel_id") or channel_info.get("id") or "")
+            if not channel_id.startswith("UC"):
+                raise ValueError("YouTube did not return a channel ID for its uploads playlist")
+            uploads_playlist_id = f"UU{channel_id[2:]}"
+            playlist = ydl.extract_info(
+                f"https://www.youtube.com/playlist?list={uploads_playlist_id}",
+                download=False,
+                process=False,
             )
-        title = info.get("channel") or info.get("uploader") or info.get("title")
-        return str(title or channel_url), entries
+            if not playlist or playlist.get("entries") is None:
+                raise ValueError("YouTube did not return an uploads playlist")
+
+            entries: list[dict[str, Any]] = []
+            newest_video_id = None
+            cursor_found = cursor_video_id is None
+            cursor_reached = cursor_video_id is None
+            overlap_count = 0
+            for entry in playlist["entries"]:
+                if not entry or not entry.get("id"):
+                    continue
+                video_id = str(entry["id"])
+                if newest_video_id is None:
+                    newest_video_id = video_id
+                if cursor_video_id is not None and video_id == cursor_video_id:
+                    cursor_found = True
+                    continue
+
+                if cursor_found and cursor_video_id is not None:
+                    overlap_count += 1
+                if video_id not in known_video_ids:
+                    entries.append(self._normalize_upload_dates([entry])[0])
+                if cursor_found and cursor_video_id is not None:
+                    if overlap_count >= CHANNEL_DISCOVERY_OVERLAP:
+                        cursor_reached = True
+                        break
+                if len(entries) >= limit:
+                    break
+            else:
+                cursor_reached = cursor_found
+
+        title = (
+            channel_info.get("channel")
+            or channel_info.get("uploader")
+            or channel_info.get("title")
+            or channel_url
+        )
+        return ChannelScan(str(title), entries, newest_video_id, cursor_reached)
 
     def video_metadata(self, video_url: str) -> dict[str, Any]:
         with self._metadata_lock:
@@ -308,6 +336,8 @@ class ChannelWatcherStore:
                     created_at TEXT NOT NULL,
                     last_checked_at TEXT,
                     check_started_at TEXT,
+                    discovery_cursor_video_id TEXT,
+                    discovery_initialized INTEGER NOT NULL DEFAULT 0,
                     next_check_at TEXT NOT NULL,
                     last_error TEXT,
                     UNIQUE (platform, normalized_url)
@@ -322,6 +352,38 @@ class ChannelWatcherStore:
                 )
             if "check_started_at" not in columns:
                 connection.execute("ALTER TABLE watched_channels ADD COLUMN check_started_at TEXT")
+            if "discovery_cursor_video_id" not in columns:
+                connection.execute(
+                    "ALTER TABLE watched_channels ADD COLUMN discovery_cursor_video_id TEXT"
+                )
+            if "discovery_initialized" not in columns:
+                connection.execute(
+                    "ALTER TABLE watched_channels "
+                    "ADD COLUMN discovery_initialized INTEGER NOT NULL DEFAULT 0"
+                )
+            connection.execute(
+                """
+                UPDATE watched_channels
+                SET interval = 'hourly'
+                WHERE interval = 'minutely'
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS watched_channel_videos (
+                    channel_id TEXT NOT NULL,
+                    video_id TEXT NOT NULL,
+                    video_url TEXT NOT NULL,
+                    title TEXT,
+                    entry_json TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    error TEXT,
+                    discovered_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (channel_id, video_id)
+                )
+                """
+            )
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS channel_watcher_state (
@@ -387,7 +449,7 @@ class ChannelWatcherStore:
         if settings["interval"] == "weekly" and settings.get("check_weekday") is None:
             raise ValueError("Weekly schedules require a weekday")
         channel_id = str(uuid.uuid4())
-        next_check = now
+        next_check = datetime.max.replace(tzinfo=UTC) if settings["interval"] == "manual" else now
         values = (
             channel_id,
             settings.get("platform", "youtube"),
@@ -437,6 +499,9 @@ class ChannelWatcherStore:
         if settings["interval"] == "weekly" and settings.get("check_weekday") is None:
             raise ValueError("Weekly schedules require a weekday")
         url_changed = normalized_url != _normalize_channel_url(existing["url"])
+        source_changed = (
+            url_changed or settings.get("platform", existing["platform"]) != existing["platform"]
+        )
         next_check = next_check_time(
             settings["interval"],
             settings["check_hour"],
@@ -453,6 +518,7 @@ class ChannelWatcherStore:
                     output_dir = ?, interval = ?, check_hour = ?, check_minute = ?,
                     check_weekday = ?, timezone = ?, video_format = ?, video_resolution = ?,
                     include_subtitles = ?, last_checked_at = ?, check_started_at = NULL,
+                    discovery_cursor_video_id = ?, discovery_initialized = ?,
                     next_check_at = ?,
                     last_error = NULL
                 WHERE id = ?
@@ -461,7 +527,7 @@ class ChannelWatcherStore:
                     settings.get("platform", existing["platform"]),
                     normalized_url,
                     settings["url"].strip(),
-                    None if url_changed else existing["title"],
+                    None if source_changed else existing["title"],
                     settings["output_dir"],
                     settings["interval"],
                     settings["check_hour"],
@@ -471,19 +537,167 @@ class ChannelWatcherStore:
                     settings.get("video_format", "mp4"),
                     settings.get("video_resolution", 0),
                     int(settings.get("include_subtitles", False)),
-                    None if url_changed else existing["last_checked_at"],
+                    None if source_changed else existing["last_checked_at"],
+                    None if source_changed else existing["discovery_cursor_video_id"],
+                    0 if source_changed else existing["discovery_initialized"],
                     _iso(next_check),
                     channel_id,
                 ),
             )
+            if source_changed:
+                connection.execute(
+                    "DELETE FROM watched_channel_videos WHERE channel_id = ?", (channel_id,)
+                )
             connection.commit()
         return self.get_channel(channel_id)
 
     def delete_channel(self, channel_id: str) -> bool:
         with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                "DELETE FROM watched_channel_videos WHERE channel_id = ?", (channel_id,)
+            )
             cursor = connection.execute("DELETE FROM watched_channels WHERE id = ?", (channel_id,))
             connection.commit()
         return cursor.rowcount > 0
+
+    def known_video_ids(self, channel_id: str) -> set[str]:
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute(
+                "SELECT video_id FROM watched_channel_videos WHERE channel_id = ?",
+                (channel_id,),
+            ).fetchall()
+        return {row[0] for row in rows}
+
+    def save_discovery_scan(
+        self,
+        channel_id: str,
+        entries: list[dict[str, Any]],
+        now: datetime,
+        cursor_video_id: Optional[str] = None,
+        baseline_entries: Optional[list[dict[str, Any]]] = None,
+        advance_cursor: bool = False,
+    ) -> None:
+        values = []
+        for items, status, error in (
+            (entries, "discovered", None),
+            (baseline_entries or [], "skipped", "Initial baseline"),
+        ):
+            for entry in items:
+                video_id = str(entry.get("id") or "")
+                video_url = _video_url(entry)
+                if not video_id or not video_url:
+                    continue
+                values.append(
+                    (
+                        channel_id,
+                        video_id,
+                        video_url,
+                        entry.get("title"),
+                        json.dumps(entry, separators=(",", ":"), default=str),
+                        status,
+                        error,
+                        _iso(now),
+                        _iso(now),
+                    )
+                )
+        with sqlite3.connect(self.database_path) as connection:
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO watched_channel_videos (
+                    channel_id, video_id, video_url, title, entry_json, status,
+                    error, discovered_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                values,
+            )
+            if advance_cursor:
+                connection.execute(
+                    """
+                    UPDATE watched_channels
+                    SET discovery_cursor_video_id = ?, discovery_initialized = 1
+                    WHERE id = ?
+                    """,
+                    (cursor_video_id, channel_id),
+                )
+            connection.commit()
+
+    def pending_videos(self, channel_id: str) -> list[dict[str, Any]]:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            rows = connection.execute(
+                """
+                SELECT video_id, video_url, title, entry_json, status
+                FROM watched_channel_videos
+                WHERE channel_id = ? AND status IN ('discovered', 'failed')
+                ORDER BY rowid
+                LIMIT ?
+                """,
+                (channel_id, MAX_CHANNEL_VIDEOS_PER_CHECK),
+            ).fetchall()
+        return [
+            {
+                "id": row["video_id"],
+                "webpage_url": row["video_url"],
+                "title": row["title"],
+                "entry": json.loads(row["entry_json"]),
+                "status": row["status"],
+            }
+            for row in rows
+        ]
+
+    def reset_queued_video_statuses(self) -> None:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                """
+                UPDATE watched_channel_videos
+                SET status = 'discovered', updated_at = ?
+                WHERE status = 'queued'
+                """,
+                (_iso(utc_now()),),
+            )
+            connection.commit()
+
+    def update_video_entry(
+        self, channel_id: str, video_id: str, entry: dict[str, Any], now: datetime
+    ) -> None:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                """
+                UPDATE watched_channel_videos
+                SET title = ?, entry_json = ?, updated_at = ?
+                WHERE channel_id = ? AND video_id = ?
+                """,
+                (
+                    entry.get("title"),
+                    json.dumps(entry, separators=(",", ":"), default=str),
+                    _iso(now),
+                    channel_id,
+                    video_id,
+                ),
+            )
+            connection.commit()
+
+    def update_video_status(
+        self,
+        channel_id: str,
+        video_id: str,
+        status: str,
+        now: datetime,
+        error: Optional[str] = None,
+        expected_status: Optional[str] = None,
+    ) -> None:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                f"""
+                UPDATE watched_channel_videos
+                SET status = ?, error = ?, updated_at = ?
+                WHERE channel_id = ? AND video_id = ?
+                    {"AND status = ?" if expected_status is not None else ""}
+                """,
+                (status, error, _iso(now), channel_id, video_id)
+                + ((expected_status,) if expected_status is not None else ()),
+            )
+            connection.commit()
 
     def due_channels(self, now: datetime) -> list[dict[str, Any]]:
         if self.get_youtube_cooldown_until(now) is not None:
@@ -491,7 +705,10 @@ class ChannelWatcherStore:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
-                "SELECT * FROM watched_channels WHERE next_check_at <= ?",
+                """
+                SELECT * FROM watched_channels
+                WHERE interval != 'manual' AND next_check_at <= ?
+                """,
                 (_iso(now),),
             ).fetchall()
         return [self._row_to_dict(row) for row in rows]
@@ -604,6 +821,7 @@ class ChannelWatcherService:
     def start(self) -> None:
         self.store.initialize()
         self.store.clear_check_started()
+        self.store.reset_queued_video_statuses()
         self._stop_event.clear()
         self._task = asyncio.create_task(self._run(), name="channel-watcher")
         logger.info("Channel watcher scheduler started")
@@ -644,6 +862,21 @@ class ChannelWatcherService:
                 self._run_channel_check(channel_id, channel["url"]),
                 name=f"channel-check-{channel_id}",
             )
+
+    def start_manual_check(self, channel_id: str) -> bool:
+        channel = self.store.get_channel(channel_id)
+        if channel is None:
+            return False
+        cooldown_until = self.store.get_youtube_cooldown_until()
+        if cooldown_until is not None:
+            raise YouTubeCooldownActive(cooldown_until)
+        if channel_id in self._check_tasks or channel["check_started_at"]:
+            return False
+        self._check_tasks[channel_id] = asyncio.create_task(
+            self._run_channel_check(channel_id, channel["url"]),
+            name=f"manual-channel-check-{channel_id}",
+        )
+        return True
 
     async def _run_channel_check(self, channel_id: str, channel_url: str) -> None:
         try:
@@ -691,7 +924,12 @@ class ChannelWatcherService:
         previous_check = (
             _parse_datetime(channel["last_checked_at"]) if channel["last_checked_at"] else None
         )
-        self.store.record_check_started(channel_id, utc_now())
+        discovery_initialized = bool(channel["discovery_initialized"])
+        cursor_video_id = channel["discovery_cursor_video_id"]
+        is_initial_baseline = not discovery_initialized and previous_check is None
+        check_started_at = utc_now()
+        discovered_count = 0
+        self.store.record_check_started(channel_id, check_started_at)
         logger.info(
             "Starting check for watched channel %s; last successful check: %s",
             channel["url"],
@@ -702,11 +940,14 @@ class ChannelWatcherService:
                 cooldown_until = self.store.get_youtube_cooldown_until()
                 if cooldown_until is not None:
                     raise YouTubeCooldownActive(cooldown_until)
-                title, entries = await asyncio.wait_for(
+                scan = await asyncio.wait_for(
                     asyncio.to_thread(
-                        provider.list_videos,
+                        provider.scan_videos,
                         channel["url"],
-                        published_after=previous_check,
+                        cursor_video_id,
+                        self.store.known_video_ids(channel_id),
+                        MAX_CHANNEL_VIDEOS_PER_CHECK
+                        + (CHANNEL_DISCOVERY_OVERLAP if not discovery_initialized else 0),
                     ),
                     timeout=self.channel_list_timeout_seconds,
                 )
@@ -716,8 +957,8 @@ class ChannelWatcherService:
                     f"{self.channel_list_timeout_seconds:g} seconds"
                 ) from error
             logger.info(
-                "Fetched %d videos from watched channel %s",
-                len(entries),
+                "Scanned %d uploads from watched channel %s",
+                len(scan.entries),
                 channel["url"],
             )
             current_channel = self.store.get_channel(channel_id)
@@ -727,11 +968,39 @@ class ChannelWatcherService:
             ):
                 return
             channel = current_channel
-            queued_count = 0
-            if previous_check is not None:
-                queued_count = await self._queue_new_videos(
-                    channel, provider, entries, previous_check
+            advance_cursor = is_initial_baseline or not discovery_initialized or scan.cursor_reached
+            if is_initial_baseline:
+                new_entries = []
+                baseline_entries = scan.entries
+            elif not discovery_initialized:
+                new_entries = scan.entries[:MAX_CHANNEL_VIDEOS_PER_CHECK]
+                baseline_entries = scan.entries[MAX_CHANNEL_VIDEOS_PER_CHECK:]
+            else:
+                new_entries = scan.entries
+                baseline_entries = []
+            discovered_count = len(new_entries)
+            self.store.save_discovery_scan(
+                channel_id,
+                new_entries,
+                utc_now(),
+                cursor_video_id=scan.newest_video_id if advance_cursor else None,
+                baseline_entries=baseline_entries,
+                advance_cursor=advance_cursor,
+            )
+            logger.info(
+                "Persisted %d new upload candidates for watched channel %s",
+                discovered_count,
+                channel["url"],
+            )
+            if is_initial_baseline:
+                logger.info(
+                    "Established initial upload baseline for watched channel %s at video %s",
+                    channel["url"],
+                    scan.newest_video_id or "none",
                 )
+                queued_count = 0
+            else:
+                queued_count = await self._queue_pending_videos(channel, provider)
         except YouTubeCooldownActive as error:
             current_channel = self.store.get_channel(channel_id)
             if current_channel is not None:
@@ -764,7 +1033,7 @@ class ChannelWatcherService:
             logger.error("Could not check watched channel %s: %s", current_channel["url"], error)
             return
 
-        checked_at = utc_now()
+        completed_at = utc_now()
         current_channel = self.store.get_channel(channel_id)
         if current_channel is None or (
             current_channel["platform"] != channel["platform"]
@@ -776,30 +1045,30 @@ class ChannelWatcherService:
             current_channel["check_hour"],
             current_channel["check_minute"],
             current_channel["check_weekday"],
-            checked_at,
+            completed_at,
             current_channel["timezone"],
         )
-        self.store.record_success(channel_id, title, checked_at, next_at)
+        self.store.record_success(channel_id, scan.title, completed_at, next_at)
         logger.info(
-            "Watched channel %s check completed: %d videos found, %d new downloads queued; "
+            "Watched channel %s check completed: %d new uploads discovered, "
+            "%d new downloads queued; "
             "next check at %s",
             channel["url"],
-            len(entries),
+            discovered_count,
             queued_count,
             next_at.isoformat(),
         )
 
-    async def _queue_new_videos(
+    async def _queue_pending_videos(
         self,
         channel: dict[str, Any],
         provider: ChannelProvider,
-        entries: list[dict[str, Any]],
-        previous_check: datetime,
     ) -> int:
         if self.enqueue_video is None:
             raise RuntimeError("Channel watcher download queue is not configured")
 
         queued_count = 0
+        failures = []
         self.archive_dir.mkdir(parents=True, exist_ok=True)
         archive_path = self.archive_dir / f"{channel['id']}.txt"
         archived_ids = set()
@@ -810,63 +1079,74 @@ class ChannelWatcherService:
                 if line.strip()
             }
 
-        for entry in entries:
-            video_id = str(entry.get("id") or "")
-            video_url = _video_url(entry)
-            if not video_id or not video_url or video_id in archived_ids:
+        for candidate in self.store.pending_videos(channel["id"]):
+            video_id = candidate["id"]
+            entry = candidate["entry"]
+            video_url = candidate["webpage_url"]
+            if video_id in archived_ids:
+                self.store.update_video_status(channel["id"], video_id, "downloaded", utc_now())
                 continue
+
+            if self._video_file_exists(channel["output_dir"], entry):
+                self.store.update_video_status(
+                    channel["id"], video_id, "skipped", utc_now(), "Already present on disk"
+                )
+                continue
+
             published_at, published_date = _published_datetime(entry)
-            metadata_loaded = False
             if published_date is None and published_at is None:
                 try:
                     details = await self._youtube_request(provider.video_metadata, video_url)
                 except YouTubeCooldownActive:
                     raise
                 except Exception as error:
-                    raise RuntimeError(
-                        f"Could not read publish time for {video_url}: {error}"
-                    ) from error
-                published_at, published_date = _published_datetime(details)
-                metadata_loaded = True
-                if published_date is None and published_at is None:
-                    raise ValueError(f"YouTube did not provide a publish date for {video_url}")
-
-            if published_date is not None:
-                today = utc_now().date()
-                if published_date < previous_check.date() or published_date > today:
-                    continue
-                needs_precise_time = (
-                    published_date == previous_check.date() or published_date == today
-                )
-                if needs_precise_time and not metadata_loaded:
-                    details = await self._youtube_request(provider.video_metadata, video_url)
-                    published_at, _ = _published_datetime(details)
-                if needs_precise_time and published_at is None:
-                    raise ValueError(
-                        "YouTube did not provide a precise publish time for "
-                        f"recent upload {video_url}"
+                    self.store.update_video_status(
+                        channel["id"], video_id, "failed", utc_now(), str(error)
                     )
-                if published_at is None:
-                    published_at = datetime.combine(published_date, time.min, tzinfo=UTC)
+                    failures.append(f"Could not read publish time for {video_url}: {error}")
+                    continue
+                entry = {**entry, **details}
+                self.store.update_video_entry(channel["id"], video_id, entry, utc_now())
+                published_at, published_date = _published_datetime(details)
+                if published_date is None and published_at is None:
+                    error = f"YouTube did not provide a publish date for {video_url}"
+                    self.store.update_video_status(
+                        channel["id"], video_id, "failed", utc_now(), error
+                    )
+                    failures.append(error)
+                    continue
+
             if published_at is not None and published_at > utc_now():
                 continue
-            if published_at is None or published_at <= previous_check:
+            if published_date is not None and published_date > utc_now().date():
                 continue
-            if self._video_file_exists(channel["output_dir"], entry):
-                with archive_path.open("a", encoding="utf-8") as archive:
-                    archive.write(f"youtube {video_id}\n")
-                archived_ids.add(video_id)
+
+            if candidate["status"] == "failed":
+                self.store.update_video_status(
+                    channel["id"], video_id, "discovered", utc_now(), expected_status="failed"
+                )
+            try:
+                await self.enqueue_video(
+                    {
+                        **channel,
+                        "download_archive": str(archive_path),
+                        "video_title": entry.get("title") or video_id,
+                    },
+                    video_url,
+                )
+            except Exception as error:
+                self.store.update_video_status(
+                    channel["id"], video_id, "failed", utc_now(), str(error)
+                )
+                failures.append(f"Could not enqueue {video_url}: {error}")
                 continue
-            await self.enqueue_video(
-                {
-                    **channel,
-                    "download_archive": str(archive_path),
-                    "video_title": entry.get("title") or video_id,
-                },
-                video_url,
+            self.store.update_video_status(
+                channel["id"], video_id, "queued", utc_now(), expected_status="discovered"
             )
             queued_count += 1
-            archived_ids.add(video_id)
+
+        if failures:
+            raise RuntimeError("; ".join(failures))
         return queued_count
 
     async def _youtube_request(
