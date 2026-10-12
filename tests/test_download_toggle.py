@@ -1,4 +1,5 @@
 import os
+import xml.etree.ElementTree as ET
 from threading import Event
 from pathlib import Path
 
@@ -11,6 +12,8 @@ from spotifysaver.enums import AudioFormat
 from spotifysaver.models.album import Album
 from spotifysaver.models.playlist import Playlist
 from spotifysaver.models.track import Track
+from spotifysaver.metadata import NFOGenerator
+from spotifysaver.api.services.download_service import DownloadService
 
 
 def test_download_request_defaults_to_disabled():
@@ -337,6 +340,37 @@ def test_album_redownloads_when_canonical_output_is_missing(tmp_path, monkeypatc
     assert downloaded[0]["album_artist"] == "Album Artist"
 
 
+def test_album_retry_writes_matched_youtube_url_to_track_nfo(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    track = _make_track()
+    album = Album(
+        name="Album One",
+        artists=["Artist One"],
+        release_date="2024-01-01",
+        genres=[],
+        cover_url="",
+        tracks=[track],
+    )
+    youtube_url = "https://music.youtube.com/watch?v=qsound-logo"
+    album_dir = downloader._get_album_dir(album)
+    album_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        downloader,
+        "download_track",
+        lambda **_kwargs: (
+            album_dir / "1 - Artist One - Track One.m4a",
+            track.with_youtube_url(youtube_url),
+        ),
+    )
+    monkeypatch.setattr(NFOGenerator, "_get_theaudiodb_data", lambda _album: None)
+
+    success, total, failures = downloader.download_album_cli(album, nfo=True)
+
+    assert (success, total, failures) == (1, 1, [])
+    nfo = ET.parse(album_dir / "album.nfo")
+    assert nfo.findtext("./track/url") == youtube_url
+
+
 def test_album_cancellation_does_not_start_the_next_track(tmp_path, monkeypatch):
     downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
     first_track = _make_track()
@@ -434,6 +468,11 @@ def test_playlist_generates_album_nfo_in_album_directory(tmp_path, monkeypatch):
         tracks=[track],
     )
     generated = []
+    monkeypatch.setattr(
+        downloader.searcher,
+        "search_track",
+        lambda _track: "https://music.youtube.com/watch?v=matched-video",
+    )
 
     monkeypatch.setattr(
         downloader,
@@ -446,7 +485,9 @@ def test_playlist_generates_album_nfo_in_album_directory(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         "spotifysaver.downloader.youtube_downloader_for_cli.NFOGenerator.generate",
-        lambda album, output_dir: generated.append((album, output_dir)),
+        lambda album, output_dir, source_url=None: generated.append(
+            (album, output_dir, source_url)
+        ),
     )
 
     result = downloader.download_playlist_cli(
@@ -460,6 +501,101 @@ def test_playlist_generates_album_nfo_in_album_directory(tmp_path, monkeypatch):
     assert len(generated) == 1
     assert generated[0][0].name == "Album One"
     assert generated[0][1] == tmp_path / "Artist One" / "Album One (2024)"
+    assert generated[0][2] is None
+
+
+def test_album_and_playlist_nfos_store_source_urls(tmp_path, monkeypatch):
+    track = _make_track().with_youtube_url(
+        "https://music.youtube.com/watch?v=matched-video"
+    )
+    album = Album(
+        name="Album One",
+        artists=["Artist One"],
+        release_date="2024-01-01",
+        genres=[],
+        cover_url="",
+        tracks=[track],
+        uri="spotify:album:album-id",
+    )
+    playlist = Playlist(
+        name="My Playlist",
+        description="Playlist description",
+        owner="me",
+        uri="spotify:playlist:playlist-id",
+        cover_url="",
+        tracks=[track],
+    )
+    monkeypatch.setattr(NFOGenerator, "_get_theaudiodb_data", lambda _album: None)
+
+    NFOGenerator.generate(album, tmp_path, "https://open.spotify.com/album/album-id")
+    NFOGenerator.generate_playlist(
+        playlist, tmp_path, "https://open.spotify.com/playlist/playlist-id"
+    )
+
+    assert ET.parse(tmp_path / "album.nfo").findtext("url") == (
+        "https://open.spotify.com/album/album-id"
+    )
+    album_nfo = ET.parse(tmp_path / "album.nfo")
+    assert album_nfo.findtext("./track/url") == (
+        "https://music.youtube.com/watch?v=matched-video"
+    )
+    playlist_nfo = ET.parse(tmp_path / "playlist.nfo")
+    assert playlist_nfo.findtext("url") == (
+        "https://open.spotify.com/playlist/playlist-id"
+    )
+    assert playlist_nfo.findtext("plot") == "Playlist description"
+    assert playlist_nfo.findtext("./track/url") == (
+        "https://music.youtube.com/watch?v=matched-video"
+    )
+
+
+def test_single_track_audio_nfo_stores_source_url(tmp_path, monkeypatch):
+    service = DownloadService(output_dir=str(tmp_path), generate_nfo=True)
+    track = _make_track()
+    audio_path = tmp_path / "Artist One" / "Album One" / "track.m4a"
+    audio_path.parent.mkdir(parents=True)
+    audio_path.touch()
+    generated = []
+    monkeypatch.setattr(
+        service.downloader,
+        "download_track_cli",
+        lambda *_args, **_kwargs: (audio_path, track),
+    )
+    monkeypatch.setattr(
+        NFOGenerator,
+        "generate",
+        lambda album, output_dir, source_url=None: generated.append(
+            (album, output_dir, source_url)
+        ),
+    )
+
+    service._download_track_sync(
+        track, None, "https://open.spotify.com/track/track-id"
+    )
+
+    assert generated[0][0].name == "Album One"
+    assert generated[0][1] == audio_path.parent
+    assert generated[0][2] == "https://open.spotify.com/track/track-id"
+
+
+def test_cli_track_download_keeps_matched_youtube_url(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    track = _make_track()
+    youtube_url = "https://music.youtube.com/watch?v=matched-video"
+    audio_path = tmp_path / "track.m4a"
+    monkeypatch.setattr(
+        downloader.searcher, "search_track", lambda _track: youtube_url
+    )
+    monkeypatch.setattr(
+        downloader,
+        "download_track",
+        lambda **kwargs: (audio_path, kwargs["track"]),
+    )
+
+    downloaded_path, downloaded_track = downloader.download_track_cli(track)
+
+    assert downloaded_path == audio_path
+    assert downloaded_track.youtube_url == youtube_url
 
 
 def test_playlist_cancellation_does_not_start_the_next_track(tmp_path, monkeypatch):

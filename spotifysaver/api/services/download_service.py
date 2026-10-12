@@ -10,6 +10,8 @@ from yt_dlp.utils import DownloadCancelled
 from ...services import SpotifyAPI, YoutubeMusicSearcher
 from ...downloader import YouTubeDownloader, YouTubeDownloaderForCLI
 from ...enums import AudioFormat, Bitrate
+from ...metadata import NFOGenerator
+from ...models.album import Album
 from ...spotlog import get_logger
 from ..config import APIConfig
 
@@ -221,7 +223,7 @@ class DownloadService:
         # Run download in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         audio_path, updated_track = await loop.run_in_executor(
-            None, self._download_track_sync, track, self.cancellation_event
+            None, self._download_track_sync, track, self.cancellation_event, track_url
         )
 
         return {
@@ -273,6 +275,7 @@ class DownloadService:
             sync_progress_callback,
             sync_track_result_callback,
             self.cancellation_event,
+            album_url,
         )
 
         output_dir = self.downloader._get_album_dir(album)
@@ -326,6 +329,7 @@ class DownloadService:
             self.generate_nfo,
             sync_track_result_callback,
             self.cancellation_event,
+            playlist_url,
         )
 
         output_dir = self.downloader.get_playlist_dir(playlist)
@@ -339,9 +343,9 @@ class DownloadService:
             "output_directory": str(output_dir),
         }
 
-    def _download_track_sync(self, track, cancellation_event=None):
+    def _download_track_sync(self, track, cancellation_event=None, source_url=None):
         """Synchronous track download helper."""
-        return self.downloader.download_track_cli(
+        result = self.downloader.download_track_cli(
             track, 
             output_format=self.output_format, 
             bitrate=self.bit_rate,
@@ -349,3 +353,16 @@ class DownloadService:
             overwrite_existing=self.overwrite_existing,
             cancellation_event=cancellation_event,
         )
+        audio_path, updated_track = result
+        if audio_path and self.generate_nfo:
+            nfo_track = updated_track or track
+            album = Album(
+                name=nfo_track.album_name or nfo_track.name,
+                artists=nfo_track.album_artist or nfo_track.artists or ["Unknown Artist"],
+                release_date=nfo_track.release_date or "Unknown",
+                genres=nfo_track.genres or [],
+                cover_url=nfo_track.cover_url or "",
+                tracks=[nfo_track],
+            )
+            NFOGenerator.generate(album, audio_path.parent, source_url)
+        return result

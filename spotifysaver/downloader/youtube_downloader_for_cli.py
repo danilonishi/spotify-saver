@@ -501,11 +501,12 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 bitrate=bitrate,
                 overwrite_existing=overwrite_existing,
                 cancellation_event=cancellation_event,
+                youtube_url=yt_url,
             )
 
             if audio_path:
                 self.logger.info(f"Track downloaded successfully: {track.name}")
-                return audio_path, updated_track
+                return audio_path, (updated_track or track).with_youtube_url(yt_url)
             else:
                 self.logger.warning(f"Could not download track: {track.name}")
                 return None, None
@@ -526,6 +527,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         progress_callback: Optional[callable] = None,  # Progress callback
         track_result_callback: Optional[callable] = None,
         cancellation_event: Optional[Event] = None,
+        source_url: Optional[str] = None,
     ) -> tuple[int, int, list[str]]:  # Returns (success, total, failed track names)
         """Download a complete album with progress support.
 
@@ -558,7 +560,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 expected_path = self._get_output_path(
                     track, album_artist=album.artists[0], output_format=output_format
                 )
-                audio_path, _ = self.download_track(
+                audio_path, updated_track = self.download_track(
                     track=track,
                     album_artist=album.artists[0],
                     download_lyrics=download_lyrics,
@@ -571,6 +573,8 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     break
                 if audio_path or expected_path.exists():
                     success += 1
+                    if updated_track:
+                        album.tracks[idx - 1] = updated_track
                     if track_result_callback:
                         track_result_callback(idx, track.name, "completed")
                 else:
@@ -592,7 +596,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         if success > 0:
             output_dir = self._get_album_dir(album)
             if nfo:
-                NFOGenerator.generate(album, output_dir)
+                self._generate_album_nfos(album.tracks, output_format, source_url)
             if cover and album.cover_url:
                 self._save_cover_album(album.cover_url, output_dir / "cover.jpg")
 
@@ -613,6 +617,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         nfo: bool = False,
         track_result_callback: Optional[callable] = None,
         cancellation_event: Optional[Event] = None,
+        source_url: Optional[str] = None,
     ) -> tuple[int, int, list[str]]:
         """Download a complete playlist with progress bar support.
 
@@ -665,6 +670,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 if updated_track:
                     success += 1
                     downloaded_tracks.append(updated_track)
+                    playlist.tracks[idx - 1] = updated_track
                     if track_result_callback:
                         track_result_callback(idx, track.name, "completed")
                 else:
@@ -683,7 +689,8 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             return success, len(playlist.tracks), failed_tracks
 
         if nfo:
-            self._generate_album_nfos(downloaded_tracks, output_format)
+            self._generate_album_nfos(downloaded_tracks, output_format, source_url)
+            NFOGenerator.generate_playlist(playlist, output_dir, source_url)
 
         if success > 0 and cover and playlist.cover_url:
             try:

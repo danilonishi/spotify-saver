@@ -28,6 +28,7 @@ class Album:
     genres: List[str]
     cover_url: str
     tracks: List[Track]
+    uri: str | None = None
 
     def get_track_by_uri(self, uri: str) -> Track | None:
         """Find a track by its Spotify URI.

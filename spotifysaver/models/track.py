@@ -44,6 +44,7 @@ class Track:
     album_name: str = None
     cover_url: str = None
     has_lyrics: bool = False
+    youtube_url: Optional[str] = None
 
     def __hash__(self):
         """Generate hash based on track name, artists, and duration.
@@ -63,6 +64,10 @@ class Track:
             Track: New Track instance with updated has_lyrics field
         """
         return replace(self, has_lyrics=success)
+
+    def with_youtube_url(self, youtube_url: Optional[str]) -> "Track":
+        """Return a copy with the matched YouTube source URL."""
+        return replace(self, youtube_url=youtube_url)
 
     @property
     def lyrics_filename(self) -> str:

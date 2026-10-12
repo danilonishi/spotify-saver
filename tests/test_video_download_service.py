@@ -143,6 +143,7 @@ def test_video_download_writes_description_to_jellyfin_nfo(monkeypatch, tmp_path
     assert root.tag == "movie"
     assert root.findtext("title") == "Sample Video"
     assert root.findtext("plot") == description
+    assert root.findtext("url") == entry["webpage_url"]
 
 
 def test_video_download_fetches_missing_description_for_nfo(monkeypatch, tmp_path):

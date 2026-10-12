@@ -82,7 +82,11 @@ Start a download task.
 Accepts individual YouTube/YouTube Music video links, as well as Spotify links and YouTube collections. `output_format` defaults to `m4a` and can be `OPUS`, `mp3` or `m4a`.
 YouTube video downloads write the video description to the `<plot>` field in a
 Jellyfin-compatible `.nfo` file alongside each downloaded video when a
-description is available.
+description is available, and store the source video URL in its `<url>` field.
+When `generate_nfo` is enabled for Spotify audio downloads, album NFOs contain
+the source download URL and each track entry contains its matched YouTube Music
+URL; playlist downloads also include a `playlist.nfo` with the playlist URL
+and each matched track URL.
 
 **Request body:**
 ```json

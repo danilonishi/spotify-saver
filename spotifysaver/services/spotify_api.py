@@ -409,6 +409,7 @@ class SpotifyAPI:
             genres=raw_data.get("genres", []),
             cover_url=raw_data["images"][0]["url"] if raw_data["images"] else None,
             tracks=tracks,
+            uri=raw_data.get("uri"),
         )
 
     def get_artist(self, artist_url: str) -> Dict[str, Optional[str]]:

@@ -139,12 +139,13 @@ class VideoDownloadService:
     @staticmethod
     def _write_video_nfo(video_info: dict, nfo_path: Path, title: str) -> None:
         description = video_info.get("description")
-        if not isinstance(description, str) or not description.strip():
-            return
-
         root = ET.Element("movie")
         ET.SubElement(root, "title").text = title
-        ET.SubElement(root, "plot").text = description
+        source_url = video_info.get("webpage_url") or video_info.get("original_url")
+        if isinstance(source_url, str) and source_url.strip():
+            ET.SubElement(root, "url").text = source_url
+        if isinstance(description, str) and description.strip():
+            ET.SubElement(root, "plot").text = description
         ET.ElementTree(root).write(nfo_path, encoding="utf-8", xml_declaration=True)
 
     @staticmethod
@@ -285,6 +286,7 @@ class VideoDownloadService:
                     video_info = ydl.extract_info(entry_url, download=False)
                 channel = video_info.get("channel") or video_info.get("uploader")
                 title = video_info.get("title") or title
+            video_info.setdefault("webpage_url", entry_url)
             channel_dir = self.output_dir / _sanitize(channel or "Unknown Channel")
             channel_dir.mkdir(parents=True, exist_ok=True)
             channel_dirs.add(channel_dir)

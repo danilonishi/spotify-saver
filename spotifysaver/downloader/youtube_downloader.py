@@ -377,7 +377,10 @@ class YouTubeDownloader:
             self.logger.error(f"Error downloading cover: {e}")
 
     def _generate_album_nfos(
-        self, tracks: list[Track], output_format: AudioFormat
+        self,
+        tracks: list[Track],
+        output_format: AudioFormat,
+        source_url: Optional[str] = None,
     ):
         albums = {}
         for track in tracks:
@@ -389,6 +392,12 @@ class YouTubeDownloader:
             albums.setdefault(album_key, []).append(track)
 
         for album_tracks in albums.values():
+            album_tracks = [
+                track
+                if track.youtube_url
+                else track.with_youtube_url(self.searcher.search_track(track))
+                for track in album_tracks
+            ]
             first_track = album_tracks[0]
             album = Album(
                 name=first_track.album_name or "Unknown Album",
@@ -403,7 +412,7 @@ class YouTubeDownloader:
                 album_artist=album.artists[0],
                 output_format=output_format,
             ).parent
-            NFOGenerator.generate(album, album_dir)
+            NFOGenerator.generate(album, album_dir, source_url)
 
     def _sanitize_filename(self, filename: str) -> str:
         """Sanitize filename for Windows compatibility.
@@ -441,6 +450,7 @@ class YouTubeDownloader:
         download_lyrics: bool = False,
         overwrite_existing: bool = True,
         cancellation_event: Optional[Event] = None,
+        youtube_url: Optional[str] = None,
     ) -> tuple[Optional[Path], Optional[Track]]:
         """Download a track from YouTube Music with Spotify metadata.
 
@@ -467,7 +477,7 @@ class YouTubeDownloader:
         if cancellation_event and cancellation_event.is_set():
             return None, None
 
-        yt_url = self.searcher.search_track(track)
+        yt_url = youtube_url or self.searcher.search_track(track)
         if cancellation_event and cancellation_event.is_set():
             return None, None
 
@@ -497,10 +507,10 @@ class YouTubeDownloader:
             metadata.add_metadata()
 
             # 3. Lyrics handling
-            updated_track = track
+            updated_track = track.with_youtube_url(yt_url)
             if download_lyrics:
                 success = self._save_lyrics(track, output_path)
-                updated_track = track.with_lyrics_status(success)
+                updated_track = updated_track.with_lyrics_status(success)
 
             self.logger.info(f"Download completed: {output_path}")
             return output_path, updated_track
@@ -521,6 +531,7 @@ class YouTubeDownloader:
         nfo: bool = False,
         cover: bool = True,
         overwrite_existing: bool = False,
+        source_url: Optional[str] = None,
     ):
         """Download a complete album and generate metadata.
 
@@ -532,8 +543,8 @@ class YouTubeDownloader:
             nfo: Whether to generate NFO metadata file
             cover: Whether to download album cover
         """
-        for track in album.tracks:
-            self.download_track(
+        for index, track in enumerate(album.tracks):
+            _audio_path, updated_track = self.download_track(
                 track=track,
                 output_format=output_format,
                 bitrate=bitrate,
@@ -541,13 +552,15 @@ class YouTubeDownloader:
                 download_lyrics=download_lyrics,
                 overwrite_existing=overwrite_existing,
             )
+            if updated_track:
+                album.tracks[index] = updated_track
 
         output_dir = self._get_album_dir(album)
 
         # Generate the NFO after downloading all tracks
         if nfo:
             self.logger.info(f"Generating NFO for album: {album.name}")
-            NFOGenerator.generate(album, output_dir)
+            NFOGenerator.generate(album, output_dir, source_url)
 
         # Download cover art
         if cover and album.cover_url:
@@ -622,6 +635,7 @@ class YouTubeDownloader:
         cover: bool = True,
         nfo: bool = False,
         overwrite_existing: bool = False,
+        source_url: Optional[str] = None,
     ):
         """Download a complete playlist and generate metadata.
 
@@ -683,7 +697,8 @@ class YouTubeDownloader:
         # Generate NFO (only if successful)
         if downloaded_tracks and nfo:
             self.logger.info(f"Generating album NFO files for playlist: {playlist.name}")
-            self._generate_album_nfos(downloaded_tracks, output_format)
+            self._generate_album_nfos(downloaded_tracks, output_format, source_url)
+            NFOGenerator.generate_playlist(playlist, output_dir, source_url)
 
         self.ensure_playlist_m3u(playlist, output_format=output_format)
 

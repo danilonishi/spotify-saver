@@ -4,14 +4,14 @@ This module generates XML metadata files (.nfo) that are compatible with Jellyfi
 media server for organizing music libraries with proper metadata.
 """
 
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 from pathlib import Path
 from datetime import datetime
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
 
 from spotifysaver.models.album import Album
+from spotifysaver.models.playlist import Playlist
 from spotifysaver.services.schemas import AlbumADBResponse
 from spotifysaver.services import TheAudioDBService
 
@@ -43,7 +43,17 @@ class NFOGenerator:
         return f"{minutes:02d}:{seconds:02d}"
 
     @staticmethod
-    def generate(album: Album, output_dir: Path):
+    def _web_url(source_url: Optional[str]) -> Optional[str]:
+        if not source_url:
+            return None
+        if source_url.startswith("spotify:"):
+            parts = source_url.split(":")
+            if len(parts) == 3:
+                return f"https://open.spotify.com/{parts[1]}/{parts[2]}"
+        return source_url
+
+    @staticmethod
+    def generate(album: Album, output_dir: Path, source_url: Optional[str] = None):
         """Generate an album.nfo file in the specified directory.
         
         Creates a Jellyfin-compatible XML metadata file containing album information,
@@ -53,12 +63,19 @@ class NFOGenerator:
         Args:
             album: Album object containing the album information and tracks
             output_dir: Directory where the album.nfo file will be saved
+            source_url: URL used to request the album or its containing playlist
         """
         # Root element
         root = ET.Element("album")
 
         # Datos base de Spotify
         ET.SubElement(root, "title").text = album.name
+        album_url = source_url or getattr(album, "uri", None)
+        if not album_url and album.tracks:
+            album_url = album.tracks[0].uri
+        album_url = NFOGenerator._web_url(album_url)
+        if album_url:
+            ET.SubElement(root, "url").text = album_url
         if album.release_date:
             ET.SubElement(root, "year").text = album.release_date[:4]
             ET.SubElement(root, "premiered").text = album.release_date
@@ -82,6 +99,8 @@ class NFOGenerator:
             ET.SubElement(track_elem, "position").text = str(track.number)
             ET.SubElement(track_elem, "title").text = track.name
             ET.SubElement(track_elem, "duration").text = NFOGenerator._format_duration(track.duration)
+            if track.youtube_url:
+                ET.SubElement(track_elem, "url").text = track.youtube_url
 
         # Datos extra de TheAudioDB
         adb_data = NFOGenerator._get_theaudiodb_data(album)
@@ -113,3 +132,32 @@ class NFOGenerator:
         nfo_path = output_dir / "album.nfo"
         with open(nfo_path, "w", encoding="utf-8") as f:
             f.write(pretty_xml)
+
+    @staticmethod
+    def generate_playlist(
+        playlist: Playlist, output_dir: Path, source_url: Optional[str] = None
+    ) -> None:
+        """Generate a playlist.nfo file with its source URL."""
+        root = ET.Element("playlist")
+        ET.SubElement(root, "title").text = playlist.name
+        if playlist.description:
+            ET.SubElement(root, "plot").text = playlist.description
+        if playlist.owner:
+            ET.SubElement(root, "owner").text = playlist.owner
+        for track in playlist.tracks:
+            track_elem = ET.SubElement(root, "track")
+            ET.SubElement(track_elem, "position").text = str(track.playlist_position or track.number)
+            ET.SubElement(track_elem, "title").text = track.name
+            if track.youtube_url:
+                ET.SubElement(track_elem, "url").text = track.youtube_url
+        playlist_url = NFOGenerator._web_url(source_url or playlist.uri)
+        if playlist_url:
+            ET.SubElement(root, "url").text = playlist_url
+        ET.SubElement(root, "dateadded").text = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        ET.ElementTree(root).write(
+            output_dir / "playlist.nfo", encoding="utf-8", xml_declaration=True
+        )
