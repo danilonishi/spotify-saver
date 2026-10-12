@@ -555,6 +555,31 @@ class DownloadManager {
         }
     }
 
+    async retryItem(taskId) {
+        const item = this.queue.find((queueItem) => queueItem.id === taskId);
+        if (!item || !['failed', 'completed_with_errors'].includes(item.status)) return;
+
+        try {
+            if (String(taskId).startsWith('local-')) {
+                item.status = 'queued';
+                item.error_message = null;
+                this.uiManager.renderDownloadQueue(this.queue);
+                await this.submitToServer(item);
+                if (item.status === 'failed') {
+                    throw new Error(item.error_message || 'Could not retry download');
+                }
+            } else {
+                await this.apiClient.retryDownload(taskId);
+                await this.pollOnce();
+            }
+            this.uiManager.updateStatus('Download retry queued', 'success');
+            this.ensurePolling();
+        } catch (error) {
+            this.uiManager.updateStatus(`Could not retry download: ${error.message}`, 'error');
+            this.uiManager.addLogEntry(`Could not retry download: ${error.message}`, 'error');
+        }
+    }
+
     // Removes a single queue item, whether it's still queued, actively
     // downloading (stopping the current track and any remaining tracks for
     // it), or already finished.

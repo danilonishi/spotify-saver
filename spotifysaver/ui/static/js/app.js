@@ -5,6 +5,7 @@ class SpotifySaverUI {
         this.uiManager = new UIManager(() => this.saveState());
         this.downloadManager = new DownloadManager(this.apiClient, this.uiManager, () => this.saveState());
         this.uiManager.onRemoveQueueItem = (taskId, status) => this.downloadManager.cancelItem(taskId, status);
+        this.uiManager.onRetryQueueItem = (taskId) => this.downloadManager.retryItem(taskId);
         this.uiManager.onOutputDirectorySelected = (kind, directory) => {
             this.persistOutputDirectoryPreference(kind, directory).catch((error) => {
                 this.uiManager.updateStatus(error.message, 'error');

@@ -271,6 +271,55 @@ async def get_download_status(task_id: str):
     return tasks[task_id]
 
 
+@router.post("/download/{task_id}/retry", status_code=202)
+async def retry_download(task_id: str):
+    """Requeue a failed download using its original request settings."""
+    async with queue_lock:
+        task = tasks.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if task.status not in {"failed", "completed_with_errors"}:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot retry download with status: {task.status}",
+            )
+        if task_id not in requests_by_task:
+            raise HTTPException(
+                status_code=409, detail="Original download request is unavailable"
+            )
+        if task_id in active:
+            raise HTTPException(status_code=409, detail="Download is still stopping")
+        task.status = "queued"
+        task.progress = 0
+        task.current_track = None
+        task.current_track_number = None
+        task.current_track_status = None
+        task.track_updates = []
+        task.total_tracks = 0
+        task.completed_tracks = 0
+        task.failed_tracks = 0
+        task.failed_track_names = []
+        task.warning_message = None
+        task.output_directory = None
+        task.error_message = None
+        task.started_at = datetime.now().isoformat()
+        task.completed_at = None
+        task.playlist_verification = None
+        task.tracks = []
+        task.queue_position = None
+        cancellation_events[task_id] = Event()
+        paused_task_ids.discard(task_id)
+        discard_after_stop.discard(task_id)
+        preserve_after_stop.discard(task_id)
+        if task_id not in order:
+            order.append(task_id)
+        if task_id not in pending:
+            pending.append(task_id)
+
+    await _try_start_next()
+    return {"task_id": task_id, "status": "queued", "message": "Download retry queued"}
+
+
 @router.get("/download/{task_id}/cancel")
 @router.post("/download/{task_id}/cancel")
 async def cancel_download(task_id: str):

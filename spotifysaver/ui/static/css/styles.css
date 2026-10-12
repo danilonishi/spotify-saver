@@ -725,6 +725,23 @@ body.dark-mode .panel-visibility-drag-handle {
     opacity: 0.7;
 }
 
+.queue-item-retry-btn {
+    flex: 0 0 auto;
+    width: 24px;
+    border: none;
+    background: none;
+    padding: 0 2px;
+    color: #2b6cb0;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.queue-item-retry-btn:hover {
+    opacity: 1;
+}
+
 .queue-item-remove-btn:hover {
     opacity: 1;
 }

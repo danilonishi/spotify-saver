@@ -220,6 +220,18 @@ class ApiClient {
         return await response.json();
     }
 
+    async retryDownload(taskId) {
+        const response = await fetch(`${this.apiUrl}/download/${taskId}/retry`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errorData.detail || 'Could not retry download');
+        }
+        return await response.json();
+    }
+
     async removeDownload(taskId) {
         const response = await fetch(`${this.apiUrl}/download/${taskId}`, {
             method: 'DELETE',

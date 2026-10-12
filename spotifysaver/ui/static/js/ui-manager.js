@@ -5,6 +5,7 @@ class UIManager {
         this.saveStateCallback = saveStateCallback;
         // Set by the app once the DownloadManager exists; invoked with a queue item's task id.
         this.onRemoveQueueItem = null;
+        this.onRetryQueueItem = null;
         this.onOutputDirectorySelected = null;
         this.activeMode = 'audio';
         this.downloading = false;
@@ -116,7 +117,22 @@ class UIManager {
                 this.onRemoveQueueItem?.(item.id, item.status);
             });
 
-            summary.append(name, status, removeBtn);
+            if (['failed', 'completed_with_errors'].includes(item.status)) {
+                const retryBtn = document.createElement('button');
+                retryBtn.type = 'button';
+                retryBtn.className = 'queue-item-retry-btn';
+                retryBtn.title = 'Retry failed download';
+                retryBtn.setAttribute('aria-label', 'Retry failed download');
+                retryBtn.textContent = '↻';
+                retryBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.onRetryQueueItem?.(item.id);
+                });
+                summary.append(name, status, retryBtn, removeBtn);
+            } else {
+                summary.append(name, status, removeBtn);
+            }
             details.appendChild(summary);
 
             const tracks = Array.isArray(item.trackData?.tracks)

@@ -6,6 +6,8 @@ from pathlib import Path
 
 from click.testing import CliRunner
 from fastapi import BackgroundTasks
+from fastapi import HTTPException
+import pytest
 from yt_dlp.utils import DownloadCancelled
 
 import spotifysaver.api.routers.download as download_router
@@ -24,6 +26,7 @@ from spotifysaver.api.routers.download import (
     pause_queue,
     paused_task_ids,
     preserve_after_stop,
+    retry_download,
     requests_by_task,
     start_download,
     tasks,
@@ -741,6 +744,67 @@ def test_cancel_download_signals_worker_and_reports_cancelling():
     finally:
         tasks.pop(task_id, None)
         cancellation_events.pop(task_id, None)
+
+
+def test_retry_download_requeues_original_request_and_resets_task(monkeypatch):
+    task_id = "retry-test-task"
+    original_event = Event()
+    original_event.set()
+    request = DownloadRequest(spotify_url=TRACK_URL)
+    tasks[task_id] = DownloadStatus(
+        task_id=task_id,
+        status="completed_with_errors",
+        progress=75,
+        current_track="failed track",
+        total_tracks=2,
+        completed_tracks=1,
+        failed_tracks=1,
+        error_message="Download failed",
+        completed_at="2024-01-01T00:00:00",
+    )
+    requests_by_task[task_id] = request
+    cancellation_events[task_id] = original_event
+    monkeypatch.setattr(download_router, "paused", True)
+
+    try:
+        response = asyncio.run(retry_download(task_id))
+
+        assert response["status"] == "queued"
+        assert tasks[task_id].status == "queued"
+        assert tasks[task_id].progress == 0
+        assert tasks[task_id].current_track is None
+        assert tasks[task_id].completed_tracks == 0
+        assert tasks[task_id].failed_tracks == 0
+        assert tasks[task_id].error_message is None
+        assert tasks[task_id].completed_at is None
+        assert requests_by_task[task_id] is request
+        assert cancellation_events[task_id] is not original_event
+        assert not cancellation_events[task_id].is_set()
+        assert task_id in pending
+        assert task_id in order
+    finally:
+        _forget_task(task_id)
+        download_router.download_archives.pop(task_id, None)
+        active.discard(task_id)
+        paused_task_ids.discard(task_id)
+
+
+def test_retry_download_rejects_non_retryable_task():
+    task_id = "retry-invalid-status-task"
+    tasks[task_id] = DownloadStatus(
+        task_id=task_id,
+        status="processing",
+        progress=20,
+    )
+    requests_by_task[task_id] = DownloadRequest(spotify_url=TRACK_URL)
+
+    try:
+        with pytest.raises(HTTPException) as error:
+            asyncio.run(retry_download(task_id))
+
+        assert error.value.status_code == 409
+    finally:
+        _forget_task(task_id)
 
 
 def test_cancellation_hook_uses_yt_dlp_cancel_signal():
