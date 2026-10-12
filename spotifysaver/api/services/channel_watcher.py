@@ -6,10 +6,11 @@ import sqlite3
 import threading
 import time as time_module
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional, Protocol
+from typing import Any, Awaitable, Callable, Iterator, Optional, Protocol
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -313,9 +314,18 @@ class ChannelWatcherStore:
             database_path or APIConfig.get_channel_watcher_db_path()
         ).expanduser()
 
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        connection = sqlite3.connect(self.database_path)
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
     def initialize(self) -> None:
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS watched_channels (
@@ -428,7 +438,7 @@ class ChannelWatcherStore:
         return item
 
     def list_channels(self) -> list[dict[str, Any]]:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
                 "SELECT * FROM watched_channels ORDER BY created_at, id"
@@ -436,7 +446,7 @@ class ChannelWatcherStore:
         return [self._row_to_dict(row) for row in rows]
 
     def get_channel(self, channel_id: str) -> Optional[dict[str, Any]]:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.row_factory = sqlite3.Row
             row = connection.execute(
                 "SELECT * FROM watched_channels WHERE id = ?", (channel_id,)
@@ -470,7 +480,7 @@ class ChannelWatcherStore:
             _iso(next_check),
             None,
         )
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO watched_channels (
@@ -510,7 +520,7 @@ class ChannelWatcherStore:
             now,
             settings.get("timezone", "UTC"),
         )
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 """
                 UPDATE watched_channels
@@ -552,7 +562,7 @@ class ChannelWatcherStore:
         return self.get_channel(channel_id)
 
     def delete_channel(self, channel_id: str) -> bool:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 "DELETE FROM watched_channel_videos WHERE channel_id = ?", (channel_id,)
             )
@@ -561,7 +571,7 @@ class ChannelWatcherStore:
         return cursor.rowcount > 0
 
     def known_video_ids(self, channel_id: str) -> set[str]:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             rows = connection.execute(
                 "SELECT video_id FROM watched_channel_videos WHERE channel_id = ?",
                 (channel_id,),
@@ -600,7 +610,7 @@ class ChannelWatcherStore:
                         _iso(now),
                     )
                 )
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.executemany(
                 """
                 INSERT OR IGNORE INTO watched_channel_videos (
@@ -622,7 +632,7 @@ class ChannelWatcherStore:
             connection.commit()
 
     def pending_videos(self, channel_id: str) -> list[dict[str, Any]]:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
                 """
@@ -646,7 +656,7 @@ class ChannelWatcherStore:
         ]
 
     def reset_queued_video_statuses(self) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 """
                 UPDATE watched_channel_videos
@@ -660,7 +670,7 @@ class ChannelWatcherStore:
     def update_video_entry(
         self, channel_id: str, video_id: str, entry: dict[str, Any], now: datetime
     ) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 """
                 UPDATE watched_channel_videos
@@ -686,7 +696,7 @@ class ChannelWatcherStore:
         error: Optional[str] = None,
         expected_status: Optional[str] = None,
     ) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 f"""
                 UPDATE watched_channel_videos
@@ -702,7 +712,7 @@ class ChannelWatcherStore:
     def due_channels(self, now: datetime) -> list[dict[str, Any]]:
         if self.get_youtube_cooldown_until(now) is not None:
             return []
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
                 """
@@ -714,7 +724,7 @@ class ChannelWatcherStore:
         return [self._row_to_dict(row) for row in rows]
 
     def get_youtube_cooldown_until(self, now: Optional[datetime] = None) -> Optional[str]:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             row = connection.execute(
                 "SELECT youtube_cooldown_until FROM channel_watcher_state WHERE id = 1"
             ).fetchone()
@@ -726,7 +736,7 @@ class ChannelWatcherStore:
         return row[0]
 
     def set_youtube_cooldown_until(self, cooldown_until: datetime) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             row = connection.execute(
                 "SELECT youtube_cooldown_until FROM channel_watcher_state WHERE id = 1"
             ).fetchone()
@@ -745,7 +755,7 @@ class ChannelWatcherStore:
     def record_success(
         self, channel_id: str, title: str, checked_at: datetime, next_check: datetime
     ) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 """
                 UPDATE watched_channels
@@ -758,7 +768,7 @@ class ChannelWatcherStore:
             connection.commit()
 
     def record_check_started(self, channel_id: str, started_at: datetime) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 "UPDATE watched_channels SET check_started_at = ? WHERE id = ?",
                 (_iso(started_at), channel_id),
@@ -766,7 +776,7 @@ class ChannelWatcherStore:
             connection.commit()
 
     def defer_check_until(self, channel_id: str, check_at: str) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 """
                 UPDATE watched_channels
@@ -778,12 +788,12 @@ class ChannelWatcherStore:
             connection.commit()
 
     def clear_check_started(self) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute("UPDATE watched_channels SET check_started_at = NULL")
             connection.commit()
 
     def record_failure(self, channel_id: str, error: str, next_check: datetime) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.execute(
                 """
                 UPDATE watched_channels

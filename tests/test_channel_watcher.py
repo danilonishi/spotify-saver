@@ -90,6 +90,49 @@ def _add_channel(store, output_dir):
     )
 
 
+def test_store_connections_close_after_success_and_failure(monkeypatch, tmp_path):
+    class FakeConnection:
+        def __init__(self):
+            self.closed = False
+            self.exit_exception = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exception_type, _exception, _traceback):
+            self.exit_exception = exception_type
+
+        def close(self):
+            self.closed = True
+
+    connections = []
+
+    def connect(_database_path):
+        connection = FakeConnection()
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(channel_watcher_service.sqlite3, "connect", connect)
+    store = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
+
+    with store._connect() as connection:
+        assert connection is connections[-1]
+
+    assert connections[-1].closed
+    assert connections[-1].exit_exception is None
+
+    try:
+        with store._connect():
+            raise RuntimeError("query failed")
+    except RuntimeError as error:
+        assert str(error) == "query failed"
+    else:
+        raise AssertionError("Store connection should propagate query errors")
+
+    assert connections[-1].closed
+    assert connections[-1].exit_exception is RuntimeError
+
+
 def test_next_check_time_uses_utc_hourly_minute_and_weekly_day():
     after = datetime(2026, 10, 7, 14, 35, tzinfo=UTC)
 
