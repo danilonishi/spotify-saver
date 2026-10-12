@@ -28,15 +28,12 @@ class UIManager {
             return;
         }
 
-        if (this.activeMode === 'video') {
-            button.textContent = '🎬 Start Download';
-            return;
-        }
-
         const icon = document.createElement('span');
-        icon.className = 'music-note';
+        icon.className = this.activeMode === 'video'
+            ? 'music-note video-download-icon'
+            : 'music-note audio-download-icon';
         icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = '🎵';
+        icon.textContent = this.activeMode === 'video' ? '🎬︎' : '♫︎';
         button.replaceChildren(icon, document.createTextNode(' Start Download'));
     }
 
@@ -91,10 +88,12 @@ class UIManager {
 
             const summary = document.createElement('summary');
             summary.className = 'queue-item-summary';
+            summary.title = 'Show or hide download details';
 
             const name = document.createElement('span');
             name.className = 'queue-item-name';
             name.textContent = item.title;
+            name.title = item.title;
 
             const status = document.createElement('span');
             status.className = 'queue-item-status';
@@ -103,6 +102,7 @@ class UIManager {
                 : item.status === 'completed_with_errors'
                     ? 'Completed with errors'
                     : item.status;
+            status.title = `Download status: ${status.textContent}`;
 
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
@@ -165,6 +165,7 @@ class UIManager {
                     const artistsText = artists ? ` — ${artists}` : '';
                     const durationText = duration ? ` [${minutes}:${seconds}]` : '';
                     info.textContent = `${trackNumber}. ${track.name}${artistsText}${durationText}`;
+                    info.title = info.textContent;
 
                     trackEntry.append(icon, info);
                     trackList.appendChild(trackEntry);
@@ -243,10 +244,12 @@ class UIManager {
 
             const summary = document.createElement('summary');
             summary.className = 'queue-item-summary';
+            summary.title = 'Show or hide channel details';
 
             const name = document.createElement('span');
             name.className = 'queue-item-name';
             name.textContent = channel.title || channel.url;
+            name.title = channel.url;
 
             const interval = document.createElement('span');
             interval.className = 'queue-item-status watched-channel-summary-status';
@@ -345,6 +348,11 @@ class UIManager {
             checkButton.className = 'output-dir-button watched-channel-check-now';
             checkButton.dataset.checkChannel = channel.id;
             checkButton.textContent = channel.check_started_at ? 'Checking…' : 'Check now';
+            checkButton.title = channel.check_started_at
+                ? 'A channel check is already running'
+                : watcherCoolingDown
+                    ? 'Channel checks are temporarily paused by YouTube'
+                    : 'Check this channel for new uploads now';
             checkButton.disabled = Boolean(
                 channel.check_started_at || watcherCoolingDown
             );
@@ -365,6 +373,7 @@ class UIManager {
             editButton.className = 'output-dir-button watched-channel-edit';
             editButton.dataset.editChannel = channel.id;
             editButton.textContent = 'Edit settings';
+            editButton.title = 'Edit this channel’s settings';
             actions.append(checkButton, activeButton, editButton);
             details.appendChild(actions);
 
@@ -485,6 +494,7 @@ class UIManager {
                 parentButton.className = 'output-dir-button parent-dir-button';
                 parentButton.dataset.parentDir = parentPath;
                 parentButton.textContent = '[Parent]';
+                parentButton.title = 'Open the parent folder';
                 options.appendChild(parentButton);
             }
         }
@@ -497,6 +507,7 @@ class UIManager {
             rootButton.className = 'output-dir-button root-dir-button';
             rootButton.dataset.outputDir = rootPath;
             rootButton.textContent = '[Use this folder]';
+            rootButton.title = `Select the base folder: ${rootPath}`;
             rootButton.setAttribute('aria-pressed', 'false');
             options.appendChild(rootButton);
             const lineBreak = document.createElement('span');
@@ -528,6 +539,7 @@ class UIManager {
             button.className = 'output-dir-button';
             button.dataset.outputDir = directory.path;
             button.textContent = directory.name;
+            button.title = `Select folder: ${directory.path}`;
             button.setAttribute('aria-pressed', 'false');
             options.appendChild(button);
 

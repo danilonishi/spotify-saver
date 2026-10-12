@@ -273,6 +273,7 @@ class ChannelWatcherManager {
         document.getElementById('watcher-exclude-livestreams').checked =
             channel.exclude_livestreams;
         document.getElementById('watcher-submit-btn').textContent = 'Save';
+        document.getElementById('watcher-submit-btn').title = 'Save changes to this watched channel';
         document.getElementById('watcher-cancel-btn').classList.remove('hidden');
         this.updateWeekdayVisibility();
         this.app.switchTab('watcher');
@@ -368,6 +369,7 @@ class ChannelWatcherManager {
         document.getElementById('watcher-exclude-shorts').checked = false;
         document.getElementById('watcher-exclude-livestreams').checked = false;
         document.getElementById('watcher-submit-btn').textContent = 'Watch Channel';
+        document.getElementById('watcher-submit-btn').title = 'Add this channel to the watch list';
         document.getElementById('watcher-cancel-btn').classList.add('hidden');
         this.updateWeekdayVisibility();
         document.getElementById('watcher-output-dir').value = '';

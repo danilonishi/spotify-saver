@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-12-47">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-13-5">
 </head>
 <body>
     <!-- Header -->
     <header>
-        <h1><span class="music-note" aria-hidden="true">🎵</span> SpotifySaver</h1>
+        <h1><span class="music-note" aria-hidden="true">♫︎</span> SpotifySaver</h1>
         <p>Download music or videos directly to your Jellyfin directory (or your preferred self-hosted media service)</p>
     </header>
 
@@ -36,25 +36,25 @@
                     <h2 id="panel-visibility-heading">Download View Panels</h2>
                     <p class="watcher-help">Choose which panels are shown in the downloads view. These preferences are saved in this browser.</p>
                     <div class="panel-visibility-options">
-                        <div class="panel-visibility-option" data-panel-layout="download-status-panel" draggable="true">
-                            <span class="panel-visibility-drag-handle" aria-hidden="true">⠿</span>
-                            <label><input type="checkbox" data-panel-visibility="download-status-panel" checked><span>Download Status</span></label>
+                        <div class="panel-visibility-option" data-panel-layout="download-status-panel" draggable="true" title="Drag to move this panel; use the checkbox to show or hide it">
+                            <span class="panel-visibility-drag-handle" aria-hidden="true" title="Drag to move this panel">⠿</span>
+                            <label><input type="checkbox" data-panel-visibility="download-status-panel" checked title="Show or hide the Download Status panel"><span>Download Status</span></label>
                         </div>
-                        <div class="panel-visibility-option" data-panel-layout="download-settings-panel" draggable="true">
-                            <span class="panel-visibility-drag-handle" aria-hidden="true">⠿</span>
-                            <label><input type="checkbox" data-panel-visibility="download-settings-panel" checked><span>Download</span></label>
+                        <div class="panel-visibility-option" data-panel-layout="download-settings-panel" draggable="true" title="Drag to move this panel; use the checkbox to show or hide it">
+                            <span class="panel-visibility-drag-handle" aria-hidden="true" title="Drag to move this panel">⠿</span>
+                            <label><input type="checkbox" data-panel-visibility="download-settings-panel" checked title="Show or hide the Download panel"><span>Download</span></label>
                         </div>
-                        <div class="panel-visibility-option" data-panel-layout="download-queue-panel" draggable="true">
-                            <span class="panel-visibility-drag-handle" aria-hidden="true">⠿</span>
-                            <label><input type="checkbox" data-panel-visibility="download-queue-panel" checked><span>Download Queue</span></label>
+                        <div class="panel-visibility-option" data-panel-layout="download-queue-panel" draggable="true" title="Drag to move this panel; use the checkbox to show or hide it">
+                            <span class="panel-visibility-drag-handle" aria-hidden="true" title="Drag to move this panel">⠿</span>
+                            <label><input type="checkbox" data-panel-visibility="download-queue-panel" checked title="Show or hide the Download Queue panel"><span>Download Queue</span></label>
                         </div>
-                        <div class="panel-visibility-option" data-panel-layout="channel-watcher-panel" draggable="true">
-                            <span class="panel-visibility-drag-handle" aria-hidden="true">⠿</span>
-                            <label><input type="checkbox" data-panel-visibility="channel-watcher-panel" checked><span>Channel Watcher</span></label>
+                        <div class="panel-visibility-option" data-panel-layout="channel-watcher-panel" draggable="true" title="Drag to move this panel; use the checkbox to show or hide it">
+                            <span class="panel-visibility-drag-handle" aria-hidden="true" title="Drag to move this panel">⠿</span>
+                            <label><input type="checkbox" data-panel-visibility="channel-watcher-panel" checked title="Show or hide the Channel Watcher panel"><span>Channel Watcher</span></label>
                         </div>
-                        <div class="panel-visibility-option" data-panel-layout="activity-log-panel" draggable="true">
-                            <span class="panel-visibility-drag-handle" aria-hidden="true">⠿</span>
-                            <label><input type="checkbox" data-panel-visibility="activity-log-panel" checked><span>Activity Log</span></label>
+                        <div class="panel-visibility-option" data-panel-layout="activity-log-panel" draggable="true" title="Drag to move this panel; use the checkbox to show or hide it">
+                            <span class="panel-visibility-drag-handle" aria-hidden="true" title="Drag to move this panel">⠿</span>
+                            <label><input type="checkbox" data-panel-visibility="activity-log-panel" checked title="Show or hide the Activity Log panel"><span>Activity Log</span></label>
                         </div>
                     </div>
                 </section>
@@ -64,44 +64,51 @@
                     <h2>Download</h2>
 
                     <div class="tabs" role="tablist" aria-label="Download type">
-                        <button id="tab-audio-btn" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tab-audio" data-tab="audio">Audio</button>
-                        <button id="tab-video-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-video" data-tab="video">Video</button>
-                        <button id="tab-watcher-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-watcher" data-tab="watcher">Channel Watcher</button>
+                        <button id="tab-audio-btn" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tab-audio" data-tab="audio" title="Download audio from Spotify or YouTube.">Audio</button>
+                        <button id="tab-video-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-video" data-tab="video" title="Download videos from YouTube.">Video</button>
+                        <button id="tab-watcher-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-watcher" data-tab="watcher" title="Automatically check a channel for new uploads.">Channel Watcher</button>
                     </div>
 
                     <div id="download-url-group" class="form-group">
-                        <label for="spotify-url">Spotify or YouTube album/playlist URL:</label>
+                        <div class="watcher-label-row">
+                            <label for="spotify-url">Spotify or YouTube album/playlist URL:</label>
+                            <button class="watcher-tooltip" type="button" aria-label="Help: Paste a Spotify or YouTube video, album, or playlist URL." data-tooltip="Paste a Spotify or YouTube video, album, or playlist URL.">i</button>
+                        </div>
                         <div class="url-input-group">
                             <input
                                 type="url"
                                 id="spotify-url"
                                 placeholder="Spotify URL or https://music.youtube.com/playlist?list=..."
+                                title="Paste a Spotify or YouTube video, album, or playlist URL."
                                 required>
-                            <button id="clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear URL">Clear</button>
+                            <button id="clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear URL" title="Clear the URL field">Clear</button>
                         </div>
                     </div>
 
                     <div id="tab-audio" class="tab-panel" role="tabpanel" aria-labelledby="tab-audio-btn">
                     <div class="form-group">
-                        <label>Download Folder:</label>
+                        <div class="watcher-label-row">
+                            <label>Download Folder:</label>
+                            <button class="watcher-tooltip" type="button" aria-label="Help: Choose where downloaded audio files are saved." data-tooltip="Choose where downloaded audio files are saved.">i</button>
+                        </div>
                         <div id="media-root-display" class="media-root-display"></div>
                         <div id="output-dir-options" class="output-dir-options" role="group" aria-label="Download folder">
                             <span id="output-dir-message">Loading folders...</span>
                         </div>
                         <div class="media-root-controls">
                             <div class="media-root-buttons">
-                                <button id="set-media-root-btn" class="output-dir-button media-root-trigger" type="button">Define base media path</button>
-                                <button id="add-folder-btn" class="output-dir-button media-root-trigger" type="button">Add Folder</button>
+                                <button id="set-media-root-btn" class="output-dir-button media-root-trigger" type="button" title="Change the base folder shown in the folder list">Define base media path</button>
+                                <button id="add-folder-btn" class="output-dir-button media-root-trigger" type="button" title="Create a folder under the current base path">Add Folder</button>
                             </div>
                             <div id="media-root-editor" class="media-root-editor hidden">
                                 <label for="media-root-input">Base media path on the server:</label>
-                                <input type="text" id="media-root-input" placeholder="/media/Music">
-                                <button id="apply-media-root-btn" class="output-dir-button" type="button">Apply</button>
+                                <input type="text" id="media-root-input" placeholder="/media/Music" title="Enter the base folder path on the server">
+                                <button id="apply-media-root-btn" class="output-dir-button" type="button" title="Use this base folder">Apply</button>
                             </div>
                             <div id="add-folder-editor" class="media-root-editor hidden">
                                 <label for="new-folder-input">New folder name</label>
-                                <input type="text" id="new-folder-input" placeholder="Folder name">
-                                <button id="create-folder-btn" class="output-dir-button" type="button">Create Folder</button>
+                                <input type="text" id="new-folder-input" placeholder="Folder name" title="Enter a name for the new folder">
+                                <button id="create-folder-btn" class="output-dir-button" type="button" title="Create this folder">Create Folder</button>
                             </div>
                         </div>
                         <input type="hidden" id="output-dir" value="">
@@ -109,8 +116,11 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="format">Audio Format:</label>
-                            <select id="format">
+                            <div class="watcher-label-row">
+                                <label for="format">Audio Format:</label>
+                                <button class="watcher-tooltip" type="button" aria-label="Help: Choose the file type for downloaded audio. M4A often offers similar sound in a smaller file than MP3. MP3 works on most devices; M4A and OPUS may not be supported everywhere." data-tooltip="Choose the file type for downloaded audio. M4A often offers similar sound in a smaller file than MP3. MP3 works on most devices; M4A and OPUS may not be supported everywhere.">i</button>
+                            </div>
+                            <select id="format" title="Choose the file type for downloaded audio. M4A often offers similar sound in a smaller file than MP3. MP3 works on most devices; M4A and OPUS may not be supported everywhere.">
                                 <option value="m4a" selected>M4A</option>
                                 <option value="mp3">MP3</option>
                                 <option value="opus">OPUS</option>
@@ -118,8 +128,11 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="bitrate">Bitrate:</label>
-                            <select id="bitrate">
+                            <div class="watcher-label-row">
+                                <label for="bitrate">Bitrate:</label>
+                                <button class="watcher-tooltip" type="button" aria-label="Help: Choose the audio quality. Higher bitrates use more storage." data-tooltip="Choose the audio quality. Higher bitrates use more storage.">i</button>
+                            </div>
+                            <select id="bitrate" title="Choose the audio quality. Higher bitrates use more storage.">
                                 <option value="256" selected>256 kbps</option>
                                 <option value="192">192 kbps</option>
                                 <option value="128">128 kbps</option>
@@ -129,48 +142,60 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="include-lyrics" checked>
-                            Include Lyrics
-                        </label>
+                        <div class="watcher-checkbox-field">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="include-lyrics" checked title="Include lyrics when available">
+                                Include Lyrics
+                            </label>
+                            <button class="watcher-tooltip" type="button" aria-label="Help: Include lyrics when available." data-tooltip="Include lyrics when available.">i</button>
+                        </div>
                     </div>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="create-nfo" checked>
-                            Create NFO files (Jellyfin/Kodi)
-                        </label>
+                        <div class="watcher-checkbox-field">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="create-nfo" checked title="Create media-library information files">
+                                Create NFO files (Jellyfin/Kodi)
+                            </label>
+                            <button class="watcher-tooltip" type="button" aria-label="Help: Create information files for Jellyfin and Kodi next to downloaded tracks." data-tooltip="Create information files for Jellyfin and Kodi next to downloaded tracks.">i</button>
+                        </div>
                     </div>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="overwrite-existing">
-                            Overwrite if exists locally
-                        </label>
+                        <div class="watcher-checkbox-field">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="overwrite-existing" title="Replace matching files already in the download folder">
+                                Overwrite if exists locally
+                            </label>
+                            <button class="watcher-tooltip" type="button" aria-label="Help: Replace matching files already in the download folder." data-tooltip="Replace matching files already in the download folder.">i</button>
+                        </div>
                     </div>
                     </div>
 
                     <div id="tab-video" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-video-btn">
                     <div class="form-group">
-                        <label>Download Folder:</label>
+                        <div class="watcher-label-row">
+                            <label>Download Folder:</label>
+                            <button class="watcher-tooltip" type="button" aria-label="Help: Choose where downloaded videos are saved." data-tooltip="Choose where downloaded videos are saved.">i</button>
+                        </div>
                         <div id="video-media-root-display" class="media-root-display"></div>
                         <div id="video-output-dir-options" class="output-dir-options" role="group" aria-label="Video download folder">
                             <span class="output-dir-message">Loading folders...</span>
                         </div>
                         <div class="media-root-controls">
                             <div class="media-root-buttons">
-                                <button id="video-set-media-root-btn" class="output-dir-button media-root-trigger" type="button">Define base media path</button>
-                                <button id="video-add-folder-btn" class="output-dir-button media-root-trigger" type="button">Add Folder</button>
+                                <button id="video-set-media-root-btn" class="output-dir-button media-root-trigger" type="button" title="Change the base folder shown in the folder list">Define base media path</button>
+                                <button id="video-add-folder-btn" class="output-dir-button media-root-trigger" type="button" title="Create a folder under the current base path">Add Folder</button>
                             </div>
                             <div id="video-media-root-editor" class="media-root-editor hidden">
                                 <label for="video-media-root-input">Base video path on the server:</label>
-                                <input type="text" id="video-media-root-input" placeholder="/media/Videos">
-                                <button id="video-apply-media-root-btn" class="output-dir-button" type="button">Apply</button>
+                                <input type="text" id="video-media-root-input" placeholder="/media/Videos" title="Enter the base folder path on the server">
+                                <button id="video-apply-media-root-btn" class="output-dir-button" type="button" title="Use this base folder">Apply</button>
                             </div>
                             <div id="video-add-folder-editor" class="media-root-editor hidden">
                                 <label for="video-new-folder-input">New folder name</label>
-                                <input type="text" id="video-new-folder-input" placeholder="Folder name">
-                                <button id="video-create-folder-btn" class="output-dir-button" type="button">Create Folder</button>
+                                <input type="text" id="video-new-folder-input" placeholder="Folder name" title="Enter a name for the new folder">
+                                <button id="video-create-folder-btn" class="output-dir-button" type="button" title="Create this folder">Create Folder</button>
                             </div>
                         </div>
                         <input type="hidden" id="video-output-dir" value="">
@@ -178,8 +203,11 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="video-format">Video Format:</label>
-                            <select id="video-format">
+                            <div class="watcher-label-row">
+                                <label for="video-format">Video Format:</label>
+                                <button class="watcher-tooltip" type="button" aria-label="Help: Choose the file type for downloaded videos. MP4 works on most devices; MKV and WebM may not be supported everywhere." data-tooltip="Choose the file type for downloaded videos. MP4 works on most devices; MKV and WebM may not be supported everywhere.">i</button>
+                            </div>
+                            <select id="video-format" title="Choose the file type for downloaded videos. MP4 works on most devices; MKV and WebM may not be supported everywhere.">
                                 <option value="mp4" selected>MP4</option>
                                 <option value="mkv">MKV</option>
                                 <option value="webm">WebM</option>
@@ -187,8 +215,11 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="video-resolution">Max Resolution:</label>
-                            <select id="video-resolution">
+                            <div class="watcher-label-row">
+                                <label for="video-resolution">Max Resolution:</label>
+                                <button class="watcher-tooltip" type="button" aria-label="Help: Limit the video quality. Best available has no resolution limit." data-tooltip="Limit the video quality. Best available has no resolution limit.">i</button>
+                            </div>
+                            <select id="video-resolution" title="Limit the video quality. Best available has no resolution limit.">
                                 <option value="0" selected>Best available</option>
                                 <option value="2160">2160p (4K)</option>
                                 <option value="1440">1440p</option>
@@ -201,26 +232,35 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="include-subtitles" checked>
-                            Include Subtitles
-                        </label>
+                        <div class="watcher-checkbox-field">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="include-subtitles" checked title="Include subtitles when available">
+                                Include Subtitles
+                            </label>
+                            <button class="watcher-tooltip" type="button" aria-label="Help: Include subtitles when available." data-tooltip="Include subtitles when available.">i</button>
+                        </div>
                     </div>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="video-overwrite-existing">
-                            Overwrite if exists locally
-                        </label>
+                        <div class="watcher-checkbox-field">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="video-overwrite-existing" title="Replace matching files already in the download folder">
+                                Overwrite if exists locally
+                            </label>
+                            <button class="watcher-tooltip" type="button" aria-label="Help: Replace matching files already in the download folder." data-tooltip="Replace matching files already in the download folder.">i</button>
+                        </div>
                     </div>
                     </div>
 
                     <div id="tab-watcher" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-watcher-btn">
                         <div class="form-group">
-                            <label for="watcher-url">Channel URL:</label>
+                            <div class="watcher-label-row">
+                                <label for="watcher-url">Channel URL:</label>
+                                <button class="watcher-tooltip" type="button" aria-label="Help: Paste the URL of the YouTube channel you want to watch. New uploads will be checked using the schedule and filters below." data-tooltip="Paste the URL of the YouTube channel you want to watch. New uploads will be checked using the schedule and filters below.">i</button>
+                            </div>
                             <div class="url-input-group">
-                                <input type="url" id="watcher-url" placeholder="https://www.youtube.com/@channel" required>
-                                <button id="watcher-clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear channel URL">Clear</button>
+                                <input type="url" id="watcher-url" placeholder="https://www.youtube.com/@channel" title="Paste the URL of the YouTube channel to watch for new uploads" required>
+                                <button id="watcher-clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear channel URL" title="Clear the channel URL">Clear</button>
                             </div>
                         </div>
 
@@ -232,18 +272,18 @@
                             </div>
                             <div class="media-root-controls">
                                 <div class="media-root-buttons">
-                                    <button id="watcher-set-media-root-btn" class="output-dir-button media-root-trigger" type="button">Define base media path</button>
-                                    <button id="watcher-add-folder-btn" class="output-dir-button media-root-trigger" type="button">Add Folder</button>
+                                    <button id="watcher-set-media-root-btn" class="output-dir-button media-root-trigger" type="button" title="Change the base folder shown in the folder list">Define base media path</button>
+                                    <button id="watcher-add-folder-btn" class="output-dir-button media-root-trigger" type="button" title="Create a folder under the current base path">Add Folder</button>
                                 </div>
                                 <div id="watcher-media-root-editor" class="media-root-editor hidden">
                                     <label for="watcher-media-root-input">Base video path on the server:</label>
-                                    <input type="text" id="watcher-media-root-input" placeholder="/media/Videos">
-                                    <button id="watcher-apply-media-root-btn" class="output-dir-button" type="button">Apply</button>
+                                    <input type="text" id="watcher-media-root-input" placeholder="/media/Videos" title="Enter the base folder path on the server">
+                                    <button id="watcher-apply-media-root-btn" class="output-dir-button" type="button" title="Use this base folder">Apply</button>
                                 </div>
                                 <div id="watcher-add-folder-editor" class="media-root-editor hidden">
                                     <label for="watcher-new-folder-input">New folder name</label>
-                                    <input type="text" id="watcher-new-folder-input" placeholder="Folder name">
-                                    <button id="watcher-create-folder-btn" class="output-dir-button" type="button">Create Folder</button>
+                                    <input type="text" id="watcher-new-folder-input" placeholder="Folder name" title="Enter a name for the new folder">
+                                    <button id="watcher-create-folder-btn" class="output-dir-button" type="button" title="Create this folder">Create Folder</button>
                                 </div>
                             </div>
                             <input type="hidden" id="watcher-output-dir" value="">
@@ -251,8 +291,11 @@
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="watcher-interval">Check interval:</label>
-                                <select id="watcher-interval">
+                                <div class="watcher-label-row">
+                                    <label for="watcher-interval">Check interval:</label>
+                                    <button class="watcher-tooltip" type="button" aria-label="Help: Manual channels are checked only when you select Check now." data-tooltip="Manual channels are checked only when you select Check now.">i</button>
+                                </div>
+                                <select id="watcher-interval" title="Manual channels are checked only when you select Check now.">
                                     <option value="manual">Manual</option>
                                     <option value="hourly">Hourly</option>
                                     <option value="daily" selected>Daily</option>
@@ -261,7 +304,7 @@
                             </div>
                             <div class="form-group hidden" id="watcher-weekday-group">
                                 <label for="watcher-weekday">Day of week:</label>
-                                <select id="watcher-weekday">
+                                <select id="watcher-weekday" title="Choose which day of the week to check for new uploads">
                                     <option value="0">Monday</option>
                                     <option value="1">Tuesday</option>
                                     <option value="2">Wednesday</option>
@@ -272,23 +315,32 @@
                                 </select>
                             </div>
                             <div class="form-group" id="watcher-time-group">
-                                <label for="watcher-time">Check time:</label>
-                                <input type="time" id="watcher-time" value="09:00" step="60">
+                                <div class="watcher-label-row">
+                                    <label for="watcher-time">Check time:</label>
+                                    <button class="watcher-tooltip" type="button" aria-label="Help: This time is in your local time zone. Hourly schedules use the selected minute; daily and weekly schedules use the selected hour and minute." data-tooltip="This time is in your local time zone. Hourly schedules use the selected minute; daily and weekly schedules use the selected hour and minute.">i</button>
+                                </div>
+                                <input type="time" id="watcher-time" value="09:00" step="60" title="This time is in your local time zone. Hourly schedules use the selected minute; daily and weekly schedules use the selected hour and minute.">
                             </div>
                         </div>
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="watcher-video-format">Video Format:</label>
-                                <select id="watcher-video-format">
+                                <div class="watcher-label-row">
+                                    <label for="watcher-video-format">Video Format:</label>
+                                    <button class="watcher-tooltip" type="button" aria-label="Help: Choose the file type for downloaded videos. MP4 works on most devices; MKV and WebM may not be supported everywhere." data-tooltip="Choose the file type for downloaded videos. MP4 works on most devices; MKV and WebM may not be supported everywhere.">i</button>
+                                </div>
+                                <select id="watcher-video-format" title="Choose the file type for downloaded videos. MP4 works on most devices; MKV and WebM may not be supported everywhere.">
                                     <option value="mp4" selected>MP4</option>
                                     <option value="mkv">MKV</option>
                                     <option value="webm">WebM</option>
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label for="watcher-video-resolution">Max Resolution:</label>
-                                <select id="watcher-video-resolution">
+                                <div class="watcher-label-row">
+                                    <label for="watcher-video-resolution">Max Resolution:</label>
+                                    <button class="watcher-tooltip" type="button" aria-label="Help: Limits the downloaded video to this maximum vertical resolution. Best available does not set a resolution cap." data-tooltip="Limits the downloaded video to this maximum vertical resolution. Best available does not set a resolution cap.">i</button>
+                                </div>
+                                <select id="watcher-video-resolution" title="Limits the downloaded video to this maximum vertical resolution. Best available does not set a resolution cap.">
                                     <option value="0" selected>Best available</option>
                                     <option value="2160">2160p (4K)</option>
                                     <option value="1440">1440p</option>
@@ -301,7 +353,7 @@
                         </div>
                         <div class="form-group">
                             <label class="checkbox-label">
-                                <input type="checkbox" id="watcher-include-subtitles">
+                                <input type="checkbox" id="watcher-include-subtitles" title="Include subtitles when available">
                                 Include Subtitles
                             </label>
                         </div>
@@ -309,28 +361,43 @@
                             <legend>Content filters</legend>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="watcher-include-keywords">Only titles matching any keyword</label>
-                                    <input type="text" id="watcher-include-keywords" placeholder="e.g. review, tutorial">
+                                    <div class="watcher-label-row">
+                                        <label for="watcher-include-keywords">Only titles matching any keyword</label>
+                                        <button class="watcher-tooltip" type="button" aria-label="Help: A title is included if it contains any comma-separated keyword, ignoring case. Leave blank to disable this filter." data-tooltip="A title is included if it contains any comma-separated keyword, ignoring case. Leave blank to disable this filter.">i</button>
+                                    </div>
+                                    <input type="text" id="watcher-include-keywords" placeholder="e.g. review, tutorial" title="A title is included if it contains any comma-separated keyword, ignoring case. Leave blank to disable this filter.">
                                 </div>
                                 <div class="form-group">
-                                    <label for="watcher-exclude-keywords">Exclude titles containing terms</label>
-                                    <input type="text" id="watcher-exclude-keywords" placeholder="e.g. teaser, reaction">
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="watcher-min-duration">Minimum duration (minutes)</label>
-                                    <input type="number" id="watcher-min-duration" min="0" max="1440" step="1" placeholder="No minimum">
-                                </div>
-                                <div class="form-group">
-                                    <label for="watcher-max-duration">Maximum duration (minutes)</label>
-                                    <input type="number" id="watcher-max-duration" min="0" max="1440" step="1" placeholder="No maximum">
+                                    <div class="watcher-label-row">
+                                        <label for="watcher-exclude-keywords">Exclude titles containing terms</label>
+                                        <button class="watcher-tooltip" type="button" aria-label="Help: A title containing any comma-separated term is excluded, ignoring case." data-tooltip="A title containing any comma-separated term is excluded, ignoring case.">i</button>
+                                    </div>
+                                    <input type="text" id="watcher-exclude-keywords" placeholder="e.g. teaser, reaction" title="A title containing any comma-separated term is excluded, ignoring case.">
                                 </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="watcher-published-within">Relative upload date</label>
-                                    <select id="watcher-published-within">
+                                    <div class="watcher-label-row">
+                                        <label for="watcher-min-duration">Minimum duration (minutes)</label>
+                                        <button class="watcher-tooltip" type="button" aria-label="Help: Videos shorter than this duration are excluded." data-tooltip="Videos shorter than this duration are excluded.">i</button>
+                                    </div>
+                                    <input type="number" id="watcher-min-duration" min="0" max="1440" step="1" placeholder="No minimum" title="Videos shorter than this duration are excluded.">
+                                </div>
+                                <div class="form-group">
+                                    <div class="watcher-label-row">
+                                        <label for="watcher-max-duration">Maximum duration (minutes)</label>
+                                        <button class="watcher-tooltip" type="button" aria-label="Help: Videos longer than this duration are excluded." data-tooltip="Videos longer than this duration are excluded.">i</button>
+                                    </div>
+                                    <input type="number" id="watcher-max-duration" min="0" max="1440" step="1" placeholder="No maximum" title="Videos longer than this duration are excluded.">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <div class="watcher-label-row">
+                                        <label for="watcher-published-within">Relative upload date</label>
+                                        <button class="watcher-tooltip" type="button" aria-label="Help: Applies only to uploads discovered after you start watching. The first successful check skips videos already on the channel; this filter will not download older videos." data-tooltip="Applies only to uploads discovered after you start watching. The first successful check skips videos already on the channel; this filter will not download older videos.">i</button>
+                                    </div>
+                                    <select id="watcher-published-within" title="Applies only to uploads discovered after you start watching. The first successful check skips videos already on the channel; this filter will not download older videos.">
                                         <option value="">Any age</option>
                                         <option value="1">Last 24 hours</option>
                                         <option value="7">Last 7 days</option>
@@ -340,32 +407,41 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Absolute upload date range</label>
+                                    <div class="watcher-label-row">
+                                        <label>Absolute upload date range</label>
+                                        <button class="watcher-tooltip" type="button" aria-label="Help: The start and end dates are inclusive. When combined with a relative upload date, both filters apply." data-tooltip="The start and end dates are inclusive. When combined with a relative upload date, both filters apply.">i</button>
+                                    </div>
                                     <div class="form-row watcher-date-range">
-                                        <input type="date" id="watcher-published-after" aria-label="Uploaded on or after">
-                                        <input type="date" id="watcher-published-before" aria-label="Uploaded on or before">
+                                        <input type="date" id="watcher-published-after" aria-label="Uploaded on or after" title="Inclusive start date. Videos published before this date are excluded.">
+                                        <input type="date" id="watcher-published-before" aria-label="Uploaded on or before" title="Inclusive end date. Videos published after this date are excluded.">
                                     </div>
                                 </div>
                             </div>
                             <div class="form-row watcher-content-flags">
-                                <label class="checkbox-label">
-                                        <input type="checkbox" id="watcher-exclude-shorts">
+                                <div class="watcher-checkbox-field">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="watcher-exclude-shorts" title="Shorts are excluded only when YouTube metadata or the video URL identifies them as Shorts; duration is not used to guess.">
                                         Exclude Shorts
                                     </label>
-                                <label class="checkbox-label">
-                                        <input type="checkbox" id="watcher-exclude-livestreams">
+                                    <button class="watcher-tooltip" type="button" aria-label="Help: Shorts are excluded only when YouTube metadata or the video URL identifies them as Shorts; duration is not used to guess." data-tooltip="Shorts are excluded only when YouTube metadata or the video URL identifies them as Shorts; duration is not used to guess.">i</button>
+                                </div>
+                                <div class="watcher-checkbox-field">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="watcher-exclude-livestreams" title="Excludes live, upcoming, and previously streamed videos when YouTube identifies them as livestreams.">
                                         Exclude livestreams
                                     </label>
+                                    <button class="watcher-tooltip" type="button" aria-label="Help: Excludes live, upcoming, and previously streamed videos when YouTube identifies them as livestreams." data-tooltip="Excludes live, upcoming, and previously streamed videos when YouTube identifies them as livestreams.">i</button>
+                                </div>
                             </div>
                         </fieldset>
                         <div class="watcher-form-actions">
-                            <button id="watcher-submit-btn" class="download-btn" type="button">Watch Channel</button>
-                            <button id="watcher-cancel-btn" class="clear-queue-btn hidden" type="button">Cancel</button>
+                            <button id="watcher-submit-btn" class="download-btn" type="button" title="Add this channel to the watch list">Watch Channel</button>
+                            <button id="watcher-cancel-btn" class="clear-queue-btn hidden" type="button" title="Discard these channel edits">Cancel</button>
                         </div>
                     </div>
 
-                    <button id="download-btn" class="download-btn">
-                        <span class="music-note" aria-hidden="true">🎵</span> Start Download
+                    <button id="download-btn" class="download-btn" title="Add this download to the queue">
+                        <span class="music-note" aria-hidden="true">♫︎</span> Start Download
                     </button>
                 </div>
 
@@ -382,9 +458,9 @@
                         <li class="queue-empty">Queue is empty</li>
                     </ol>
                     <div class="queue-actions">
-                        <button id="stop-download-btn" class="clear-queue-btn" type="button" disabled>Stop download</button>
-                        <button id="clear-queue-btn" class="clear-queue-btn" type="button" disabled>Clear enqueued</button>
-                        <button id="clear-completed-btn" class="clear-queue-btn" type="button" disabled>Clear completed</button>
+                        <button id="stop-download-btn" class="clear-queue-btn" type="button" title="Stop the current download" disabled>Stop download</button>
+                        <button id="clear-queue-btn" class="clear-queue-btn" type="button" title="Remove queued downloads that have not started" disabled>Clear enqueued</button>
+                        <button id="clear-completed-btn" class="clear-queue-btn" type="button" title="Remove completed, failed, or cancelled downloads" disabled>Clear completed</button>
                     </div>
                 </div>
 
@@ -403,7 +479,7 @@
                         <div id="log-container">
                             <div id="log-content"></div>
                         </div>
-                        <button id="clear-logs-btn" class="clear-btn">🗑️ Clear</button>
+                        <button id="clear-logs-btn" class="clear-btn" title="Clear logs and reset state">🗑️ Clear</button>
                     </details>
                 </div>
 
@@ -411,27 +487,38 @@
                     <h2 id="jellyfin-settings-heading">Jellyfin Library Scan</h2>
                     <form id="jellyfin-settings-form">
                         <div class="form-group">
-                            <label for="jellyfin-server-url">Jellyfin server URL:</label>
+                            <div class="watcher-label-row">
+                                <label for="jellyfin-server-url">Jellyfin server URL:</label>
+                                <button class="watcher-tooltip" type="button" aria-label="Help: Enter the address of your Jellyfin server, including the port if needed." data-tooltip="Enter the address of your Jellyfin server, including the port if needed.">i</button>
+                            </div>
                             <input
                                 type="url"
                                 id="jellyfin-server-url"
-                                placeholder="http://192.168.1.10:8096">
+                                placeholder="http://192.168.1.10:8096"
+                                title="Enter the address of your Jellyfin server, including the port if needed.">
                         </div>
                         <div class="form-group">
-                            <label for="jellyfin-api-key">Jellyfin API key:</label>
+                            <div class="watcher-label-row">
+                                <label for="jellyfin-api-key">Jellyfin API key:</label>
+                                <button class="watcher-tooltip" type="button" aria-label="Help: Enter a Jellyfin API key. It is saved on the server and is not shown again." data-tooltip="Enter a Jellyfin API key. It is saved on the server and is not shown again.">i</button>
+                            </div>
                             <input
                                 type="password"
                                 id="jellyfin-api-key"
                                 autocomplete="new-password"
-                                placeholder="Enter to set or replace the saved key">
+                                placeholder="Enter to set or replace the saved key"
+                                title="Enter a Jellyfin API key. It is saved on the server and is not shown again.">
                         </div>
                         <div class="form-group jellyfin-settings-actions">
-                            <button id="jellyfin-remove-api-key" class="clear-btn" type="button" disabled>
+                            <button id="jellyfin-remove-api-key" class="clear-btn" type="button" title="Remove the saved Jellyfin API key" disabled>
                                 Remove saved API key
                             </button>
                         </div>
                         <div class="form-group">
-                            <label for="jellyfin-scan-interval">Minimum time between scans (minutes):</label>
+                            <div class="watcher-label-row">
+                                <label for="jellyfin-scan-interval">Minimum time between scans (minutes):</label>
+                                <button class="watcher-tooltip" type="button" aria-label="Help: When several downloads finish close together, they are grouped into a scan. This sets the minimum wait before another scan can start." data-tooltip="When several downloads finish close together, they are grouped into a scan. This sets the minimum wait before another scan can start.">i</button>
+                            </div>
                             <input
                                 type="number"
                                 id="jellyfin-scan-interval"
@@ -439,13 +526,14 @@
                                 max="1440"
                                 step="1"
                                 value="5"
+                                title="When several downloads finish close together, they are grouped into a scan. This sets the minimum wait before another scan can start."
                                 required>
                         </div>
                         <p class="watcher-help">A scan is requested after the download queue becomes idle. Additional completed downloads are grouped into a scan after this minimum interval. The API key is stored on the server and is never sent back to the browser.</p>
                         <p id="jellyfin-settings-status" class="watcher-help" role="status">Loading Jellyfin settings...</p>
                         <div class="jellyfin-settings-actions">
-                            <button id="jellyfin-save-settings" class="download-btn" type="submit">Save Jellyfin Settings</button>
-                            <button id="jellyfin-scan-now" class="output-dir-button" type="button" disabled>Scan library now</button>
+                            <button id="jellyfin-save-settings" class="download-btn" type="submit" title="Save the Jellyfin connection and scan settings">Save Jellyfin Settings</button>
+                            <button id="jellyfin-scan-now" class="output-dir-button" type="button" title="Request a library scan now. It starts after downloads finish and bypasses the wait interval." disabled>Scan library now</button>
                         </div>
                     </form>
                 </section>
@@ -464,7 +552,7 @@
         <div class="footer-content">
             <div class="footer-info">
                 <div class="app-version">
-                    <span class="version-label"><span class="music-note" aria-hidden="true">🎵</span> SpotifySaver</span>
+                    <span class="version-label"><span class="music-note" aria-hidden="true">♫︎</span> SpotifySaver</span>
                     <span class="version-number" id="app-version">v0.6.0</span>
                 </div>
                 <div class="footer-links">
@@ -489,9 +577,9 @@
     <!-- Load JavaScript modules in dependency order -->
     <script src="/static/js/api-client.js?v=2026-10-12-5"></script>
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
-    <script src="/static/js/ui-manager.js?v=2026-10-12-7"></script>
+    <script src="/static/js/ui-manager.js?v=2026-10-13-2"></script>
     <script src="/static/js/download-manager.js?v=2026-10-12-13"></script>
-    <script src="/static/js/channel-watcher-manager.js?v=2026-10-12-4"></script>
+    <script src="/static/js/channel-watcher-manager.js?v=2026-10-13-1"></script>
     <script src="/static/js/app.js?v=2026-10-12-13"></script>
 </body>
 </html>

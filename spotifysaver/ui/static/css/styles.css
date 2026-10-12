@@ -69,7 +69,7 @@ main {
 }
 
 .music-note {
-    filter: brightness(0) invert(1);
+    color: inherit;
 }
 
 .log-details {
@@ -359,6 +359,14 @@ select:focus {
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.download-btn .audio-download-icon {
+    font-size: 1.3em;
+}
+
+.download-btn .video-download-icon {
+    font-size: 0.9em;
 }
 
 .download-btn:hover {
@@ -859,6 +867,66 @@ body.dark-mode .panel-visibility-drag-handle {
     font-weight: 600;
 }
 
+.watcher-label-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.watcher-label-row label {
+    margin: 0;
+}
+
+.watcher-tooltip {
+    position: relative;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid #718096;
+    border-radius: 50%;
+    background: transparent;
+    color: #4a5568;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.watcher-tooltip::after {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 6px);
+    left: 0;
+    display: none;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 48px));
+    padding: 8px 10px;
+    border-radius: 5px;
+    background: #1a202c;
+    color: #fff;
+    content: attr(data-tooltip);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+}
+
+.watcher-tooltip:hover::after,
+.watcher-tooltip:focus-visible::after {
+    display: block;
+}
+
+.watcher-tooltip:focus-visible {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
 .watcher-date-range {
     gap: 8px;
 }
@@ -868,12 +936,27 @@ body.dark-mode .panel-visibility-drag-handle {
     gap: 18px;
 }
 
+.watcher-checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.watcher-checkbox-field .checkbox-label {
+    margin: 0;
+}
+
 body.dark-mode .watcher-filter-section {
     border-color: #4a5568;
     background: rgba(0, 0, 0, 0.14);
 }
 
 body.dark-mode .watcher-filter-section legend {
+    color: #e2e8f0;
+}
+
+body.dark-mode .watcher-tooltip {
+    border-color: #a0aec0;
     color: #e2e8f0;
 }
 
