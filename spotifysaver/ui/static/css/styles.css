@@ -435,6 +435,10 @@ select:focus {
     display: none;
 }
 
+.panel-hidden-by-preference {
+    display: none !important;
+}
+
 .status-success {
     color: #38a169 !important;
 }
@@ -505,6 +509,65 @@ select:focus {
 .dashboard.settings-mode .right-column > .queue-section,
 .dashboard.settings-mode .right-column > .log-section {
     display: none;
+}
+
+.panel-visibility-options {
+    display: grid;
+    gap: 12px;
+}
+
+.panel-visibility-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 28px;
+    color: #2d3748;
+    cursor: pointer;
+}
+
+.panel-visibility-option input[type="checkbox"] {
+    appearance: none;
+    position: relative;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 24px;
+    margin: 0;
+    border: 1px solid #a0aec0;
+    border-radius: 999px;
+    background: #a0aec0;
+    cursor: pointer;
+    transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.panel-visibility-option input[type="checkbox"]::before {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    content: '';
+    transition: transform 0.18s ease;
+}
+
+.panel-visibility-option input[type="checkbox"]:checked {
+    border-color: #3182ce;
+    background: #3182ce;
+}
+
+.panel-visibility-option input[type="checkbox"]:checked::before {
+    transform: translateX(20px);
+}
+
+.panel-visibility-option input[type="checkbox"]:focus-visible {
+    outline: 2px solid #667eea;
+    outline-offset: 3px;
+}
+
+body.dark-mode .panel-visibility-option {
+    color: #b8c0cc;
 }
 
 /* Download queue section */

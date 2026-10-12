@@ -91,6 +91,7 @@ class SpotifySaverUI {
             this.setSettingsVisible(!this.settingsVisible);
         });
         this.setSettingsVisible(false);
+        this.initializePanelVisibilityControls();
         const pickerIds = {
             audio: { editor: 'media-root-editor', trigger: 'set-media-root-btn', apply: 'apply-media-root-btn', addTrigger: 'add-folder-btn', addEditor: 'add-folder-editor', addInput: 'new-folder-input', create: 'create-folder-btn' },
             video: { editor: 'video-media-root-editor', trigger: 'video-set-media-root-btn', apply: 'video-apply-media-root-btn', addTrigger: 'video-add-folder-btn', addEditor: 'video-add-folder-editor', addInput: 'video-new-folder-input', create: 'video-create-folder-btn' },
@@ -390,9 +391,35 @@ class SpotifySaverUI {
         dashboard.classList.toggle('settings-mode', visible);
         document.getElementById('download-settings-panel').classList.toggle('hidden', visible);
         document.getElementById('jellyfin-settings-panel').classList.toggle('hidden', !visible);
+        document.getElementById('panel-visibility-settings').classList.toggle('hidden', !visible);
         const button = document.getElementById('settings-toggle-btn');
         button.setAttribute('aria-pressed', String(visible));
         button.textContent = visible ? '⬅️ Back to downloads' : '⚙️ Settings';
+    }
+
+    initializePanelVisibilityControls() {
+        const controls = document.querySelectorAll('input[data-panel-visibility]');
+        controls.forEach((control) => {
+            const panelId = control.dataset.panelVisibility;
+            const saved = localStorage.getItem(`spotifysaver_panel_${panelId}`);
+            const visible = saved !== 'hidden';
+            this.setPanelVisibility(panelId, control, visible);
+            control.addEventListener('change', () => {
+                this.setPanelVisibility(panelId, control, control.checked);
+                localStorage.setItem(
+                    `spotifysaver_panel_${panelId}`,
+                    control.checked ? 'visible' : 'hidden'
+                );
+            });
+        });
+    }
+
+    setPanelVisibility(panelId, control, visible) {
+        document.getElementById(panelId).classList.toggle(
+            'panel-hidden-by-preference',
+            !visible
+        );
+        control.checked = visible;
     }
 
     async persistOutputDirectoryPreference(kind, directory) {

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-12-42">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-12-44">
 </head>
 <body>
     <!-- Header -->
@@ -19,7 +19,7 @@
             <!-- Left column -->
             <div class="left-column">
                 <!-- Download progress section -->
-                <div class="status-section">
+                <div id="download-status-panel" class="status-section">
                     <h2>Download Status</h2>
                     <div id="status-container">
                         <div id="status-message">Waiting...</div>
@@ -31,6 +31,33 @@
                         </div>
                     </div>
                 </div>
+
+                <section id="panel-visibility-settings" class="form-section hidden" aria-labelledby="panel-visibility-heading">
+                    <h2 id="panel-visibility-heading">Download View Panels</h2>
+                    <p class="watcher-help">Choose which panels are shown in the downloads view. These preferences are saved in this browser.</p>
+                    <div class="panel-visibility-options">
+                        <label class="panel-visibility-option">
+                            <input type="checkbox" data-panel-visibility="download-status-panel" checked>
+                            <span>Download Status</span>
+                        </label>
+                        <label class="panel-visibility-option">
+                            <input type="checkbox" data-panel-visibility="download-settings-panel" checked>
+                            <span>Download</span>
+                        </label>
+                        <label class="panel-visibility-option">
+                            <input type="checkbox" data-panel-visibility="download-queue-panel" checked>
+                            <span>Download Queue</span>
+                        </label>
+                        <label class="panel-visibility-option">
+                            <input type="checkbox" data-panel-visibility="channel-watcher-panel" checked>
+                            <span>Channel Watcher</span>
+                        </label>
+                        <label class="panel-visibility-option">
+                            <input type="checkbox" data-panel-visibility="activity-log-panel" checked>
+                            <span>Activity Log</span>
+                        </label>
+                    </div>
+                </section>
             
                 <!-- Settings download section -->
                 <div id="download-settings-panel" class="form-section">
@@ -297,7 +324,7 @@
 
                 
 
-                <div class="queue-section">
+                <div id="download-queue-panel" class="queue-section">
                     <h2>Download Queue</h2>
                     <ol id="download-queue" aria-label="Download queue">
                         <li class="queue-empty">Queue is empty</li>
@@ -309,7 +336,7 @@
                     </div>
                 </div>
 
-                <div class="queue-section">
+                <div id="channel-watcher-panel" class="queue-section">
                     <h2>Channel Watcher</h2>
                     <p id="channel-watcher-status" class="status-warning hidden" role="status"></p>
                     <ol id="watched-channel-list" aria-label="Watched channels">
@@ -318,7 +345,7 @@
                 </div>
 
                 <!-- Log section -->
-                <div class="log-section">
+                <div id="activity-log-panel" class="log-section">
                     <details class="log-details">
                         <summary class="log-summary"><h2>Activity Log</h2></summary>
                         <div id="log-container">
@@ -413,6 +440,6 @@
     <script src="/static/js/ui-manager.js?v=2026-10-12-6"></script>
     <script src="/static/js/download-manager.js?v=2026-10-11-12"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-12-3"></script>
-    <script src="/static/js/app.js?v=2026-10-12-8"></script>
+    <script src="/static/js/app.js?v=2026-10-12-10"></script>
 </body>
 </html>
