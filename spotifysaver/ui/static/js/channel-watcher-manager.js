@@ -8,6 +8,7 @@ class ChannelWatcherManager {
         this.pollTimer = null;
         this.refreshInProgress = false;
         this.fastPollingUntil = 0;
+        this.pendingManualChecks = new Map();
         this.bindEvents();
     }
 
@@ -50,9 +51,40 @@ class ChannelWatcherManager {
             this.apiClient.getWatchedChannels(),
             this.apiClient.getChannelWatcherStatus()
         ]);
+        this.updateManualCheckStatuses(channels);
         this.channels = channels;
         this.uiManager.renderWatchedChannels(this.channels, status);
         this.uiManager.renderChannelWatcherStatus(status);
+    }
+
+    updateManualCheckStatuses(channels) {
+        for (const [channelId, check] of this.pendingManualChecks) {
+            const channel = channels.find((item) => item.id === channelId);
+            if (!channel) {
+                this.pendingManualChecks.delete(channelId);
+                continue;
+            }
+            if (channel.check_started_at) {
+                check.started = true;
+                continue;
+            }
+
+            const checkFinished =
+                check.started ||
+                channel.last_checked_at !== check.lastCheckedAt ||
+                channel.last_error !== check.lastError;
+            if (!checkFinished) continue;
+
+            this.pendingManualChecks.delete(channelId);
+            if (channel.last_error) {
+                this.uiManager.updateStatus(
+                    `Channel check failed: ${channel.last_error}`,
+                    'error'
+                );
+            } else {
+                this.uiManager.updateStatus('Channel check completed', 'success');
+            }
+        }
     }
 
     startPolling() {
@@ -179,19 +211,33 @@ class ChannelWatcherManager {
 
     async checkChannelNow(button) {
         const channelId = button.dataset.checkChannel;
+        const channel = this.channels.find((item) => item.id === channelId);
+        if (!channel) return;
+        this.pendingManualChecks.set(channelId, {
+            lastCheckedAt: channel.last_checked_at,
+            lastError: channel.last_error,
+            started: false
+        });
         button.disabled = true;
+        let checkAccepted = false;
         try {
             await this.apiClient.checkWatchedChannelNow(channelId);
+            checkAccepted = true;
+            this.uiManager.updateStatus('Channel check started', 'success');
             this.fastPollingUntil = Date.now() + 30000;
             if (this.pollTimer) {
                 clearTimeout(this.pollTimer);
                 this.pollTimer = null;
             }
-            await this.load();
             this.scheduleRefresh(1500);
-            this.uiManager.updateStatus('Channel check started', 'success');
+            await this.load();
         } catch (error) {
-            this.uiManager.updateStatus(error.message, 'error');
+            if (!checkAccepted) {
+                this.pendingManualChecks.delete(channelId);
+                this.uiManager.updateStatus(error.message, 'error');
+            } else {
+                console.warn('Could not refresh watched channels:', error);
+            }
         } finally {
             button.disabled = false;
         }
