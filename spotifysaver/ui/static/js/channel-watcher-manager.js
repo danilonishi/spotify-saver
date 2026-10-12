@@ -14,6 +14,11 @@ class ChannelWatcherManager {
     }
 
     bindEvents() {
+        const channelUrl = document.getElementById('watcher-url');
+        document.getElementById('watcher-clear-url-btn').addEventListener('click', () => {
+            channelUrl.value = '';
+            channelUrl.focus();
+        });
         document.getElementById('watcher-interval').addEventListener('change', () => {
             this.updateWeekdayVisibility();
         });

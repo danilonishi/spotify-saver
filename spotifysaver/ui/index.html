@@ -191,7 +191,10 @@
                     <div id="tab-watcher" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-watcher-btn">
                         <div class="form-group">
                             <label for="watcher-url">Channel URL:</label>
-                            <input type="url" id="watcher-url" placeholder="https://www.youtube.com/@channel" required>
+                            <div class="url-input-group">
+                                <input type="url" id="watcher-url" placeholder="https://www.youtube.com/@channel" required>
+                                <button id="watcher-clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear channel URL">Clear</button>
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -364,7 +367,7 @@
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
     <script src="/static/js/ui-manager.js?v=2026-10-12-6"></script>
     <script src="/static/js/download-manager.js?v=2026-10-11-12"></script>
-    <script src="/static/js/channel-watcher-manager.js?v=2026-10-12-2"></script>
+    <script src="/static/js/channel-watcher-manager.js?v=2026-10-12-3"></script>
     <script src="/static/js/app.js?v=2026-10-12-4"></script>
 </body>
 </html>
