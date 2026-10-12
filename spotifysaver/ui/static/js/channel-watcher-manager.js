@@ -9,6 +9,7 @@ class ChannelWatcherManager {
         this.refreshInProgress = false;
         this.fastPollingUntil = 0;
         this.pendingManualChecks = new Map();
+        this.observedChannelChecks = null;
         this.bindEvents();
     }
 
@@ -51,10 +52,50 @@ class ChannelWatcherManager {
             this.apiClient.getWatchedChannels(),
             this.apiClient.getChannelWatcherStatus()
         ]);
+        this.logChannelCheckChanges(channels);
         this.updateManualCheckStatuses(channels);
         this.channels = channels;
         this.uiManager.renderWatchedChannels(this.channels, status);
         this.uiManager.renderChannelWatcherStatus(status);
+    }
+
+    logChannelCheckChanges(channels) {
+        const currentChecks = new Map();
+        for (const channel of channels) {
+            const previous = this.observedChannelChecks?.get(channel.id);
+            const current = {
+                checkStartedAt: channel.check_started_at,
+                lastCheckedAt: channel.last_checked_at,
+                lastError: channel.last_error
+            };
+            currentChecks.set(channel.id, current);
+
+            if (!previous) continue;
+            const label = channel.title || channel.url;
+            if (!previous.checkStartedAt && current.checkStartedAt) {
+                this.uiManager.addLogEntry(`Channel check started: ${label}`, 'info');
+            }
+
+            const finished =
+                previous.checkStartedAt && !current.checkStartedAt;
+            const resultChanged =
+                previous.lastCheckedAt !== current.lastCheckedAt ||
+                previous.lastError !== current.lastError;
+            if (!current.checkStartedAt && (finished || resultChanged)) {
+                if (current.lastError) {
+                    this.uiManager.addLogEntry(
+                        `Channel check failed: ${label} (${current.lastError})`,
+                        'error'
+                    );
+                } else {
+                    this.uiManager.addLogEntry(
+                        `Channel check completed: ${label}`,
+                        'success'
+                    );
+                }
+            }
+        }
+        this.observedChannelChecks = currentChecks;
     }
 
     updateManualCheckStatuses(channels) {
