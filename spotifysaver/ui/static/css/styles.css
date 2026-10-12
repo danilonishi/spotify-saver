@@ -1076,6 +1076,10 @@ select:focus {
         color: #b8c0cc;
     }
 
+    body.dark-mode #watched-channel-list .queue-item {
+        background: #181e27;
+    }
+
     body.dark-mode .download-queue-section h3 {
         background: transparent;
     }
