@@ -21,9 +21,22 @@ class UIManager {
     }
 
     updateDownloadButtonLabel() {
-        const icon = this.activeMode === 'video' ? '🎬' : '🎵';
-        document.getElementById('download-btn').textContent =
-            this.downloading ? 'Enqueue Download' : `${icon} Start Download`;
+        const button = document.getElementById('download-btn');
+        if (this.downloading) {
+            button.textContent = 'Enqueue Download';
+            return;
+        }
+
+        if (this.activeMode === 'video') {
+            button.textContent = '🎬 Start Download';
+            return;
+        }
+
+        const icon = document.createElement('span');
+        icon.className = 'music-note';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = '🎵';
+        button.replaceChildren(icon, document.createTextNode(' Start Download'));
     }
 
     updateUI(downloading, paused = false) {

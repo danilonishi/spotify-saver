@@ -4,48 +4,58 @@
     box-sizing: border-box;
 }
 
+:root {
+    --action-button-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --action-button-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
 body {
+    display: flex;
+    flex-direction: column;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #364795 0%, #40245f 100%);
     min-height: 100vh;
     color: #333;
 }
 
 .container {
-    max-width: 94%;
-    margin: 0 auto;
-    padding: 20px;
+    flex: 1 0 auto;
+    max-width: 100%;
+    margin: 0;
+    padding: 8px;
 }
 
 header {
-    text-align: center;
-    margin-bottom: 40px;
+    width: 100%;
+    margin: 0 0 18px;
+    padding: 12px 8px 0;
+    text-align: left;
     color: white;
 }
 
 header h1 {
-    font-size: 3em;
-    margin-bottom: 10px;
+    font-size: 2.25em;
+    margin-bottom: 4px;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
 header p {
-    font-size: 1.2em;
+    font-size: 1em;
     opacity: 0.9;
 }
 
 main {
     display: grid;
-    gap: 20px;
+    gap: 8px;
 }
 
 .form-section,
 .status-section,
 .queue-section,
 .log-section {
-    background: white;
-    padding: 30px;
-    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 16px;
+    border-radius: 8px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
 }
 
@@ -56,6 +66,10 @@ main {
     color: #4a5568;
     margin-bottom: 20px;
     font-size: 1.5em;
+}
+
+.music-note {
+    filter: brightness(0) invert(1);
 }
 
 .log-details {
@@ -147,18 +161,19 @@ main {
 }
 
 .tab-button.active {
-    background: #fff;
+    background: rgba(255, 255, 255, 0.9);
     border-color: #e2e8f0;
     color: #2d3748;
-    border-bottom: 2px solid #fff;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.9);
 }
 
 .tab-panel {
+    background: rgba(255, 255, 255, 0.9);
     border: 2px solid #e2e8f0;
     border-top: none;
-    border-radius: 0 0 8px 8px;
-    padding: 16px;
-    margin-bottom: 20px;
+    border-radius: 0 0 4px 4px;
+    padding: 12px;
+    margin-bottom: 8px;
 }
 
 .form-group {
@@ -197,17 +212,17 @@ main {
 }
 
 .media-root-trigger {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--action-button-gradient);
     border-color: transparent;
     color: white;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .media-root-trigger:hover {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--action-button-gradient);
     border-color: transparent;
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    box-shadow: var(--action-button-shadow);
 }
 
 .media-root-trigger:active {
@@ -312,7 +327,7 @@ select:focus {
 .download-btn {
     width: 100%;
     padding: 15px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--action-button-gradient);
     color: white;
     border: none;
     border-radius: 8px;
@@ -324,7 +339,7 @@ select:focus {
 
 .download-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    box-shadow: var(--action-button-shadow);
 }
 
 .download-btn:active {
@@ -437,27 +452,27 @@ select:focus {
 .dashboard {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 8px;
     align-items: start;
 }
 
 .left-column {
     display: grid;
     grid-template-rows: auto 1fr; /* form on top, status below */
-    gap: 20px;
+    gap: 8px;
 }
 
 .right-column {
     display: grid;
     grid-template-rows: auto 1fr; /* status on top, log fills the rest */
-    gap: 20px;
+    gap: 8px;
 }
 
 /* Download queue section */
 .queue-section {
-    background: white;
-    padding: 30px;
-    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 16px;
+    border-radius: 8px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     min-height: 100px;
 }
@@ -694,7 +709,7 @@ select:focus {
 /* Responsivo */
 @media (max-width: 768px) {
     .container {
-        padding: 10px;
+        padding: 8px;
     }
     
     .form-row {
@@ -702,23 +717,23 @@ select:focus {
     }
     
     header h1 {
-        font-size: 2em;
+        font-size: 1.8em;
     }
     
     .form-section,
     .status-section,
     .queue-section,
     .log-section {
-        padding: 20px;
+        padding: 12px;
     }
 
     .dashboard {
         grid-template-columns: 1fr;
-        gap: 20px;
+        gap: 8px;
     }
     .right-column {
         grid-template-rows: auto auto;
-        gap: 20px;
+        gap: 8px;
     }
 }
 
@@ -762,7 +777,7 @@ select:focus {
 
 /* Footer Styles */
 .main-footer {
-    margin-top: 40px;
+    margin-top: auto;
     padding: 20px 0;
     background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
     border-top: 1px solid rgba(255,255,255,0.2);
@@ -770,8 +785,10 @@ select:focus {
 }
 
 .footer-content {
-    max-width: 94%;
-    margin: 0 auto;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -870,11 +887,13 @@ select:focus {
 }
 
     .theme-toggle-container {
-        max-width: 94%;
-        margin: 0 auto 12px;
-        padding: 0 20px;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 0 12px;
+        padding: 0 8px;
         display: flex;
         justify-content: flex-start;
+        text-align: left;
     }
 
     .theme-toggle-btn {
@@ -894,21 +913,23 @@ select:focus {
     }
 
     body.dark-mode {
+        --action-button-gradient: linear-gradient(135deg, #374983 0%, #37345f 100%);
+        --action-button-shadow: 0 5px 15px rgba(55, 73, 131, 0.4);
         color-scheme: dark;
-        background: linear-gradient(135deg, #151a22 0%, #202833 100%);
-        color: #d1d5db;
+        background: linear-gradient(180deg, #1b222c 0%, #0c1016 100%);
+        color: #b8c0cc;
     }
 
     body.dark-mode header {
-        color: #e5e7eb;
+        color: #c5ccd6;
     }
 
     body.dark-mode .form-section,
     body.dark-mode .status-section,
     body.dark-mode .queue-section,
     body.dark-mode .log-section {
-        background: #252d38;
-        color: #d1d5db;
+        background: #1b222c;
+        color: #b8c0cc;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
     }
 
@@ -917,7 +938,7 @@ select:focus {
     body.dark-mode .queue-section h2,
     body.dark-mode .log-section h2,
     body.dark-mode label {
-        color: #d1d5db;
+        color: #b8c0cc;
     }
 
     body.dark-mode input[type="url"],
@@ -925,7 +946,7 @@ select:focus {
     body.dark-mode select {
         background: #1b222c;
         border-color: #465263;
-        color: #e5e7eb;
+        color: #c5ccd6;
     }
 
     body.dark-mode input::placeholder {
@@ -941,7 +962,7 @@ select:focus {
     body.dark-mode .output-dir-button {
         border-color: #4b5868;
         background: #2b3541;
-        color: #d1d5db;
+        color: #b8c0cc;
     }
 
     body.dark-mode .output-dir-button:hover,
@@ -950,10 +971,15 @@ select:focus {
         background: #374252;
     }
 
+    body.dark-mode .media-root-trigger,
+    body.dark-mode .media-root-trigger:hover {
+        background: var(--action-button-gradient);
+    }
+
     body.dark-mode .url-clear-btn {
         border-color: #4b5868;
         background: #2b3541;
-        color: #d1d5db;
+        color: #b8c0cc;
     }
 
     body.dark-mode .url-clear-btn:hover {
@@ -965,8 +991,12 @@ select:focus {
         border-color: #465263;
     }
 
+    body.dark-mode .tab-panel {
+        background: #1b222c;
+    }
+
     body.dark-mode .tab-button {
-        color: #d1d5db;
+        color: #b8c0cc;
     }
 
     body.dark-mode .tab-button:hover {
@@ -974,15 +1004,15 @@ select:focus {
     }
 
     body.dark-mode .tab-button.active {
-        background: #252d38;
+        background: #1b222c;
         border-color: #465263;
-        border-bottom-color: #252d38;
+        border-bottom-color: #1b222c;
     }
 
     body.dark-mode #status-message,
     body.dark-mode #progress-text,
     body.dark-mode #log-content {
-        color: #d1d5db;
+        color: #b8c0cc;
     }
 
     body.dark-mode #progress-bar {
@@ -1022,11 +1052,11 @@ select:focus {
     body.dark-mode .footer-content,
     body.dark-mode .version-label,
     body.dark-mode .footer-links a {
-        color: #d1d5db;
+        color: #b8c0cc;
     }
 
     body.dark-mode .footer-links a:hover {
-        color: #fff;
+        color: #c5ccd6;
     }
 
     body.dark-mode .download-queue-section {
@@ -1037,7 +1067,7 @@ select:focus {
     body.dark-mode .queue-item,
     body.dark-mode .clear-queue-btn {
         background: #1b222c;
-        color: #d1d5db;
+        color: #b8c0cc;
     }
 
     body.dark-mode .download-queue-section h3 {
@@ -1051,7 +1081,7 @@ select:focus {
 
     body.dark-mode .queue-track-list li {
         background: rgba(255, 255, 255, 0.07);
-        color: #d1d5db;
+        color: #b8c0cc;
     }
 
     body.dark-mode .queue-track-empty {
@@ -1064,7 +1094,7 @@ select:focus {
 
     body.dark-mode .version-number {
         background: rgba(255, 255, 255, 0.12);
-        color: #e5e7eb;
+        color: #c5ccd6;
     }
 
     body.dark-mode .separator {
@@ -1074,7 +1104,7 @@ select:focus {
     body.dark-mode .theme-toggle-btn {
         border-color: #536173;
         background: #2b3541;
-        color: #e5e7eb;
+        color: #c5ccd6;
     }
 
     body.dark-mode .theme-toggle-btn:hover {
