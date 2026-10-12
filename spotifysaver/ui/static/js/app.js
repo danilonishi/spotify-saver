@@ -14,6 +14,7 @@ class SpotifySaverUI {
         this.outputDirectoryPreferenceWrites = new Map();
         
         this.currentRoots = {};
+        this.settingsVisible = false;
         this.isInitialized = false;
         this.retryCount = 0;
         this.channelWatcherManager = new ChannelWatcherManager(
@@ -40,6 +41,8 @@ class SpotifySaverUI {
                 await this.loadAppVersion();
                 await this.channelWatcherManager.load();
                 this.channelWatcherManager.startPolling();
+                await this.loadJellyfinLibraryScanSettings();
+                window.setInterval(() => this.refreshJellyfinLibraryScanStatus(), 30000);
             } else {
                 this.uiManager.updateStatus('API not available. Make sure it is running.', 'error');
             }
@@ -65,6 +68,7 @@ class SpotifySaverUI {
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const clearQueueBtn = document.getElementById('clear-queue-btn');
         const clearCompletedBtn = document.getElementById('clear-completed-btn');
+        const settingsToggleBtn = document.getElementById('settings-toggle-btn');
         
         downloadBtn.addEventListener('click', () => this.downloadManager.startDownload());
         stopDownloadBtn.addEventListener('click', () => this.downloadManager.stopDownload());
@@ -83,6 +87,10 @@ class SpotifySaverUI {
         themeToggleBtn.addEventListener('click', () => {
             setDarkMode(!document.body.classList.contains('dark-mode'));
         });
+        settingsToggleBtn.addEventListener('click', () => {
+            this.setSettingsVisible(!this.settingsVisible);
+        });
+        this.setSettingsVisible(false);
         const pickerIds = {
             audio: { editor: 'media-root-editor', trigger: 'set-media-root-btn', apply: 'apply-media-root-btn', addTrigger: 'add-folder-btn', addEditor: 'add-folder-editor', addInput: 'new-folder-input', create: 'create-folder-btn' },
             video: { editor: 'video-media-root-editor', trigger: 'video-set-media-root-btn', apply: 'video-apply-media-root-btn', addTrigger: 'video-add-folder-btn', addEditor: 'video-add-folder-editor', addInput: 'video-new-folder-input', create: 'video-create-folder-btn' },
@@ -168,6 +176,16 @@ class SpotifySaverUI {
 
         clearQueueBtn.addEventListener('click', () => this.downloadManager.clearQueue());
         clearCompletedBtn.addEventListener('click', () => this.downloadManager.clearCompleted());
+        document.getElementById('jellyfin-settings-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            this.saveJellyfinLibraryScanSettings();
+        });
+        document.getElementById('jellyfin-remove-api-key').addEventListener('click', () => {
+            this.removeJellyfinApiKey();
+        });
+        document.getElementById('jellyfin-scan-now').addEventListener('click', () => {
+            this.requestJellyfinLibraryScan();
+        });
         
         // Allow starting a download with Enter
         spotifyUrl.addEventListener('keypress', (e) => {
@@ -218,6 +236,163 @@ class SpotifySaverUI {
             );
         }
         this.uiManager.setPreferredOutputDirectories(preferences);
+    }
+
+    async loadJellyfinLibraryScanSettings() {
+        try {
+            const settings = await this.apiClient.getJellyfinLibraryScanSettings();
+            document.getElementById('jellyfin-server-url').value = settings.server_url || '';
+            document.getElementById('jellyfin-scan-interval').value =
+                settings.scan_interval_minutes || 5;
+            document.getElementById('jellyfin-api-key').value = '';
+            this.renderJellyfinLibraryScanStatus(settings);
+        } catch (error) {
+            this.setJellyfinLibraryScanMessage(error.message, 'status-error');
+        }
+    }
+
+    async refreshJellyfinLibraryScanStatus() {
+        try {
+            const settings = await this.apiClient.getJellyfinLibraryScanSettings();
+            this.renderJellyfinLibraryScanStatus(settings);
+        } catch (error) {
+            console.warn('Could not refresh Jellyfin library scan status:', error);
+        }
+    }
+
+    async saveJellyfinLibraryScanSettings() {
+        const saveButton = document.getElementById('jellyfin-save-settings');
+        saveButton.disabled = true;
+        this.setJellyfinLibraryScanMessage('Saving Jellyfin settings...', 'watcher-help');
+        try {
+            const settings = await this.apiClient.saveJellyfinLibraryScanSettings({
+                server_url: document.getElementById('jellyfin-server-url').value.trim(),
+                api_key: document.getElementById('jellyfin-api-key').value,
+                clear_api_key: false,
+                scan_interval_minutes: Number(
+                    document.getElementById('jellyfin-scan-interval').value
+                )
+            });
+            document.getElementById('jellyfin-api-key').value = '';
+            this.renderJellyfinLibraryScanStatus(settings);
+            this.uiManager.addLogEntry('Jellyfin library scan settings saved', 'success');
+        } catch (error) {
+            this.setJellyfinLibraryScanMessage(error.message, 'status-error');
+        } finally {
+            saveButton.disabled = false;
+        }
+    }
+
+    async removeJellyfinApiKey() {
+        if (!confirm('Remove the saved Jellyfin API key? Automatic library scans will stop until a new key is saved.')) {
+            return;
+        }
+
+        const removeButton = document.getElementById('jellyfin-remove-api-key');
+        let apiKeyConfigured = !removeButton.disabled;
+        removeButton.disabled = true;
+        this.setJellyfinLibraryScanMessage('Removing the saved Jellyfin API key...', 'watcher-help');
+        try {
+            const settings = await this.apiClient.removeJellyfinApiKey();
+            apiKeyConfigured = settings.api_key_configured;
+            document.getElementById('jellyfin-api-key').value = '';
+            this.renderJellyfinLibraryScanStatus(settings);
+            this.uiManager.addLogEntry('Jellyfin API key removed', 'info');
+        } catch (error) {
+            this.setJellyfinLibraryScanMessage(error.message, 'status-error');
+        } finally {
+            removeButton.disabled = !apiKeyConfigured;
+        }
+    }
+
+    async requestJellyfinLibraryScan() {
+        const scanButton = document.getElementById('jellyfin-scan-now');
+        scanButton.disabled = true;
+        try {
+            const settings = await this.apiClient.requestJellyfinLibraryScan();
+            this.renderJellyfinLibraryScanStatus(settings);
+            this.uiManager.addLogEntry('Manual Jellyfin library scan requested', 'info');
+        } catch (error) {
+            this.setJellyfinLibraryScanMessage(error.message, 'status-error');
+        } finally {
+            scanButton.disabled = false;
+        }
+    }
+
+    renderJellyfinLibraryScanStatus(settings) {
+        document.getElementById('jellyfin-remove-api-key').disabled =
+            !settings.api_key_configured;
+        document.getElementById('jellyfin-scan-now').disabled =
+            !settings.configured || settings.manual_scan_pending;
+        if (!settings.configured) {
+            this.setJellyfinLibraryScanMessage(
+                settings.server_url
+                    ? 'Jellyfin scans are disabled until an API key is configured.'
+                    : 'Jellyfin scans are not configured.',
+                'watcher-help'
+            );
+            return;
+        }
+
+        if (settings.last_error) {
+            const retryAt = settings.next_scan_at
+                ? new Date(settings.next_scan_at).toLocaleString()
+                : null;
+            this.setJellyfinLibraryScanMessage(
+                `Last library scan request failed: ${settings.last_error}` +
+                    (settings.scan_pending && retryAt
+                        ? ` A retry is scheduled after ${retryAt}.`
+                        : ''),
+                'status-error'
+            );
+            return;
+        }
+
+        if (settings.scan_pending) {
+            if (settings.manual_scan_pending) {
+                const message = settings.queue_idle
+                    ? 'Manual library scan requested; starting shortly.'
+                    : 'Manual library scan requested; it will start when downloads finish.';
+                this.setJellyfinLibraryScanMessage(message, 'watcher-help');
+                return;
+            }
+            const nextScan = settings.next_scan_at
+                ? new Date(settings.next_scan_at)
+                : null;
+            const waitingForCooldown = nextScan && nextScan.getTime() > Date.now();
+            const queueMessage = settings.queue_idle
+                ? waitingForCooldown
+                    ? `A library scan is pending until ${nextScan.toLocaleString()}.`
+                    : 'A library scan is pending and will start shortly.'
+                : 'A library scan is pending until the download queue is idle.';
+            this.setJellyfinLibraryScanMessage(
+                queueMessage,
+                'watcher-help'
+            );
+            return;
+        }
+
+        const lastScan = settings.last_scan_at
+            ? `Last scan requested ${new Date(settings.last_scan_at).toLocaleString()}.`
+            : 'No library scan has been requested yet.';
+        this.setJellyfinLibraryScanMessage(lastScan, 'watcher-help');
+    }
+
+    setJellyfinLibraryScanMessage(message, className) {
+        const status = document.getElementById('jellyfin-settings-status');
+        status.textContent = message;
+        status.className = className;
+    }
+
+    setSettingsVisible(visible) {
+        this.settingsVisible = visible;
+        const dashboard = document.getElementById('download-dashboard');
+        dashboard.classList.toggle('settings-mode', visible);
+        document.getElementById('download-settings-panel').classList.toggle('hidden', visible);
+        document.getElementById('jellyfin-settings-panel').classList.toggle('hidden', !visible);
+        const button = document.getElementById('settings-toggle-btn');
+        button.setAttribute('aria-pressed', String(visible));
+        button.textContent = visible ? '⬅️ Back to downloads' : '⚙️ Settings';
     }
 
     async persistOutputDirectoryPreference(kind, directory) {

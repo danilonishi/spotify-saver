@@ -27,6 +27,7 @@ from ...services import SpotifyAPI
 from ...spotlog import get_logger
 from ..config import APIConfig
 from ..services.channel_watcher import ChannelWatcherStore, utc_now
+from ..services.jellyfin_library_scan import JellyfinLibraryScanService
 
 
 logger = get_logger("API")
@@ -72,6 +73,20 @@ discard_after_stop: set[str] = set()
 # Partially completed paused tasks remain in history after their worker exits.
 preserve_after_stop: set[str] = set()
 queue_lock = asyncio.Lock()
+jellyfin_library_scan_service: JellyfinLibraryScanService | None = None
+
+
+def set_jellyfin_library_scan_service(
+    service: JellyfinLibraryScanService | None,
+) -> None:
+    """Attach the application-scoped Jellyfin scheduler to the download queue."""
+    global jellyfin_library_scan_service
+    jellyfin_library_scan_service = service
+
+
+def is_queue_idle() -> bool:
+    """Return whether all queued and active downloads have finished."""
+    return not active and not pending
 
 
 def _content_type_for_url(spotify_url: str) -> str:
@@ -178,6 +193,13 @@ async def _run_task(task_id: str, request: DownloadRequest) -> None:
                 if task_id not in pending:
                     pending.insert(0, task_id)
         await _try_start_next()
+        if jellyfin_library_scan_service is not None:
+            content_downloaded = bool(
+                task
+                and task.status in {"completed", "completed_with_errors"}
+                and task.completed_tracks > 0
+            )
+            await jellyfin_library_scan_service.queue_changed(content_downloaded)
 
 
 @router.post("/download", response_model=DownloadResponse)

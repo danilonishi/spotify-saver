@@ -342,6 +342,54 @@ class ApiClient {
         return response.json();
     }
 
+    async getJellyfinLibraryScanSettings() {
+        const response = await fetch(`${this.apiUrl}/preferences/jellyfin-library-scan`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-cache'
+        });
+        if (!response.ok) {
+            throw new Error('Could not fetch Jellyfin library scan settings');
+        }
+        return response.json();
+    }
+
+    async saveJellyfinLibraryScanSettings(settings) {
+        const response = await fetch(`${this.apiUrl}/preferences/jellyfin-library-scan`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not save Jellyfin settings');
+        }
+        return response.json();
+    }
+
+    async removeJellyfinApiKey() {
+        const response = await fetch(
+            `${this.apiUrl}/preferences/jellyfin-library-scan/api-key`,
+            { method: 'DELETE' }
+        );
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not remove the Jellyfin API key');
+        }
+        return response.json();
+    }
+
+    async requestJellyfinLibraryScan() {
+        const response = await fetch(`${this.apiUrl}/jellyfin-library-scan`, {
+            method: 'POST'
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not request a Jellyfin library scan');
+        }
+        return response.json();
+    }
+
     async getChannelWatcherStatus() {
         const response = await fetch(`${this.apiUrl}/channel-watcher/status`, {
             method: 'GET',

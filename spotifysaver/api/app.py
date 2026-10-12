@@ -7,9 +7,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import channel_watcher, download, user_preferences
+from .routers import channel_watcher, download, jellyfin, user_preferences
 from .config import APIConfig
-from .services import ChannelWatcherService, DownloadDirectoryStore
+from .services import (
+    ChannelWatcherService,
+    DownloadDirectoryStore,
+    JellyfinLibraryScanService,
+    JellyfinLibraryScanStore,
+)
 from .. import __version__
 
 # Get the absolute path to the UI directory
@@ -28,13 +33,24 @@ def create_app() -> FastAPI:
         download_directory_store = DownloadDirectoryStore()
         download_directory_store.initialize()
         app.state.download_directory_store = download_directory_store
+        jellyfin_scan = JellyfinLibraryScanService(
+            JellyfinLibraryScanStore(),
+            is_queue_idle=download.is_queue_idle,
+        )
+        app.state.jellyfin_library_scan = jellyfin_scan
+        download.set_jellyfin_library_scan_service(jellyfin_scan)
+        await jellyfin_scan.start()
         watcher = ChannelWatcherService(enqueue_video=download.enqueue_watched_video)
         app.state.channel_watcher = watcher
-        watcher.start()
         try:
+            watcher.start()
             yield
         finally:
-            await watcher.stop()
+            try:
+                await watcher.stop()
+            finally:
+                await jellyfin_scan.stop()
+                download.set_jellyfin_library_scan_service(None)
 
     app = FastAPI(
         title="SpotifySaver API",
@@ -65,6 +81,9 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         user_preferences.router, prefix="/api/v1", tags=["download-preferences"]
+    )
+    app.include_router(
+        jellyfin.router, prefix="/api/v1", tags=["jellyfin-library-scan"]
     )
 
     # Serve the main HTML file

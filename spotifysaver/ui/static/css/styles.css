@@ -136,6 +136,22 @@ main {
     transform: translateY(1px);
 }
 
+.jellyfin-settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.jellyfin-settings-actions .download-btn {
+    margin: 0;
+}
+
+.jellyfin-settings-actions .clear-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .tabs {
     display: flex;
     gap: 4px;
@@ -269,6 +285,8 @@ label {
 
 input[type="url"],
 input[type="text"],
+input[type="password"],
+input[type="number"],
 input[type="time"],
 select {
     width: 100%;
@@ -309,6 +327,8 @@ select {
 
 input[type="url"]:focus,
 input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
 input[type="time"]:focus,
 select:focus {
     outline: none;
@@ -470,6 +490,21 @@ select:focus {
     display: grid;
     grid-template-rows: auto 1fr; /* status on top, log fills the rest */
     gap: 8px;
+}
+
+.dashboard.settings-mode .left-column {
+    grid-template-rows: auto;
+}
+
+.dashboard.settings-mode .right-column {
+    grid-template-rows: auto;
+    align-content: start;
+}
+
+.dashboard.settings-mode #download-settings-panel,
+.dashboard.settings-mode .right-column > .queue-section,
+.dashboard.settings-mode .right-column > .log-section {
+    display: none;
 }
 
 /* Download queue section */
@@ -896,6 +931,8 @@ select:focus {
         margin: 0 0 12px;
         padding: 0 8px;
         display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
         justify-content: flex-start;
         text-align: left;
     }
@@ -914,6 +951,10 @@ select:focus {
 
     .theme-toggle-btn:hover {
         background: rgba(0, 0, 0, 0.3);
+    }
+
+    .theme-toggle-btn[aria-pressed="true"] {
+        background: rgba(0, 0, 0, 0.32);
     }
 
     body.dark-mode {
@@ -947,6 +988,8 @@ select:focus {
 
     body.dark-mode input[type="url"],
     body.dark-mode input[type="text"],
+    body.dark-mode input[type="password"],
+    body.dark-mode input[type="number"],
     body.dark-mode input[type="time"],
     body.dark-mode select {
         background: #1b222c;
@@ -960,6 +1003,8 @@ select:focus {
 
     body.dark-mode input[type="url"]:focus,
     body.dark-mode input[type="text"]:focus,
+    body.dark-mode input[type="password"]:focus,
+    body.dark-mode input[type="number"]:focus,
     body.dark-mode input[type="time"]:focus,
     body.dark-mode select:focus {
         border-color: #9aa8ff;
@@ -1118,5 +1163,10 @@ select:focus {
     }
 
     body.dark-mode .theme-toggle-btn:hover {
+        background: #374252;
+    }
+
+    body.dark-mode .theme-toggle-btn[aria-pressed="true"] {
+        border-color: #9aa8ff;
         background: #374252;
     }

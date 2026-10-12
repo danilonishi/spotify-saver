@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-12-37">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-12-42">
 </head>
 <body>
     <!-- Header -->
@@ -15,7 +15,7 @@
 
     <!-- Main content -->
     <div class="container">
-        <main class="dashboard">
+        <main id="download-dashboard" class="dashboard">
             <!-- Left column -->
             <div class="left-column">
                 <!-- Download progress section -->
@@ -33,7 +33,7 @@
                 </div>
             
                 <!-- Settings download section -->
-                <div class="form-section">
+                <div id="download-settings-panel" class="form-section">
                     <h2>Download</h2>
 
                     <div class="tabs" role="tablist" aria-label="Download type">
@@ -289,6 +289,7 @@
                         <span class="music-note" aria-hidden="true">🎵</span> Start Download
                     </button>
                 </div>
+
             </div>
 
             <!-- Right column -->
@@ -327,12 +328,56 @@
                     </details>
                 </div>
 
+                <section id="jellyfin-settings-panel" class="form-section hidden" aria-labelledby="jellyfin-settings-heading">
+                    <h2 id="jellyfin-settings-heading">Jellyfin Library Scan</h2>
+                    <form id="jellyfin-settings-form">
+                        <div class="form-group">
+                            <label for="jellyfin-server-url">Jellyfin server URL:</label>
+                            <input
+                                type="url"
+                                id="jellyfin-server-url"
+                                placeholder="http://192.168.1.10:8096">
+                        </div>
+                        <div class="form-group">
+                            <label for="jellyfin-api-key">Jellyfin API key:</label>
+                            <input
+                                type="password"
+                                id="jellyfin-api-key"
+                                autocomplete="new-password"
+                                placeholder="Enter to set or replace the saved key">
+                        </div>
+                        <div class="form-group jellyfin-settings-actions">
+                            <button id="jellyfin-remove-api-key" class="clear-btn" type="button" disabled>
+                                Remove saved API key
+                            </button>
+                        </div>
+                        <div class="form-group">
+                            <label for="jellyfin-scan-interval">Minimum time between scans (minutes):</label>
+                            <input
+                                type="number"
+                                id="jellyfin-scan-interval"
+                                min="1"
+                                max="1440"
+                                step="1"
+                                value="5"
+                                required>
+                        </div>
+                        <p class="watcher-help">A scan is requested after the download queue becomes idle. Additional completed downloads are grouped into a scan after this minimum interval. The API key is stored on the server and is never sent back to the browser.</p>
+                        <p id="jellyfin-settings-status" class="watcher-help" role="status">Loading Jellyfin settings...</p>
+                        <div class="jellyfin-settings-actions">
+                            <button id="jellyfin-save-settings" class="download-btn" type="submit">Save Jellyfin Settings</button>
+                            <button id="jellyfin-scan-now" class="output-dir-button" type="button" disabled>Scan library now</button>
+                        </div>
+                    </form>
+                </section>
+
             </div>
         </main>
     </div>
 
     <div class="theme-toggle-container">
         <button id="theme-toggle-btn" class="theme-toggle-btn" type="button" aria-pressed="false">🌙 Dark mode</button>
+        <button id="settings-toggle-btn" class="theme-toggle-btn" type="button" aria-pressed="false">⚙️ Settings</button>
     </div>
 
     <!-- Footer -->
@@ -363,11 +408,11 @@
         </div>
     </footer>
     <!-- Load JavaScript modules in dependency order -->
-    <script src="/static/js/api-client.js?v=2026-10-12-2"></script>
+    <script src="/static/js/api-client.js?v=2026-10-12-4"></script>
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
     <script src="/static/js/ui-manager.js?v=2026-10-12-6"></script>
     <script src="/static/js/download-manager.js?v=2026-10-11-12"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-12-3"></script>
-    <script src="/static/js/app.js?v=2026-10-12-4"></script>
+    <script src="/static/js/app.js?v=2026-10-12-8"></script>
 </body>
 </html>

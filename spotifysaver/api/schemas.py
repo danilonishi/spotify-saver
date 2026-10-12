@@ -112,6 +112,15 @@ class DownloadDirectoryPreferenceUpdate(BaseModel):
     directory: str = Field(min_length=1)
 
 
+class JellyfinLibraryScanSettingsUpdate(BaseModel):
+    """Server-side Jellyfin connection and scan interval settings."""
+
+    server_url: str = ""
+    api_key: Optional[str] = None
+    clear_api_key: bool = False
+    scan_interval_minutes: int = Field(default=5, ge=1, le=1440)
+
+
 class TrackInfo(BaseModel):
     """Schema for track information."""
 
