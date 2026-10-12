@@ -167,6 +167,141 @@ def _published_datetime(entry: dict[str, Any]) -> tuple[Optional[datetime], Opti
     return None, None
 
 
+CONTENT_FILTER_KEYS = (
+    "include_keywords",
+    "exclude_keywords",
+    "min_duration_seconds",
+    "max_duration_seconds",
+    "published_within_days",
+    "published_after",
+    "published_before",
+    "exclude_shorts",
+    "exclude_livestreams",
+)
+
+
+def _content_filter_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    filters = {
+        "include_keywords": [
+            term.strip() for term in settings.get("include_keywords", []) if term.strip()
+        ],
+        "exclude_keywords": [
+            term.strip() for term in settings.get("exclude_keywords", []) if term.strip()
+        ],
+    }
+    for key in CONTENT_FILTER_KEYS[2:]:
+        value = settings.get(key)
+        filters[key] = value.isoformat() if isinstance(value, date) else value
+
+    minimum = filters["min_duration_seconds"]
+    maximum = filters["max_duration_seconds"]
+    if minimum is not None and maximum is not None and minimum > maximum:
+        raise ValueError("Minimum duration cannot be greater than maximum duration")
+    start = filters["published_after"]
+    end = filters["published_before"]
+    if start is not None and end is not None and start > end:
+        raise ValueError("Upload date start cannot be after upload date end")
+    return filters
+
+
+def _shorts_url(video_url: str) -> bool:
+    return "/shorts/" in urlparse(video_url).path.casefold()
+
+
+def _needs_filter_metadata(
+    filters: dict[str, Any], entry: dict[str, Any], video_url: str
+) -> bool:
+    published_at, published_date = _published_datetime(entry)
+    if published_at is None and published_date is None:
+        return True
+    if filters.get("published_within_days") is not None and published_at is None:
+        return True
+    if (
+        (filters.get("min_duration_seconds") is not None
+         or filters.get("max_duration_seconds") is not None)
+        and not isinstance(entry.get("duration"), (int, float))
+    ):
+        return True
+    if (
+        filters.get("exclude_shorts")
+        and entry.get("is_short") is None
+        and not _shorts_url(video_url)
+    ):
+        return True
+    if filters.get("exclude_livestreams") and not (
+        isinstance(entry.get("is_live"), bool)
+        or isinstance(entry.get("was_live"), bool)
+        or (isinstance(entry.get("live_status"), str) and entry["live_status"])
+    ):
+        return True
+    return False
+
+
+def _content_filter_reason(
+    filters: dict[str, Any],
+    entry: dict[str, Any],
+    video_url: str,
+    now: datetime,
+) -> Optional[str]:
+    title = str(entry.get("title") or "").casefold()
+    include_keywords = filters.get("include_keywords", [])
+    if include_keywords and not any(term.casefold() in title for term in include_keywords):
+        return "Title does not match any included keyword"
+    excluded_term = next(
+        (term for term in filters.get("exclude_keywords", []) if term.casefold() in title),
+        None,
+    )
+    if excluded_term:
+        return f"Title contains excluded term: {excluded_term}"
+
+    duration = entry.get("duration")
+    if filters.get("min_duration_seconds") is not None:
+        if not isinstance(duration, (int, float)):
+            raise ValueError("YouTube did not provide video duration")
+        if duration < filters["min_duration_seconds"]:
+            return "Video is shorter than the minimum duration"
+    if filters.get("max_duration_seconds") is not None:
+        if not isinstance(duration, (int, float)):
+            raise ValueError("YouTube did not provide video duration")
+        if duration > filters["max_duration_seconds"]:
+            return "Video is longer than the maximum duration"
+
+    published_at, published_date = _published_datetime(entry)
+    if published_at is None and published_date is None:
+        raise ValueError("YouTube did not provide a publish date")
+    published_day = published_at.date() if published_at else published_date
+    if filters.get("published_within_days") is not None:
+        cutoff = now - timedelta(days=filters["published_within_days"])
+        if (
+            published_at < cutoff
+            if published_at
+            else published_day < cutoff.date()
+        ):
+            return "Video is older than the selected upload window"
+    if filters.get("published_after") and published_day < date.fromisoformat(
+        filters["published_after"]
+    ):
+        return "Video was uploaded before the selected start date"
+    if filters.get("published_before") and published_day > date.fromisoformat(
+        filters["published_before"]
+    ):
+        return "Video was uploaded after the selected end date"
+
+    if filters.get("exclude_shorts"):
+        is_short = entry.get("is_short")
+        if is_short is True or _shorts_url(video_url):
+            return "Shorts are excluded"
+    if filters.get("exclude_livestreams"):
+        live_status = str(entry.get("live_status") or "").casefold()
+        if (
+            entry.get("is_live") is True
+            or entry.get("was_live") is True
+            or live_status in {"is_live", "is_upcoming", "was_live", "post_live"}
+        ):
+            return "Livestreams are excluded"
+    return None
+
+
 class ChannelProvider(Protocol):
     """Platform adapter used by the scheduler to enumerate published content."""
 
@@ -343,6 +478,7 @@ class ChannelWatcherStore:
                     video_format TEXT NOT NULL,
                     video_resolution INTEGER NOT NULL,
                     include_subtitles INTEGER NOT NULL,
+                    filters_json TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT NOT NULL,
                     last_checked_at TEXT,
                     check_started_at TEXT,
@@ -376,6 +512,11 @@ class ChannelWatcherStore:
                 connection.execute(
                     "ALTER TABLE watched_channels "
                     "ADD COLUMN active INTEGER NOT NULL DEFAULT 1"
+                )
+            if "filters_json" not in columns:
+                connection.execute(
+                    "ALTER TABLE watched_channels "
+                    "ADD COLUMN filters_json TEXT NOT NULL DEFAULT '{}'"
                 )
             connection.execute(
                 """
@@ -440,6 +581,13 @@ class ChannelWatcherStore:
     def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         item = dict(row)
         item.pop("normalized_url", None)
+        filters = json.loads(item.pop("filters_json", "{}"))
+        for key in CONTENT_FILTER_KEYS:
+            item[key] = filters.get(key)
+        item["include_keywords"] = item["include_keywords"] or []
+        item["exclude_keywords"] = item["exclude_keywords"] or []
+        item["exclude_shorts"] = bool(item["exclude_shorts"])
+        item["exclude_livestreams"] = bool(item["exclude_livestreams"])
         item["include_subtitles"] = bool(item["include_subtitles"])
         item["active"] = bool(item["active"])
         return item
@@ -473,6 +621,7 @@ class ChannelWatcherStore:
 
     def create_channel(self, settings: dict[str, Any], now: datetime) -> dict[str, Any]:
         normalized_url = _normalize_channel_url(settings["url"])
+        filters = _content_filter_settings(settings)
         _get_timezone(settings.get("timezone", "UTC"))
         if settings["interval"] == "weekly" and settings.get("check_weekday") is None:
             raise ValueError("Weekly schedules require a weekday")
@@ -493,6 +642,7 @@ class ChannelWatcherStore:
             settings.get("video_format", "mp4"),
             settings.get("video_resolution", 0),
             int(settings.get("include_subtitles", False)),
+            json.dumps(filters),
             _iso(now),
             None,
             _iso(next_check),
@@ -504,9 +654,9 @@ class ChannelWatcherStore:
                 INSERT INTO watched_channels (
                     id, platform, normalized_url, url, title, output_dir, interval,
                     check_hour, check_minute, check_weekday, timezone, video_format,
-                    video_resolution, include_subtitles, created_at,
+                    video_resolution, include_subtitles, filters_json, created_at,
                     last_checked_at, next_check_at, last_error
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 values,
             )
@@ -523,6 +673,7 @@ class ChannelWatcherStore:
         if existing is None:
             return None
         normalized_url = _normalize_channel_url(settings["url"])
+        filters = _content_filter_settings(settings)
         _get_timezone(settings.get("timezone", "UTC"))
         if settings["interval"] == "weekly" and settings.get("check_weekday") is None:
             raise ValueError("Weekly schedules require a weekday")
@@ -545,7 +696,7 @@ class ChannelWatcherStore:
                 SET platform = ?, normalized_url = ?, url = ?, title = ?,
                     output_dir = ?, interval = ?, check_hour = ?, check_minute = ?,
                     check_weekday = ?, timezone = ?, video_format = ?, video_resolution = ?,
-                    include_subtitles = ?, last_checked_at = ?, check_started_at = NULL,
+                    include_subtitles = ?, filters_json = ?, last_checked_at = ?, check_started_at = NULL,
                     discovery_cursor_video_id = ?, discovery_initialized = ?,
                     next_check_at = ?,
                     last_error = NULL
@@ -565,6 +716,7 @@ class ChannelWatcherStore:
                     settings.get("video_format", "mp4"),
                     settings.get("video_resolution", 0),
                     int(settings.get("include_subtitles", False)),
+                    json.dumps(filters),
                     None if source_changed else existing["last_checked_at"],
                     None if source_changed else existing["discovery_cursor_video_id"],
                     0 if source_changed else existing["discovery_initialized"],
@@ -1121,8 +1273,7 @@ class ChannelWatcherService:
                 )
                 continue
 
-            published_at, published_date = _published_datetime(entry)
-            if published_date is None and published_at is None:
+            if _needs_filter_metadata(channel, entry, video_url):
                 try:
                     details = await self._youtube_request(provider.video_metadata, video_url)
                 except YouTubeCooldownActive:
@@ -1131,22 +1282,39 @@ class ChannelWatcherService:
                     self.store.update_video_status(
                         channel["id"], video_id, "failed", utc_now(), str(error)
                     )
-                    failures.append(f"Could not read publish time for {video_url}: {error}")
+                    failures.append(f"Could not read video details for {video_url}: {error}")
                     continue
                 entry = {**entry, **details}
                 self.store.update_video_entry(channel["id"], video_id, entry, utc_now())
-                published_at, published_date = _published_datetime(details)
-                if published_date is None and published_at is None:
-                    error = f"YouTube did not provide a publish date for {video_url}"
-                    self.store.update_video_status(
-                        channel["id"], video_id, "failed", utc_now(), error
-                    )
-                    failures.append(error)
-                    continue
+
+            published_at, published_date = _published_datetime(entry)
+            if published_date is None and published_at is None:
+                error = f"YouTube did not provide a publish date for {video_url}"
+                self.store.update_video_status(
+                    channel["id"], video_id, "failed", utc_now(), error
+                )
+                failures.append(error)
+                continue
 
             if published_at is not None and published_at > utc_now():
                 continue
             if published_date is not None and published_date > utc_now().date():
+                continue
+
+            try:
+                filter_reason = _content_filter_reason(
+                    channel, entry, video_url, utc_now()
+                )
+            except ValueError as error:
+                self.store.update_video_status(
+                    channel["id"], video_id, "failed", utc_now(), str(error)
+                )
+                failures.append(f"Could not apply content filters to {video_url}: {error}")
+                continue
+            if filter_reason:
+                self.store.update_video_status(
+                    channel["id"], video_id, "filtered", utc_now(), filter_reason
+                )
                 continue
 
             if candidate["status"] == "failed":

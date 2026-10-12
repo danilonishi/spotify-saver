@@ -191,6 +191,14 @@ class ChannelWatcherManager {
         const [checkHour, checkMinute] = checkTime
             ? checkTime.split(':').map(Number)
             : [0, 0];
+        const parseKeywords = (id) => document.getElementById(id).value
+            .split(',')
+            .map((keyword) => keyword.trim())
+            .filter(Boolean);
+        const durationMinutes = (id) => {
+            const value = document.getElementById(id).value;
+            return value === '' ? null : Number(value) * 60;
+        };
         const settings = {
             platform: 'youtube',
             url,
@@ -204,7 +212,18 @@ class ChannelWatcherManager {
                 : null,
             video_format: document.getElementById('watcher-video-format').value,
             video_resolution: Number(document.getElementById('watcher-video-resolution').value),
-            include_subtitles: document.getElementById('watcher-include-subtitles').checked
+            include_subtitles: document.getElementById('watcher-include-subtitles').checked,
+            include_keywords: parseKeywords('watcher-include-keywords'),
+            exclude_keywords: parseKeywords('watcher-exclude-keywords'),
+            min_duration_seconds: durationMinutes('watcher-min-duration'),
+            max_duration_seconds: durationMinutes('watcher-max-duration'),
+            published_within_days: document.getElementById('watcher-published-within').value
+                ? Number(document.getElementById('watcher-published-within').value)
+                : null,
+            published_after: document.getElementById('watcher-published-after').value || null,
+            published_before: document.getElementById('watcher-published-before').value || null,
+            exclude_shorts: document.getElementById('watcher-exclude-shorts').checked,
+            exclude_livestreams: document.getElementById('watcher-exclude-livestreams').checked
         };
 
         const submit = document.getElementById('watcher-submit-btn');
@@ -238,6 +257,21 @@ class ChannelWatcherManager {
         document.getElementById('watcher-video-format').value = channel.video_format;
         document.getElementById('watcher-video-resolution').value = String(channel.video_resolution);
         document.getElementById('watcher-include-subtitles').checked = channel.include_subtitles;
+        document.getElementById('watcher-include-keywords').value =
+            (channel.include_keywords || []).join(', ');
+        document.getElementById('watcher-exclude-keywords').value =
+            (channel.exclude_keywords || []).join(', ');
+        document.getElementById('watcher-min-duration').value =
+            channel.min_duration_seconds == null ? '' : String(channel.min_duration_seconds / 60);
+        document.getElementById('watcher-max-duration').value =
+            channel.max_duration_seconds == null ? '' : String(channel.max_duration_seconds / 60);
+        document.getElementById('watcher-published-within').value =
+            channel.published_within_days == null ? '' : String(channel.published_within_days);
+        document.getElementById('watcher-published-after').value = channel.published_after || '';
+        document.getElementById('watcher-published-before').value = channel.published_before || '';
+        document.getElementById('watcher-exclude-shorts').checked = channel.exclude_shorts;
+        document.getElementById('watcher-exclude-livestreams').checked =
+            channel.exclude_livestreams;
         document.getElementById('watcher-submit-btn').textContent = 'Save';
         document.getElementById('watcher-cancel-btn').classList.remove('hidden');
         this.updateWeekdayVisibility();
@@ -324,6 +358,15 @@ class ChannelWatcherManager {
         document.getElementById('watcher-video-format').value = 'mp4';
         document.getElementById('watcher-video-resolution').value = '0';
         document.getElementById('watcher-include-subtitles').checked = false;
+        document.getElementById('watcher-include-keywords').value = '';
+        document.getElementById('watcher-exclude-keywords').value = '';
+        document.getElementById('watcher-min-duration').value = '';
+        document.getElementById('watcher-max-duration').value = '';
+        document.getElementById('watcher-published-within').value = '';
+        document.getElementById('watcher-published-after').value = '';
+        document.getElementById('watcher-published-before').value = '';
+        document.getElementById('watcher-exclude-shorts').checked = false;
+        document.getElementById('watcher-exclude-livestreams').checked = false;
         document.getElementById('watcher-submit-btn').textContent = 'Watch Channel';
         document.getElementById('watcher-cancel-btn').classList.add('hidden');
         this.updateWeekdayVisibility();

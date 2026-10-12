@@ -1,5 +1,6 @@
 """Pydantic schemas for API requests and responses"""
 
+from datetime import date
 from typing import Dict, List, Optional
 from pydantic import BaseModel, HttpUrl, Field
 from .config import APIConfig
@@ -75,6 +76,15 @@ class WatchedChannelRequest(BaseModel):
     video_format: str = Field(default="mp4", pattern="^(mp4|mkv|webm)$")
     video_resolution: int = Field(default=0, ge=0, le=4320)
     include_subtitles: bool = False
+    include_keywords: List[str] = Field(default_factory=list, max_length=20)
+    exclude_keywords: List[str] = Field(default_factory=list, max_length=20)
+    min_duration_seconds: Optional[int] = Field(default=None, ge=0, le=86400)
+    max_duration_seconds: Optional[int] = Field(default=None, ge=0, le=86400)
+    published_within_days: Optional[int] = Field(default=None, ge=1, le=36500)
+    published_after: Optional[date] = None
+    published_before: Optional[date] = None
+    exclude_shorts: bool = False
+    exclude_livestreams: bool = False
 
 
 class WatchedChannelActiveRequest(BaseModel):
@@ -99,6 +109,15 @@ class WatchedChannel(BaseModel):
     video_format: str
     video_resolution: int
     include_subtitles: bool
+    include_keywords: List[str] = Field(default_factory=list)
+    exclude_keywords: List[str] = Field(default_factory=list)
+    min_duration_seconds: Optional[int] = None
+    max_duration_seconds: Optional[int] = None
+    published_within_days: Optional[int] = None
+    published_after: Optional[date] = None
+    published_before: Optional[date] = None
+    exclude_shorts: bool = False
+    exclude_livestreams: bool = False
     active: bool = True
     created_at: str
     last_checked_at: Optional[str] = None

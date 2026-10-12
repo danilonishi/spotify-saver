@@ -843,6 +843,40 @@ body.dark-mode .panel-visibility-drag-handle {
     font-size: 13px;
 }
 
+.watcher-filter-section {
+    display: grid;
+    gap: 4px 12px;
+    margin: 16px 0;
+    padding: 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.025);
+}
+
+.watcher-filter-section legend {
+    padding: 0 6px;
+    color: #4a5568;
+    font-weight: 600;
+}
+
+.watcher-date-range {
+    gap: 8px;
+}
+
+.watcher-content-flags {
+    align-items: center;
+    gap: 18px;
+}
+
+body.dark-mode .watcher-filter-section {
+    border-color: #4a5568;
+    background: rgba(0, 0, 0, 0.14);
+}
+
+body.dark-mode .watcher-filter-section legend {
+    color: #e2e8f0;
+}
+
 .watcher-form-actions .download-btn {
     margin: 0;
 }

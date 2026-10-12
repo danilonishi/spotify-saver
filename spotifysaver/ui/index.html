@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-12-46">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-12-47">
 </head>
 <body>
     <!-- Header -->
@@ -305,7 +305,59 @@
                                 Include Subtitles
                             </label>
                         </div>
-                        <p class="watcher-help">The first successful check establishes a baseline; only later uploads are queued. Manual channels are checked only when you select Check now.</p>
+                        <fieldset class="watcher-filter-section">
+                            <legend>Content filters</legend>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="watcher-include-keywords">Only titles matching any keyword</label>
+                                    <input type="text" id="watcher-include-keywords" placeholder="e.g. review, tutorial">
+                                </div>
+                                <div class="form-group">
+                                    <label for="watcher-exclude-keywords">Exclude titles containing terms</label>
+                                    <input type="text" id="watcher-exclude-keywords" placeholder="e.g. teaser, reaction">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="watcher-min-duration">Minimum duration (minutes)</label>
+                                    <input type="number" id="watcher-min-duration" min="0" max="1440" step="1" placeholder="No minimum">
+                                </div>
+                                <div class="form-group">
+                                    <label for="watcher-max-duration">Maximum duration (minutes)</label>
+                                    <input type="number" id="watcher-max-duration" min="0" max="1440" step="1" placeholder="No maximum">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="watcher-published-within">Relative upload date</label>
+                                    <select id="watcher-published-within">
+                                        <option value="">Any age</option>
+                                        <option value="1">Last 24 hours</option>
+                                        <option value="7">Last 7 days</option>
+                                        <option value="30">Last 30 days</option>
+                                        <option value="90">Last 90 days</option>
+                                        <option value="365">Last year</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Absolute upload date range</label>
+                                    <div class="form-row watcher-date-range">
+                                        <input type="date" id="watcher-published-after" aria-label="Uploaded on or after">
+                                        <input type="date" id="watcher-published-before" aria-label="Uploaded on or before">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row watcher-content-flags">
+                                <label class="checkbox-label">
+                                        <input type="checkbox" id="watcher-exclude-shorts">
+                                        Exclude Shorts
+                                    </label>
+                                <label class="checkbox-label">
+                                        <input type="checkbox" id="watcher-exclude-livestreams">
+                                        Exclude livestreams
+                                    </label>
+                            </div>
+                        </fieldset>
                         <div class="watcher-form-actions">
                             <button id="watcher-submit-btn" class="download-btn" type="button">Watch Channel</button>
                             <button id="watcher-cancel-btn" class="clear-queue-btn hidden" type="button">Cancel</button>
@@ -351,7 +403,7 @@
                         <div id="log-container">
                             <div id="log-content"></div>
                         </div>
-                        <button id="clear-logs-btn" class="clear-btn" title="Clear logs and reset state">🗑️ Clear</button>
+                        <button id="clear-logs-btn" class="clear-btn">🗑️ Clear</button>
                     </details>
                 </div>
 
@@ -439,7 +491,7 @@
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
     <script src="/static/js/ui-manager.js?v=2026-10-12-7"></script>
     <script src="/static/js/download-manager.js?v=2026-10-12-13"></script>
-    <script src="/static/js/channel-watcher-manager.js?v=2026-10-12-3"></script>
+    <script src="/static/js/channel-watcher-manager.js?v=2026-10-12-4"></script>
     <script src="/static/js/app.js?v=2026-10-12-13"></script>
 </body>
 </html>

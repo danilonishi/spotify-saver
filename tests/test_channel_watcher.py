@@ -5,6 +5,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from types import SimpleNamespace
 
 import spotifysaver.api.services.channel_watcher as channel_watcher_service
@@ -77,23 +78,235 @@ class FakeChannelProvider:
         return self.metadata.get(video_url, {})
 
 
-def _add_channel(store, output_dir):
+def _add_channel(store, output_dir, content_filters=None):
+    settings = {
+        "platform": "youtube",
+        "url": "https://www.youtube.com/@test/videos",
+        "output_dir": str(output_dir),
+        "interval": "daily",
+        "check_hour": 9,
+        "check_minute": 30,
+        "check_weekday": None,
+        "video_format": "mp4",
+        "video_resolution": 1080,
+        "include_subtitles": False,
+    }
+    settings.update(content_filters or {})
     store.initialize()
-    return store.create_channel(
+    return store.create_channel(settings, datetime(2026, 10, 1, 12, tzinfo=UTC))
+
+
+def test_content_filters_persist_and_validate(tmp_path):
+    store = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
+    channel = _add_channel(
+        store,
+        tmp_path / "videos",
         {
-            "platform": "youtube",
-            "url": "https://www.youtube.com/@test/videos",
-            "output_dir": str(output_dir),
-            "interval": "daily",
-            "check_hour": 9,
-            "check_minute": 30,
-            "check_weekday": None,
-            "video_format": "mp4",
-            "video_resolution": 1080,
-            "include_subtitles": False,
+            "include_keywords": [" review ", "tutorial"],
+            "exclude_keywords": ["spoiler"],
+            "min_duration_seconds": 120,
+            "max_duration_seconds": 3600,
+            "published_within_days": 30,
+            "published_after": "2026-09-01",
+            "published_before": "2026-10-01",
+            "exclude_shorts": True,
+            "exclude_livestreams": True,
         },
-        datetime(2026, 10, 1, 12, tzinfo=UTC),
     )
+
+    assert channel["include_keywords"] == ["review", "tutorial"]
+    assert channel["exclude_keywords"] == ["spoiler"]
+    assert channel["min_duration_seconds"] == 120
+    assert channel["max_duration_seconds"] == 3600
+    assert channel["published_within_days"] == 30
+    assert channel["published_after"] == "2026-09-01"
+    assert channel["published_before"] == "2026-10-01"
+    assert channel["exclude_shorts"] is True
+    assert channel["exclude_livestreams"] is True
+    assert store.list_channels()[0]["exclude_shorts"] is True
+
+    updated_settings = {
+        **channel,
+        "include_keywords": ["podcast"],
+        "exclude_keywords": [],
+        "min_duration_seconds": None,
+        "max_duration_seconds": 1800,
+        "published_within_days": None,
+        "published_after": None,
+        "published_before": None,
+        "exclude_shorts": False,
+        "exclude_livestreams": True,
+    }
+    updated = store.update_channel(
+        channel["id"], updated_settings, datetime(2026, 10, 2, 12, tzinfo=UTC)
+    )
+    restored = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
+    restored.initialize()
+    persisted_update = restored.get_channel(channel["id"])
+    assert updated["include_keywords"] == ["podcast"]
+    assert persisted_update["include_keywords"] == ["podcast"]
+    assert persisted_update["max_duration_seconds"] == 1800
+    assert persisted_update["exclude_shorts"] is False
+
+    with pytest.raises(ValueError, match="Minimum duration"):
+        _add_channel(
+            store,
+            tmp_path / "videos",
+            {"min_duration_seconds": 600, "max_duration_seconds": 300},
+        )
+
+
+def test_channel_filter_predicates_cover_keyword_duration_dates_and_types():
+    now = datetime(2026, 10, 12, 12, tzinfo=UTC)
+    filters = {
+        "include_keywords": ["review", "tutorial"],
+        "exclude_keywords": ["spoiler"],
+        "min_duration_seconds": 60,
+        "max_duration_seconds": 600,
+        "published_within_days": 30,
+        "published_after": "2026-10-01",
+        "published_before": "2026-10-31",
+        "exclude_shorts": True,
+        "exclude_livestreams": True,
+    }
+    eligible = {
+        "title": "New Tutorial: Review",
+        "duration": 120,
+        "upload_date": "20261010",
+        "is_short": False,
+        "live_status": "not_live",
+    }
+
+    assert channel_watcher_service._content_filter_reason(
+        filters, eligible, "https://www.youtube.com/watch?v=regular", now
+    ) is None
+    assert channel_watcher_service._needs_filter_metadata(
+        {"published_within_days": 1},
+        eligible,
+        "https://www.youtube.com/watch?v=regular",
+    )
+    assert not channel_watcher_service._needs_filter_metadata(
+        {"published_within_days": 1},
+        {**eligible, "timestamp": now.timestamp()},
+        "https://www.youtube.com/watch?v=regular",
+    )
+    assert "included keyword" in channel_watcher_service._content_filter_reason(
+        filters, {**eligible, "title": "New album"}, "https://youtube.com/watch?v=x", now
+    )
+    assert "excluded term" in channel_watcher_service._content_filter_reason(
+        filters, {**eligible, "title": "Tutorial spoiler"}, "https://youtube.com/watch?v=x", now
+    )
+    assert "minimum duration" in channel_watcher_service._content_filter_reason(
+        filters, {**eligible, "duration": 30}, "https://youtube.com/watch?v=x", now
+    )
+    assert "maximum duration" in channel_watcher_service._content_filter_reason(
+        filters, {**eligible, "duration": 700}, "https://youtube.com/watch?v=x", now
+    )
+    assert "upload window" in channel_watcher_service._content_filter_reason(
+        filters, {**eligible, "upload_date": "20260801"}, "https://youtube.com/watch?v=x", now
+    )
+    date_filters = {**filters, "published_within_days": None}
+    assert "start date" in channel_watcher_service._content_filter_reason(
+        date_filters,
+        {**eligible, "upload_date": "20260915"},
+        "https://youtube.com/watch?v=x",
+        now,
+    )
+    assert "end date" in channel_watcher_service._content_filter_reason(
+        date_filters,
+        {**eligible, "upload_date": "20261101"},
+        "https://youtube.com/watch?v=x",
+        now,
+    )
+    assert "Shorts" in channel_watcher_service._content_filter_reason(
+        filters, eligible, "https://www.youtube.com/shorts/short-id", now
+    )
+    assert "Livestreams" in channel_watcher_service._content_filter_reason(
+        filters,
+        {**eligible, "live_status": "was_live"},
+        "https://www.youtube.com/watch?v=stream",
+        now,
+    )
+
+
+def test_pending_shorts_and_livestreams_are_filtered_using_video_metadata(tmp_path):
+    store = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
+    output_dir = tmp_path / "videos"
+    output_dir.mkdir()
+    channel = _add_channel(
+        store,
+        output_dir,
+        {"exclude_shorts": True, "exclude_livestreams": True},
+    )
+    entries = [
+        {
+            "id": "short-upload",
+            "title": "Short",
+            "upload_date": datetime.now(UTC).strftime("%Y%m%d"),
+        },
+        {
+            "id": "stream-upload",
+            "title": "Stream",
+            "upload_date": datetime.now(UTC).strftime("%Y%m%d"),
+        },
+    ]
+    store.save_discovery_scan(channel["id"], entries, datetime.now(UTC))
+    short_url = "https://www.youtube.com/watch?v=short-upload"
+    stream_url = "https://www.youtube.com/watch?v=stream-upload"
+    provider = FakeChannelProvider(
+        metadata={
+            short_url: {"is_short": True},
+            stream_url: {"live_status": "was_live"},
+        }
+    )
+    queued = []
+
+    async def enqueue(_channel, video_url):
+        queued.append(video_url)
+
+    service = ChannelWatcherService(
+        store=store,
+        enqueue_video=enqueue,
+        providers={"youtube": provider},
+        archive_dir=str(tmp_path / "archives"),
+    )
+    asyncio.run(service._queue_pending_videos(channel, provider))
+
+    assert queued == []
+    assert len(provider.metadata) == 2
+    assert store.pending_videos(channel["id"]) == []
+
+
+def test_duration_filter_enriches_metadata_before_enqueue(tmp_path):
+    store = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
+    channel = _add_channel(store, tmp_path / "videos", {"min_duration_seconds": 60})
+    video_url = "https://www.youtube.com/watch?v=duration-upload"
+    store.save_discovery_scan(
+        channel["id"],
+        [{
+            "id": "duration-upload",
+            "title": "Long enough upload",
+            "upload_date": datetime.now(UTC).strftime("%Y%m%d"),
+        }],
+        datetime.now(UTC),
+    )
+    provider = FakeChannelProvider(metadata={video_url: {"duration": 120}})
+    queued = []
+
+    async def enqueue(_channel, candidate_url):
+        queued.append(candidate_url)
+
+    service = ChannelWatcherService(
+        store=store,
+        enqueue_video=enqueue,
+        providers={"youtube": provider},
+        archive_dir=str(tmp_path / "archives"),
+    )
+
+    asyncio.run(service._queue_pending_videos(channel, provider))
+
+    assert queued == [video_url]
+    assert len(provider.metadata) == 1
 
 
 def test_store_connections_close_after_success_and_failure(monkeypatch, tmp_path):
