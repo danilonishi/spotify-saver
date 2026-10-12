@@ -486,13 +486,15 @@ select:focus {
 
 .left-column {
     display: grid;
-    grid-template-rows: auto 1fr; /* form on top, status below */
+    grid-template-rows: none;
+    align-content: start;
     gap: 8px;
 }
 
 .right-column {
     display: grid;
-    grid-template-rows: auto 1fr; /* status on top, log fills the rest */
+    grid-template-rows: none;
+    align-content: start;
     gap: 8px;
 }
 
@@ -505,24 +507,55 @@ select:focus {
     align-content: start;
 }
 
-.dashboard.settings-mode #download-settings-panel,
-.dashboard.settings-mode .right-column > .queue-section,
-.dashboard.settings-mode .right-column > .log-section {
+.dashboard.settings-mode .download-view-panel {
     display: none;
 }
 
 .panel-visibility-options {
     display: grid;
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
 }
 
 .panel-visibility-option {
     display: flex;
     align-items: center;
-    gap: 12px;
-    min-height: 28px;
+    gap: 10px;
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px;
+    border: 1px solid rgba(74, 85, 104, 0.08);
+    border-radius: 5px;
+    background: rgba(74, 85, 104, 0.07);
     color: #2d3748;
+    cursor: grab;
+    user-select: none;
+}
+
+.panel-visibility-option:active {
+    cursor: grabbing;
+}
+
+.panel-visibility-option.is-dragging {
+    opacity: 0.45;
+}
+
+.panel-visibility-drag-handle {
+    color: #718096;
+    font-size: 19px;
+    line-height: 1;
+}
+
+.panel-visibility-option label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
     cursor: pointer;
+}
+
+.panel-visibility-option label span {
+    overflow-wrap: anywhere;
 }
 
 .panel-visibility-option input[type="checkbox"] {
@@ -568,6 +601,12 @@ select:focus {
 
 body.dark-mode .panel-visibility-option {
     color: #b8c0cc;
+    border-color: rgba(184, 192, 204, 0.08);
+    background: rgba(184, 192, 204, 0.06);
+}
+
+body.dark-mode .panel-visibility-drag-handle {
+    color: #9ca8b8;
 }
 
 /* Download queue section */

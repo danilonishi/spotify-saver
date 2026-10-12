@@ -412,6 +412,140 @@ class SpotifySaverUI {
                 );
             });
         });
+
+        const panelOptions = document.querySelector('.panel-visibility-options');
+        this.panelLayout = this.getSavedPanelLayout();
+        this.applyPanelLayout(panelOptions);
+
+        let draggedOption = null;
+        panelOptions.addEventListener('dragstart', (event) => {
+            draggedOption = event.target.closest('[data-panel-layout]');
+            if (!draggedOption) return;
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', draggedOption.dataset.panelLayout);
+            draggedOption.classList.add('is-dragging');
+        });
+        panelOptions.addEventListener('dragend', () => {
+            draggedOption?.classList.remove('is-dragging');
+            draggedOption = null;
+        });
+        panelOptions.addEventListener('dragover', (event) => {
+            if (!draggedOption) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        });
+        panelOptions.addEventListener('drop', (event) => {
+            const target = event.target.closest('[data-panel-layout]');
+            if (!draggedOption) return;
+            event.preventDefault();
+            const destinationColumn = target
+                ? target.dataset.panelColumn
+                : this.getPanelColumnAtPosition(panelOptions, event.clientX);
+            if (!destinationColumn) return;
+            this.movePanelOption(draggedOption, target, destinationColumn, event);
+            this.savePanelLayout();
+            this.applyPanelLayout(panelOptions);
+        });
+    }
+
+    getSavedPanelLayout() {
+        const panelIds = Array.from(
+            document.querySelectorAll('[data-panel-layout]'),
+            (option) => option.dataset.panelLayout
+        );
+        const defaultLayout = {
+            left: panelIds.slice(0, 2),
+            right: panelIds.slice(2)
+        };
+        try {
+            const saved = JSON.parse(
+                localStorage.getItem('spotifysaver_panel_order') || 'null'
+            );
+            if (Array.isArray(saved)) {
+                const ordered = Array.from(
+                    new Set(saved.filter((panelId) => panelIds.includes(panelId)))
+                );
+                const completeOrder = [
+                    ...ordered,
+                    ...panelIds.filter((panelId) => !ordered.includes(panelId))
+                ];
+                return {
+                    left: completeOrder.slice(0, 2),
+                    right: completeOrder.slice(2)
+                };
+            }
+            if (!saved || typeof saved !== 'object') return defaultLayout;
+            const left = Array.isArray(saved.left) ? saved.left : [];
+            const right = Array.isArray(saved.right) ? saved.right : [];
+            const assigned = new Set();
+            const layout = { left: [], right: [] };
+            for (const column of ['left', 'right']) {
+                for (const panelId of column === 'left' ? left : right) {
+                    if (panelIds.includes(panelId) && !assigned.has(panelId)) {
+                        layout[column].push(panelId);
+                        assigned.add(panelId);
+                    }
+                }
+            }
+            for (const panelId of panelIds) {
+                if (!assigned.has(panelId)) {
+                    const column = layout.left.length < 2 ? 'left' : 'right';
+                    layout[column].push(panelId);
+                }
+            }
+            return layout;
+        } catch (error) {
+            console.warn('Could not load panel layout preference; using the default layout:', error);
+            return defaultLayout;
+        }
+    }
+
+    getPanelColumnAtPosition(panelOptions, clientX) {
+        const bounds = panelOptions.getBoundingClientRect();
+        return clientX < bounds.left + bounds.width / 2 ? 'left' : 'right';
+    }
+
+    movePanelOption(draggedOption, targetOption, destinationColumn, event) {
+        const sourceColumn = draggedOption.dataset.panelColumn;
+        const source = this.panelLayout[sourceColumn];
+        const destination = this.panelLayout[destinationColumn];
+        const sourceIndex = source.indexOf(draggedOption.dataset.panelLayout);
+        if (sourceIndex === -1) return;
+        source.splice(sourceIndex, 1);
+
+        let destinationIndex = destination.length;
+        if (targetOption && targetOption !== draggedOption) {
+            const targetIndex = destination.indexOf(targetOption.dataset.panelLayout);
+            if (targetIndex !== -1) {
+                const bounds = targetOption.getBoundingClientRect();
+                destinationIndex = targetIndex
+                    + (event.clientY >= bounds.top + bounds.height / 2 ? 1 : 0);
+            }
+        }
+        destination.splice(destinationIndex, 0, draggedOption.dataset.panelLayout);
+    }
+
+    savePanelLayout() {
+        localStorage.setItem('spotifysaver_panel_order', JSON.stringify(this.panelLayout));
+    }
+
+    applyPanelLayout(panelOptions) {
+        const leftColumn = document.querySelector('.left-column');
+        const rightColumn = document.querySelector('.right-column');
+        for (const [column, panelIds] of Object.entries(this.panelLayout)) {
+            const targetColumn = column === 'left' ? leftColumn : rightColumn;
+            panelIds.forEach((panelId, index) => {
+                const option = panelOptions.querySelector(
+                    `[data-panel-layout="${panelId}"]`
+                );
+                const panel = document.getElementById(panelId);
+                if (!option || !panel) return;
+                option.dataset.panelColumn = column;
+                option.style.gridColumn = column === 'left' ? '1' : '2';
+                option.style.gridRow = String(index + 1);
+                targetColumn.appendChild(panel);
+            });
+        }
     }
 
     setPanelVisibility(panelId, control, visible) {
