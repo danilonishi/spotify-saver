@@ -171,6 +171,11 @@ main {
     gap: 8px;
 }
 
+.output-dir-line-break {
+    flex-basis: 100%;
+    height: 0;
+}
+
 .output-dir-button {
     padding: 10px 14px;
     border: 2px solid #cbd5e0;

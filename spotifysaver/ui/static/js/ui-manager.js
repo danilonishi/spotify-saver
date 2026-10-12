@@ -5,8 +5,14 @@ class UIManager {
         this.saveStateCallback = saveStateCallback;
         // Set by the app once the DownloadManager exists; invoked with a queue item's task id.
         this.onRemoveQueueItem = null;
+        this.onOutputDirectorySelected = null;
         this.activeMode = 'audio';
         this.downloading = false;
+        this.preferredOutputDirectories = {
+            audio: null,
+            video: null,
+            watcher: null
+        };
     }
 
     setActiveMode(mode) {
@@ -436,17 +442,39 @@ class UIManager {
             }
         }
 
+        const savedPath = this.preferredOutputDirectories[kind];
+        const savedIsRoot = Boolean(rootPath && savedPath === rootPath);
+        const rootButton = savedIsRoot ? document.createElement('button') : null;
+        if (rootButton) {
+            rootButton.type = 'button';
+            rootButton.className = 'output-dir-button root-dir-button';
+            rootButton.dataset.outputDir = rootPath;
+            rootButton.textContent = '[Use this folder]';
+            rootButton.setAttribute('aria-pressed', 'false');
+            options.appendChild(rootButton);
+            const lineBreak = document.createElement('span');
+            lineBreak.className = 'output-dir-line-break';
+            lineBreak.setAttribute('aria-hidden', 'true');
+            options.appendChild(lineBreak);
+        }
+        const hasSavedPath =
+            savedIsRoot ||
+            directories.some((directory) => directory.path === savedPath);
+        let selectedButton = rootButton;
+
         if (!directories.length) {
-            outputDirInput.value = '';
-            const message = document.createElement('span');
-            message.className = 'output-dir-message';
-            message.textContent = 'No folders are available in the configured directory.';
-            options.appendChild(message);
+            if (rootButton) {
+                this.selectOutputDirectory(rootButton, kind, false);
+            } else {
+                outputDirInput.value = '';
+                const message = document.createElement('span');
+                message.className = 'output-dir-message';
+                message.textContent = 'No folders are available in the configured directory.';
+                options.appendChild(message);
+            }
             return;
         }
 
-        const savedPath = localStorage.getItem(picker.selectedKey);
-        let selectedButton = null;
         directories.forEach((directory, index) => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -456,11 +484,20 @@ class UIManager {
             button.setAttribute('aria-pressed', 'false');
             options.appendChild(button);
 
-            if (directory.path === savedPath || (!selectedButton && index === 0)) {
+            if (
+                !savedIsRoot &&
+                (directory.path === savedPath || (!hasSavedPath && index === 0))
+            ) {
                 selectedButton = button;
             }
         });
-        this.selectOutputDirectory(selectedButton, kind);
+        if (selectedButton) {
+            this.selectOutputDirectory(
+                selectedButton,
+                kind,
+                Boolean(savedPath) && !hasSavedPath
+            );
+        }
     }
 
     getParentPath(path) {
@@ -473,7 +510,16 @@ class UIManager {
         return /^[A-Za-z]:$/.test(parent) ? parent + trimmed[index] : parent;
     }
 
-    selectOutputDirectory(button, kind = 'audio') {
+    setPreferredOutputDirectories(preferences) {
+        this.preferredOutputDirectories = {
+            audio: preferences.audio || null,
+            video: preferences.video || null,
+            watcher: preferences.watcher || null
+        };
+    }
+
+    selectOutputDirectory(button, kind = 'audio', persist = true) {
+        if (!button) return;
         const picker = UIManager.PICKERS[kind];
         const options = document.getElementById(picker.options);
         const outputDirInput = document.getElementById(picker.hidden);
@@ -483,8 +529,16 @@ class UIManager {
             option.setAttribute('aria-pressed', String(isSelected));
         });
         outputDirInput.value = button.dataset.outputDir;
-        localStorage.setItem(picker.selectedKey, button.dataset.outputDir);
-        this.updatePathDisplay(document.getElementById(picker.rootInput).value, button.textContent, kind);
+        if (persist) {
+            this.preferredOutputDirectories[kind] = button.dataset.outputDir;
+            this.onOutputDirectorySelected?.(kind, button.dataset.outputDir);
+        }
+        const rootPath = document.getElementById(picker.rootInput).value;
+        this.updatePathDisplay(
+            rootPath,
+            button.dataset.outputDir === rootPath ? '' : button.textContent,
+            kind
+        );
     }
 
     updatePathDisplay(rootPath, folderName = '', kind = 'audio') {
@@ -514,16 +568,14 @@ UIManager.PICKERS = {
         hidden: 'output-dir',
         display: 'media-root-display',
         rootInput: 'media-root-input',
-        rootKey: 'spotifysaver_media_root',
-        selectedKey: 'spotifysaver_selected_output_dir'
+        rootKey: 'spotifysaver_media_root'
     },
     video: {
         options: 'video-output-dir-options',
         hidden: 'video-output-dir',
         display: 'video-media-root-display',
         rootInput: 'video-media-root-input',
-        rootKey: 'spotifysaver_video_media_root',
-        selectedKey: 'spotifysaver_selected_video_output_dir'
+        rootKey: 'spotifysaver_video_media_root'
     },
     watcher: {
         options: 'watcher-output-dir-options',
@@ -531,7 +583,6 @@ UIManager.PICKERS = {
         display: 'watcher-media-root-display',
         rootInput: 'watcher-media-root-input',
         rootKey: 'spotifysaver_watcher_media_root',
-        selectedKey: 'spotifysaver_watcher_output_dir',
         mediaType: 'video'
     }
 };

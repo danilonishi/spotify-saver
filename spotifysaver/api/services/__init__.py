@@ -3,10 +3,12 @@
 from .download_service import DownloadService
 from .video_download_service import VideoDownloadService
 from .channel_watcher import ChannelWatcherService, ChannelWatcherStore
+from .download_directory_store import DownloadDirectoryStore
 
 __all__ = [
     "DownloadService",
     "VideoDownloadService",
     "ChannelWatcherService",
     "ChannelWatcherStore",
+    "DownloadDirectoryStore",
 ]

@@ -29,6 +29,7 @@ class ApiClient {
                 signal: controller.signal,
                 method: 'GET',
                 mode: 'cors',
+                credentials: 'omit',
                 cache: 'no-cache'
             });
             
@@ -307,6 +308,36 @@ class ApiClient {
         });
         if (!response.ok) {
             throw new Error('Could not fetch watched channels');
+        }
+        return response.json();
+    }
+
+    async getDownloadDirectoryPreferences() {
+        const response = await fetch(`${this.apiUrl}/preferences/download-directories`, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-cache'
+        });
+        if (!response.ok) {
+            throw new Error('Could not fetch saved download folders');
+        }
+        return response.json();
+    }
+
+    async saveDownloadDirectoryPreference(kind, directory) {
+        const response = await fetch(
+            `${this.apiUrl}/preferences/download-directories/${encodeURIComponent(kind)}`,
+            {
+                method: 'PUT',
+                mode: 'cors',
+                credentials: 'omit',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ directory })
+            }
+        );
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not save the download folder');
         }
         return response.json();
     }

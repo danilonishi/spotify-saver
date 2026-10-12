@@ -7,9 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import channel_watcher, download
+from .routers import channel_watcher, download, user_preferences
 from .config import APIConfig
-from .services import ChannelWatcherService
+from .services import ChannelWatcherService, DownloadDirectoryStore
 from .. import __version__
 
 # Get the absolute path to the UI directory
@@ -25,6 +25,9 @@ def create_app() -> FastAPI:
     """
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        download_directory_store = DownloadDirectoryStore()
+        download_directory_store.initialize()
+        app.state.download_directory_store = download_directory_store
         watcher = ChannelWatcherService(enqueue_video=download.enqueue_watched_video)
         app.state.channel_watcher = watcher
         watcher.start()
@@ -59,6 +62,9 @@ def create_app() -> FastAPI:
     app.include_router(download.router, prefix="/api/v1", tags=["download"])
     app.include_router(
         channel_watcher.router, prefix="/api/v1", tags=["channel-watcher"]
+    )
+    app.include_router(
+        user_preferences.router, prefix="/api/v1", tags=["download-preferences"]
     )
 
     # Serve the main HTML file

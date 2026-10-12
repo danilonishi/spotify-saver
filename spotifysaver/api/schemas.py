@@ -106,6 +106,12 @@ class ChannelWatcherStatus(BaseModel):
     youtube_cooldown_until: Optional[str] = None
 
 
+class DownloadDirectoryPreferenceUpdate(BaseModel):
+    """A server-wide preferred download directory."""
+
+    directory: str = Field(min_length=1)
+
+
 class TrackInfo(BaseModel):
     """Schema for track information."""
 

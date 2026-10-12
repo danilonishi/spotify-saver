@@ -135,6 +135,14 @@ List all download tasks.
 
 Watched channels are persisted in SQLite at `~/.spotify-saver/channel-watcher.sqlite3`
 by default. Set `SPOTIFYSAVER_CHANNEL_WATCHER_DB` to use another database path.
+The same database stores one selected folder each for audio, video, and Channel
+Watcher downloads. These paths are server-wide and shared by every browser
+connecting to that server; they are independent of browser cookies and site data.
+Existing browser-profile folder selections are migrated to the shared settings
+when the server starts, keeping the first saved value for each media type. If a
+saved folder has been deleted, the server walks up to the nearest existing
+parent directory (including the filesystem root) and saves that as the new
+preference.
 The server starts its UTC scheduler with the API and checks due channels after
 startup. Each channel's schedule is saved in the timezone reported by the browser;
 the server converts local schedule times to UTC for execution. A newly added

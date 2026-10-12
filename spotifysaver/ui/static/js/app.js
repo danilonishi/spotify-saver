@@ -5,6 +5,13 @@ class SpotifySaverUI {
         this.uiManager = new UIManager(() => this.saveState());
         this.downloadManager = new DownloadManager(this.apiClient, this.uiManager, () => this.saveState());
         this.uiManager.onRemoveQueueItem = (taskId, status) => this.downloadManager.cancelItem(taskId, status);
+        this.uiManager.onOutputDirectorySelected = (kind, directory) => {
+            this.persistOutputDirectoryPreference(kind, directory).catch((error) => {
+                this.uiManager.updateStatus(error.message, 'error');
+                this.uiManager.addLogEntry(error.message, 'error');
+            });
+        };
+        this.outputDirectoryPreferenceWrites = new Map();
         
         this.currentRoots = {};
         this.isInitialized = false;
@@ -28,6 +35,7 @@ class SpotifySaverUI {
             
             if (apiAvailable) {
                 this.uiManager.updateStatus('API connected and ready', 'success');
+                await this.loadSavedOutputDirectoryPreferences();
                 await this.loadOutputDirectories();
                 await this.loadAppVersion();
                 await this.channelWatcherManager.load();
@@ -198,6 +206,36 @@ class SpotifySaverUI {
         this.stateManager.saveState();
     }
 
+    async loadSavedOutputDirectoryPreferences() {
+        let preferences = { audio: null, video: null, watcher: null };
+        try {
+            preferences = await this.apiClient.getDownloadDirectoryPreferences();
+        } catch (error) {
+            console.warn('Could not load saved download folders:', error);
+            this.uiManager.updateStatus(
+                `Could not load saved download folders: ${error.message}`,
+                'error'
+            );
+        }
+        this.uiManager.setPreferredOutputDirectories(preferences);
+    }
+
+    async persistOutputDirectoryPreference(kind, directory) {
+        const previousWrite =
+            this.outputDirectoryPreferenceWrites.get(kind) || Promise.resolve();
+        const write = previousWrite
+            .catch(() => {})
+            .then(() => this.apiClient.saveDownloadDirectoryPreference(kind, directory));
+        this.outputDirectoryPreferenceWrites.set(kind, write);
+        try {
+            await write;
+        } finally {
+            if (this.outputDirectoryPreferenceWrites.get(kind) === write) {
+                this.outputDirectoryPreferenceWrites.delete(kind);
+            }
+        }
+    }
+
     switchTab(mode) {
         document.querySelectorAll('.tab-button').forEach((tab) => {
             const active = tab.dataset.tab === mode;
@@ -227,7 +265,13 @@ class SpotifySaverUI {
     async loadOutputDirectories() {
         for (const kind of Object.keys(UIManager.PICKERS)) {
             const picker = UIManager.PICKERS[kind];
-            const savedRoot = localStorage.getItem(picker.rootKey);
+            const preferredPath =
+                this.uiManager.preferredOutputDirectories[kind] || '';
+            const preferredParent = this.uiManager.getParentPath(preferredPath);
+            const savedRoot =
+                preferredParent ||
+                (preferredPath ? preferredPath : null) ||
+                localStorage.getItem(picker.rootKey);
             if (savedRoot) {
                 document.getElementById(picker.rootInput).value = savedRoot;
             }
@@ -297,7 +341,8 @@ class SpotifySaverUI {
 
         try {
             const created = await this.apiClient.createOutputDirectory(root, name);
-            localStorage.setItem(picker.selectedKey, created.path);
+            await this.persistOutputDirectoryPreference(kind, created.path);
+            this.uiManager.preferredOutputDirectories[kind] = created.path;
             const result = await this.apiClient.getOutputDirectories(
                 root,
                 picker.mediaType || kind
