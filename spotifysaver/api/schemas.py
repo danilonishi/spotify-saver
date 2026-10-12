@@ -77,6 +77,12 @@ class WatchedChannelRequest(BaseModel):
     include_subtitles: bool = False
 
 
+class WatchedChannelActiveRequest(BaseModel):
+    """Request to enable or pause automatic checks for a watched channel."""
+
+    active: bool
+
+
 class WatchedChannel(BaseModel):
     """Persisted watched channel settings and last successful check."""
 
@@ -93,6 +99,7 @@ class WatchedChannel(BaseModel):
     video_format: str
     video_resolution: int
     include_subtitles: bool
+    active: bool = True
     created_at: str
     last_checked_at: Optional[str] = None
     check_started_at: Optional[str] = None

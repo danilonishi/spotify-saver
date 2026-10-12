@@ -43,6 +43,13 @@ class ChannelWatcherManager {
                 this.checkChannelNow(checkButton);
                 return;
             }
+            const activeButton = event.target.closest('[data-toggle-channel-active]');
+            if (activeButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.toggleChannelActive(activeButton);
+                return;
+            }
             const removeButton = event.target.closest('[data-remove-channel]');
             if (removeButton) {
                 event.preventDefault();
@@ -252,6 +259,25 @@ class ChannelWatcherManager {
             this.uiManager.updateStatus('Channel removed from the watch list', 'success');
         } catch (error) {
             this.uiManager.updateStatus(error.message, 'error');
+        }
+    }
+
+    async toggleChannelActive(button) {
+        const channelId = button.dataset.toggleChannelActive;
+        const channel = this.channels.find((item) => item.id === channelId);
+        if (!channel) return;
+        button.disabled = true;
+        try {
+            await this.apiClient.setWatchedChannelActive(channelId, !channel.active);
+            await this.load();
+            this.uiManager.updateStatus(
+                channel.active ? 'Automatic channel checks paused' : 'Automatic channel checks resumed',
+                'success'
+            );
+        } catch (error) {
+            this.uiManager.updateStatus(error.message, 'error');
+        } finally {
+            button.disabled = false;
         }
     }
 

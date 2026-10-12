@@ -413,6 +413,14 @@ class ApiClient {
         );
     }
 
+    async setWatchedChannelActive(channelId, active) {
+        return this.sendWatchedChannelRequest(
+            `/channel-watcher/${encodeURIComponent(channelId)}/active`,
+            'PUT',
+            { active }
+        );
+    }
+
     async checkWatchedChannelNow(channelId) {
         const response = await fetch(
             `${this.apiUrl}/channel-watcher/${encodeURIComponent(channelId)}/check`,

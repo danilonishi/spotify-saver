@@ -5,7 +5,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ..schemas import ChannelWatcherStatus, WatchedChannel, WatchedChannelRequest
+from ..schemas import (
+    ChannelWatcherStatus,
+    WatchedChannel,
+    WatchedChannelActiveRequest,
+    WatchedChannelRequest,
+)
 from ..services.channel_watcher import (
     ChannelWatcherService,
     YouTubeCooldownActive,
@@ -60,6 +65,20 @@ async def check_watched_channel_now(channel_id: str, request: Request):
     if not started:
         raise HTTPException(status_code=409, detail="A check is already in progress")
     return {"message": "Channel check started"}
+
+
+@router.put(
+    "/channel-watcher/{channel_id}/active",
+    response_model=WatchedChannel,
+)
+async def set_watched_channel_active(
+    channel_id: str, settings: WatchedChannelActiveRequest, request: Request
+):
+    """Enable or pause scheduled checks for a watched channel."""
+    updated = _service(request).store.set_channel_active(channel_id, settings.active)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Watched channel not found")
+    return updated
 
 
 @router.post("/channel-watcher", response_model=WatchedChannel, status_code=201)

@@ -350,6 +350,7 @@ class ChannelWatcherStore:
                     discovery_initialized INTEGER NOT NULL DEFAULT 0,
                     next_check_at TEXT NOT NULL,
                     last_error TEXT,
+                    active INTEGER NOT NULL DEFAULT 1,
                     UNIQUE (platform, normalized_url)
                 )
                 """
@@ -370,6 +371,11 @@ class ChannelWatcherStore:
                 connection.execute(
                     "ALTER TABLE watched_channels "
                     "ADD COLUMN discovery_initialized INTEGER NOT NULL DEFAULT 0"
+                )
+            if "active" not in columns:
+                connection.execute(
+                    "ALTER TABLE watched_channels "
+                    "ADD COLUMN active INTEGER NOT NULL DEFAULT 1"
                 )
             connection.execute(
                 """
@@ -435,6 +441,7 @@ class ChannelWatcherStore:
         item = dict(row)
         item.pop("normalized_url", None)
         item["include_subtitles"] = bool(item["include_subtitles"])
+        item["active"] = bool(item["active"])
         return item
 
     def list_channels(self) -> list[dict[str, Any]]:
@@ -452,6 +459,17 @@ class ChannelWatcherStore:
                 "SELECT * FROM watched_channels WHERE id = ?", (channel_id,)
             ).fetchone()
         return self._row_to_dict(row) if row else None
+
+    def set_channel_active(self, channel_id: str, active: bool) -> Optional[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "UPDATE watched_channels SET active = ? WHERE id = ?",
+                (int(active), channel_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+            connection.commit()
+        return self.get_channel(channel_id)
 
     def create_channel(self, settings: dict[str, Any], now: datetime) -> dict[str, Any]:
         normalized_url = _normalize_channel_url(settings["url"])
@@ -717,7 +735,7 @@ class ChannelWatcherStore:
             rows = connection.execute(
                 """
                 SELECT * FROM watched_channels
-                WHERE interval != 'manual' AND next_check_at <= ?
+                WHERE active = 1 AND interval != 'manual' AND next_check_at <= ?
                 """,
                 (_iso(now),),
             ).fetchall()

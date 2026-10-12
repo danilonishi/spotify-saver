@@ -218,6 +218,7 @@ class UIManager {
         channels.forEach((channel) => {
             const entry = document.createElement('li');
             entry.className = 'queue-item';
+            if (!channel.active) entry.classList.add('watched-channel-paused');
 
             const details = document.createElement('details');
             details.className = 'queue-item-details watched-channel-details';
@@ -242,7 +243,8 @@ class UIManager {
             const lastCheckedDate = channel.last_checked_at
                 ? new Date(channel.last_checked_at)
                 : null;
-            const checkIsOverdue = channel.interval !== 'manual'
+            const checkIsOverdue = channel.active
+                && channel.interval !== 'manual'
                 && !watcherCoolingDown
                 && new Date(channel.next_check_at).getTime() <= Date.now()
                 && !channel.check_started_at;
@@ -256,15 +258,15 @@ class UIManager {
                 })}`
                 : lastCheckedLabel;
             interval.textContent = channel.interval === 'manual'
-                ? `${intervalLabel} · ${summaryLastChecked}`
+                ? `${intervalLabel} · ${summaryLastChecked}${channel.active ? '' : ' · Paused'}`
                 : checkIsOverdue
                     ? `${intervalLabel} · Check overdue`
-                    : `${intervalLabel} · ${summaryLastChecked}`;
+                    : `${intervalLabel} · ${summaryLastChecked}${channel.active ? '' : ' · Paused'}`;
             interval.title = channel.interval === 'manual'
-                ? `${lastCheckedLabel}; checks run only when started manually`
+                ? `${lastCheckedLabel}; checks run only when started manually${channel.active ? '' : '; automatic checks are paused'}`
                 : checkIsOverdue
                     ? `${lastCheckedLabel}; scheduled check is overdue and no check is reported in progress`
-                    : lastCheckedLabel;
+                    : `${lastCheckedLabel}${channel.active ? '' : '; automatic checks are paused'}`;
 
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
@@ -284,11 +286,16 @@ class UIManager {
                 : 'Last checked: Not checked yet';
             details.appendChild(lastChecked);
 
-            if (channel.interval !== 'manual') {
+            if (channel.interval !== 'manual' && channel.active) {
                 const nextCheck = document.createElement('p');
                 nextCheck.className = 'queue-track-empty watched-channel-check';
                 nextCheck.textContent = `Next check: ${new Date(channel.next_check_at).toLocaleString()}`;
                 details.appendChild(nextCheck);
+            } else if (!channel.active && channel.interval !== 'manual') {
+                const paused = document.createElement('p');
+                paused.className = 'queue-track-empty watched-channel-check';
+                paused.textContent = 'Automatic checks are paused.';
+                details.appendChild(paused);
             }
 
             if (checkIsOverdue) {
@@ -326,12 +333,23 @@ class UIManager {
                 channel.check_started_at || watcherCoolingDown
             );
 
+            const activeButton = document.createElement('button');
+            activeButton.type = 'button';
+            activeButton.className = 'output-dir-button watched-channel-active-toggle';
+            activeButton.dataset.toggleChannelActive = channel.id;
+            activeButton.textContent = channel.active ? 'Pause' : 'Resume';
+            activeButton.title = channel.active
+                ? 'Pause automatic channel checks'
+                : 'Resume automatic channel checks';
+            activeButton.setAttribute('aria-label', activeButton.title);
+            activeButton.setAttribute('aria-pressed', String(channel.active));
+
             const editButton = document.createElement('button');
             editButton.type = 'button';
             editButton.className = 'output-dir-button watched-channel-edit';
             editButton.dataset.editChannel = channel.id;
             editButton.textContent = 'Edit settings';
-            actions.append(checkButton, editButton);
+            actions.append(checkButton, activeButton, editButton);
             details.appendChild(actions);
 
             entry.appendChild(details);

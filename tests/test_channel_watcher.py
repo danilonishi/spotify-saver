@@ -15,9 +15,15 @@ from spotifysaver.api.routers.channel_watcher import (
     delete_watched_channel,
     get_channel_watcher_status,
     list_watched_channels,
+    set_watched_channel_active,
     update_watched_channel,
 )
-from spotifysaver.api.schemas import DownloadRequest, DownloadStatus, WatchedChannelRequest
+from spotifysaver.api.schemas import (
+    DownloadRequest,
+    DownloadStatus,
+    WatchedChannelActiveRequest,
+    WatchedChannelRequest,
+)
 from spotifysaver.api.services.channel_watcher import (
     MAX_CHANNEL_VIDEOS_PER_CHECK,
     CHANNEL_DISCOVERY_OVERLAP,
@@ -645,6 +651,24 @@ def test_existing_watched_channel_database_defaults_timezone_to_utc(tmp_path):
 
     assert store.get_channel("legacy-id")["timezone"] == "UTC"
     assert store.get_channel("legacy-id")["check_started_at"] is None
+    assert store.get_channel("legacy-id")["active"] is True
+
+
+def test_inactive_channel_is_not_due_and_can_be_reactivated(tmp_path):
+    store = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
+    channel = _add_channel(store, tmp_path / "videos")
+    now = datetime(2026, 10, 1, 12, tzinfo=UTC)
+
+    assert [item["id"] for item in store.due_channels(now)] == [channel["id"]]
+    paused = store.set_channel_active(channel["id"], False)
+    assert paused["active"] is False
+    assert store.due_channels(now) == []
+    reloaded_store = ChannelWatcherStore(store.database_path)
+    assert reloaded_store.get_channel(channel["id"])["active"] is False
+
+    resumed = store.set_channel_active(channel["id"], True)
+    assert resumed["active"] is True
+    assert [item["id"] for item in store.due_channels(now)] == [channel["id"]]
 
 
 def test_first_success_establishes_baseline_without_downloading(tmp_path):
@@ -1194,6 +1218,7 @@ def test_channel_watcher_api_persists_settings_and_supports_crud(tmp_path):
         assert channel["video_format"] == "webm"
         assert channel["include_subtitles"] is True
         assert channel["timezone"] == "America/Los_Angeles"
+        assert channel["active"] is True
 
         listed = await list_watched_channels(request)
         assert listed[0]["id"] == channel["id"]
@@ -1204,6 +1229,15 @@ def test_channel_watcher_api_persists_settings_and_supports_crud(tmp_path):
             channel["id"], WatchedChannelRequest.model_validate(payload), request
         )
         assert updated["video_resolution"] == 1080
+        paused = await set_watched_channel_active(
+            channel["id"], WatchedChannelActiveRequest(active=False), request
+        )
+        assert paused["active"] is False
+        assert store.get_channel(channel["id"])["active"] is False
+        resumed = await set_watched_channel_active(
+            channel["id"], WatchedChannelActiveRequest(active=True), request
+        )
+        assert resumed["active"] is True
 
         removed = await delete_watched_channel(channel["id"], request)
         assert removed["message"] == "Watched channel removed"

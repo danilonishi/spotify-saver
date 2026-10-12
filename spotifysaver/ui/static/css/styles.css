@@ -698,7 +698,16 @@ select:focus {
     margin: 0 10px 10px 24px;
 }
 
+.watched-channel-paused .watched-channel-summary-status {
+    color: #718096;
+}
+
 .watched-channel-check-now {
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.watched-channel-active-toggle {
     padding: 6px 10px;
     font-size: 13px;
 }
