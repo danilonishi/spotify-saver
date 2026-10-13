@@ -245,6 +245,31 @@ mkdir -p data/music data/videos data/config
 cp .env.docker.example .env
 ```
 
+The container runs as user ID `1000` and needs write access to its config
+folder. If you created the repository or its data folders with `sudo`, fix
+ownership before starting the container:
+
+```sh
+sudo chown -R 1000:1000 data/config
+```
+
+If you set `CONFIG_DIR` in `.env` to a different host folder, use that folder
+instead of `data/config`.
+
+Before starting SpotifySaver, edit `.env` and set `MUSIC_DIR` and `VIDEO_DIR`
+to the existing media folders on your server. For example, if your media
+folders are `/media/Music` and `/media/Videos`, set:
+
+```dotenv
+MUSIC_DIR=/media/Music
+VIDEO_DIR=/media/Videos
+```
+
+These are host paths, not the `/music` and `/videos` paths used inside the
+container. Leave `CONFIG_DIR=./data/config` unless you want to store the app's
+configuration elsewhere. On Linux, you can edit the file with `nano .env` from
+the repository folder.
+
 Direct YouTube downloads and the Channel Watcher do not need Spotify
 credentials. Spotify URL-based downloads can be configured from **Settings →
 Spotify Account** after signing in. The app asks Spotify to authorize in your
@@ -261,11 +286,15 @@ docker compose up -d
 ### First-time sign-in
 
 On first launch, SpotifySaver writes a one-time administrator setup token to
-the server logs. From the directory containing the Compose files, read it with:
+the server logs. From the directory containing the Compose files, run:
 
 ```sh
 docker compose logs --tail=100 spotifysaver
 ```
+
+Find the line beginning `First-run administrator setup token` and enter its
+token in the setup page. If the container is restarting, use this same command
+to inspect the startup error in the logs.
 
 Open SpotifySaver in your browser, enter that token, and create an administrator
 password of at least 12 characters. The token is generated again after a server
@@ -354,56 +383,6 @@ docker compose down
 mounted data folders and named log volume intact. Do not use
 `docker compose down -v` unless you intend to remove the named log volume as
 well.
-
-### Put the app behind an existing Caddy container
-
-If Caddy is already running in Docker, keep it as the only HTTPS entry point.
-Attach SpotifySaver to the same user-defined Docker network as Caddy; no second
-proxy or host-wide web-server installation is needed.
-
-1. Find the Docker network shared by the Caddy container and its other proxied
-   services:
-
-   ```sh
-   docker inspect <caddy-container-name> --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}'
-   ```
-
-2. Set `CADDY_DOCKER_NETWORK` in SpotifySaver's `.env` to that exact network
-   name.
-3. Start SpotifySaver with the Caddy Compose override:
-
-   ```sh
-docker compose -f docker-compose.yml -f docker-compose.caddy.yml pull
-docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
-```
-
-4. Add a site to the existing Caddyfile, using the hostname and TLS policy
-   already configured for your home network:
-
-   ```caddyfile
-   spotify.home.example {
-       reverse_proxy spotifysaver:8000
-   }
-   ```
-
-   Reload Caddy using the method used by its existing deployment, then open
-   `https://spotify.home.example` on a client device.
-
-The app's browser UI uses same-origin API URLs, so its REST requests and SSE
-notification stream both pass through Caddy. Keep the published app port bound
-to `127.0.0.1`; Caddy reaches the container directly over the shared Docker
-network. Configure Caddy with a certificate trusted by each client device.
-For a private/local CA, install that CA on phones and computers as well as
-configuring Caddy; otherwise browsers can warn about the certificate and may
-block browser notifications.
-
-To return to standalone Compose mode, stop the combined stack and start without
-the override:
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.caddy.yml down
-docker compose up -d
-```
 
 ## 📂 Output Structure
 ```
