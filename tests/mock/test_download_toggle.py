@@ -50,6 +50,26 @@ def test_youtube_audio_options_do_not_enable_unplayable_formats(tmp_path):
     assert "allow_unplayable_formats" not in options
 
 
+@pytest.mark.parametrize("output_format", list(AudioFormat))
+@pytest.mark.parametrize("bitrate", [96, 128, 192, 256])
+def test_youtube_audio_options_pass_selected_format_and_bitrate(
+    tmp_path, output_format, bitrate
+):
+    downloader = YouTubeDownloader(base_dir=str(tmp_path))
+
+    options = downloader._get_ydl_opts(
+        tmp_path / "audio", output_format, downloader.int_to_bitrate(bitrate)
+    )
+    extract_audio = next(
+        processor
+        for processor in options["postprocessors"]
+        if processor["key"] == "FFmpegExtractAudio"
+    )
+
+    assert extract_audio["preferredcodec"] == output_format.value
+    assert extract_audio["preferredquality"] == str(bitrate)
+
+
 def test_download_status_defaults_to_m4a():
     status = DownloadStatus(task_id="task-1", status="queued", progress=0)
 
@@ -289,6 +309,70 @@ def test_direct_youtube_track_uses_artist_or_channel_folder(
     if metadata.get("fulltitle"):
         assert FakeYoutubeDL.downloaded_path.name == "帝国のテーマ - The Archadian Empire.mp3"
     assert FakeYoutubeDL.options["postprocessors"][0]["preferredcodec"] == "mp3"
+    assert any(
+        processor.get("key") == "FFmpegMetadata"
+        for processor in FakeYoutubeDL.options["postprocessors"]
+    )
+
+
+def test_direct_youtube_opus_download_writes_title_and_artist_tags(
+    tmp_path, monkeypatch
+):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    saved_tags = {}
+
+    class FakeYoutubeDL:
+        def __init__(self, options):
+            self.params = options
+            self.params["outtmpl"] = {"default": self.params["outtmpl"]}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, _url, download):
+            assert download is False
+            return {"title": "Direct upload", "channel": "Test artist", "ext": "webm"}
+
+        def prepare_filename(self, info):
+            return self.params["outtmpl"]["default"] % info
+
+        def download(self, _urls):
+            output_path = Path(self.prepare_filename(
+                {"title": "Direct upload", "channel": "Test artist", "ext": "webm"}
+            )).with_suffix(".opus")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"opus")
+
+    class FakeOggOpus:
+        def __init__(self, _path):
+            self.tags = saved_tags
+
+        def __setitem__(self, key, value):
+            self.tags[key] = value
+
+        def save(self):
+            pass
+
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.yt_dlp.YoutubeDL",
+        FakeYoutubeDL,
+    )
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.OggOpus",
+        FakeOggOpus,
+    )
+    monkeypatch.setattr(downloader, "_save_youtube_cover", lambda *_args: None)
+
+    result = downloader.download_youtube_track_cli(
+        "https://www.youtube.com/watch?v=test",
+        output_format=AudioFormat.OPUS,
+    )
+
+    assert result["completed_tracks"] == 1
+    assert saved_tags == {"title": "Direct upload", "artist": "Test artist"}
 
 
 def test_direct_youtube_track_fails_when_download_creates_no_output(

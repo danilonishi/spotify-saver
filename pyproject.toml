@@ -118,10 +118,14 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --strict-markers --cov=spotifysaver --cov-report=term-missing"
-testpaths = ["tests"]
+testpaths = ["tests/mock"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+  "real: opt-in tests that make requests to external services",
+  "real_download: opt-in tests that download media to an isolated test directory",
+]
 
 [tool.mypy]
 python_version = "3.10"

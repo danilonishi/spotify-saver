@@ -1,4 +1,5 @@
 import logging
+from dataclasses import replace
 
 from spotifysaver.models.track import Track
 from spotifysaver.services.score_match_calculator import ScoreMatchCalculator
@@ -98,11 +99,13 @@ def test_hyphenated_title_keeps_search_word_boundary():
     )
     searcher.scorer = ScoreMatchCalculator()
     searcher.logger = logging.getLogger(__name__)
-    track = _make_track()
-    track.name = "Gutter-churl"
-    track.artists = ["\u5d0e\u5143\u4ec1"]
-    track.album_name = "FINAL FANTASY XII Original Soundtrack"
-    track.duration = 182
+    track = replace(
+        _make_track(),
+        name="Gutter-churl",
+        artists=["\u5d0e\u5143\u4ec1"],
+        album_name="FINAL FANTASY XII Original Soundtrack",
+        duration=182,
+    )
 
     result = searcher._search_exact_match(track)
 

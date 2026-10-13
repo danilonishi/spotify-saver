@@ -1,3 +1,5 @@
+import logging
+
 from spotifysaver.services.spotify_api import SpotifyAPI
 import spotifysaver.services.spotify_api as spotify_api_module
 
@@ -32,11 +34,12 @@ def test_get_playlist_tracks_uses_playlist_items_when_available():
 def test_fetch_album_data_includes_all_paginated_tracks():
     api = object.__new__(SpotifyAPI)
     api.sp = FakeSpotify()
+    api.logger = logging.getLogger(__name__)
     api.sp.album = lambda album_id: {
         "tracks": {"items": [{"name": "Track A"}], "next": "next-page"}
     }
 
-    album = api._fetch_album_data("spotify:album:album_123")
+    album = api._fetch_album_data("https://open.spotify.com/album/album_123")
 
     assert [track["name"] for track in album["tracks"]["items"]] == [
         "Track A",
