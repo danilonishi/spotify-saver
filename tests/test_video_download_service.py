@@ -7,6 +7,49 @@ from spotifysaver.api.services.video_download_service import VideoDownloadServic
 from yt_dlp.utils import DownloadCancelled
 
 
+def test_video_format_selector_requires_video_and_audio_in_combined_fallback():
+    for video_format in ("mp4", "mkv", "webm"):
+        service = VideoDownloadService(video_format=video_format)
+        assert service._format_selector().endswith(
+            "/best[vcodec!=none][acodec!=none]"
+        )
+
+    limited_service = VideoDownloadService(
+        video_format="mp4",
+        video_resolution=720,
+    )
+    assert limited_service._format_selector().endswith(
+        "/best[height<=720][vcodec!=none][acodec!=none]"
+    )
+
+
+def test_video_download_does_not_resume_stale_partial_files():
+    service = VideoDownloadService()
+
+    assert service._ydl_opts("video.%(ext)s")["continuedl"] is False
+
+
+def test_remove_partial_downloads_only_removes_matching_video_parts(tmp_path):
+    channel_dir = tmp_path / "channel"
+    channel_dir.mkdir()
+    partial_files = [
+        channel_dir / "Sample Video.f308.webm.part",
+        channel_dir / "Sample Video.en.srt.part",
+    ]
+    for path in partial_files:
+        path.touch()
+    completed_file = channel_dir / "Sample Video.mp4"
+    unrelated_partial = channel_dir / "Another Video.f308.webm.part"
+    completed_file.touch()
+    unrelated_partial.touch()
+
+    VideoDownloadService._remove_partial_downloads(channel_dir, "Sample Video")
+
+    assert all(not path.exists() for path in partial_files)
+    assert completed_file.exists()
+    assert unrelated_partial.exists()
+
+
 def test_video_cancellation_hook_uses_yt_dlp_cancel_signal():
     cancellation_event = Event()
     service = VideoDownloadService()
@@ -122,12 +165,16 @@ def test_video_download_writes_description_to_jellyfin_nfo(monkeypatch, tmp_path
 
         def download(self, urls):
             assert urls == [entry["webpage_url"]]
+            assert not (tmp_path / "Sample Channel" / "Sample Video.f308.webm.part").exists()
             for hook in self.options.get("progress_hooks", []):
                 hook({"info_dict": {"description": description}})
             video_path = Path(self.options["outtmpl"].replace("%(ext)s", "mp4"))
             video_path.touch()
 
     service = VideoDownloadService(output_dir=str(tmp_path))
+    channel_dir = tmp_path / "Sample Channel"
+    channel_dir.mkdir()
+    (channel_dir / "Sample Video.f308.webm.part").touch()
     monkeypatch.setattr(service, "_resolve_entries", lambda _url: ("", [entry]))
     monkeypatch.setattr(service, "_save_channel_cover", lambda *_args: None)
     monkeypatch.setattr(

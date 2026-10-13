@@ -51,17 +51,18 @@ class VideoDownloadService:
 
     def _format_selector(self) -> str:
         height = f"[height<={self.video_resolution}]" if self.video_resolution else ""
+        combined_video_audio = f"best{height}[vcodec!=none][acodec!=none]"
         if self.video_format == "mp4":
             return (
                 f"bestvideo{height}[ext=mp4]+bestaudio[ext=m4a]/"
-                f"bestvideo{height}+bestaudio/best{height}"
+                f"bestvideo{height}+bestaudio/{combined_video_audio}"
             )
         if self.video_format == "webm":
             return (
                 f"bestvideo{height}[ext=webm]+bestaudio[ext=webm]/"
-                f"bestvideo{height}+bestaudio/best{height}"
+                f"bestvideo{height}+bestaudio/{combined_video_audio}"
             )
-        return f"bestvideo{height}+bestaudio/best{height}"
+        return f"bestvideo{height}+bestaudio/{combined_video_audio}"
 
     def _ydl_opts(self, outtmpl: str) -> dict:
         opts: Dict[str, Any] = {
@@ -69,6 +70,7 @@ class VideoDownloadService:
             "merge_output_format": self.video_format,
             "outtmpl": outtmpl,
             "overwrites": self.overwrite_existing,
+            "continuedl": False,
             "noplaylist": True,
             "quiet": True,
             "logger": YDLLogger(self.ydl_error_callback),
@@ -161,6 +163,19 @@ class VideoDownloadService:
             ),
             None,
         )
+
+    @staticmethod
+    def _remove_partial_downloads(channel_dir: Path, filename_stem: str) -> None:
+        partial_suffix = ".part"
+        partial_prefix = f"{filename_stem}."
+        for path in channel_dir.iterdir():
+            if (
+                path.is_file()
+                and path.name.startswith(partial_prefix)
+                and path.name.endswith(partial_suffix)
+            ):
+                path.unlink()
+                logger.info("Removed stale partial video download %s", path)
 
     def _progress_hooks(self, opts: dict, report: Callable[[float], None]) -> None:
         """Report per-video progress: downloading is the first 50%, ffmpeg post-processing the rest."""
@@ -311,6 +326,10 @@ class VideoDownloadService:
                     lambda fraction, i=index: self.progress_fraction_callback(i, total, fraction),
                 )
             try:
+                self._remove_partial_downloads(
+                    channel_dir,
+                    f"{prefix}{_sanitize(title)}",
+                )
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     ydl.download([entry_url])
                 if not video_info.get("description"):
