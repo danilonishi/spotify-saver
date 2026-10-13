@@ -97,11 +97,19 @@ class UIManager {
 
             const status = document.createElement('span');
             status.className = 'queue-item-status';
+            const statusLabels = {
+                queued: 'Queued',
+                downloading: 'Downloading',
+                paused: 'Paused',
+                completed: 'Completed',
+                failed: 'Failed',
+                cancelled: 'Cancelled'
+            };
             status.textContent = item.status === 'downloading' && item.progress != null
                 ? `Downloading ${Math.round(item.progress)}%`
                 : item.status === 'completed_with_errors'
                     ? 'Completed with errors'
-                    : item.status;
+                    : statusLabels[item.status] || item.status;
             status.title = `Download status: ${status.textContent}`;
 
             const removeBtn = document.createElement('button');
@@ -134,6 +142,13 @@ class UIManager {
                 summary.append(name, status, removeBtn);
             }
             details.appendChild(summary);
+
+            if (item.status === 'failed' && item.error_message) {
+                const errorMessage = document.createElement('p');
+                errorMessage.className = 'status-error queue-item-error';
+                errorMessage.textContent = item.error_message;
+                details.appendChild(errorMessage);
+            }
 
             const tracks = Array.isArray(item.trackData?.tracks)
                 ? item.trackData.tracks
@@ -176,17 +191,17 @@ class UIManager {
                 videoDetails.className = 'queue-track-empty';
                 videoDetails.textContent = `Video source: ${item.url}`;
                 details.appendChild(videoDetails);
-
-                if (item.output_directory) {
-                    const outputDirectory = document.createElement('p');
-                    outputDirectory.className = 'queue-track-empty';
-                    outputDirectory.textContent = `Saved to: ${item.output_directory}`;
-                    details.appendChild(outputDirectory);
-                }
+            } else if (this.isYouTubeTrackUrl(item.url)) {
+                const youtubeDetails = document.createElement('p');
+                youtubeDetails.className = 'queue-track-empty';
+                youtubeDetails.textContent = `YouTube audio source: ${item.url}`;
+                details.appendChild(youtubeDetails);
             } else {
                 const trackMessage = document.createElement('p');
                 trackMessage.className = 'queue-track-empty';
-                if (item.isYouTubeCollection) {
+                if (item.status === 'failed') {
+                    trackMessage.textContent = '';
+                } else if (item.isYouTubeCollection) {
                     trackMessage.textContent = item.playlistVerification
                         ? `${item.playlistVerification === 'rechecking' ? 'Re-verifying' : 'Checking'} YouTube playlist entries${item.resolvedTitle ? ` for ${item.resolvedTitle}` : ''}...`
                         : 'Playlist entries will be checked when this download starts.';
@@ -194,7 +209,16 @@ class UIManager {
                 } else {
                     trackMessage.textContent = 'Track details appear when this download starts.';
                 }
-                details.appendChild(trackMessage);
+                if (trackMessage.textContent) {
+                    details.appendChild(trackMessage);
+                }
+            }
+
+            if (item.output_directory) {
+                const outputDirectory = document.createElement('p');
+                outputDirectory.className = 'queue-track-empty';
+                outputDirectory.textContent = `Saved to: ${item.output_directory}`;
+                details.appendChild(outputDirectory);
             }
 
             entry.appendChild(details);
@@ -463,6 +487,26 @@ class UIManager {
         
         // Force-clear the state cache
         console.log('🧹 Clearing all track states and cache');
+    }
+
+    isYouTubeTrackUrl(url) {
+        try {
+            const parsedUrl = new URL(url);
+            const hosts = new Set([
+                'music.youtube.com',
+                'youtube.com',
+                'www.youtube.com',
+                'm.youtube.com',
+                'youtu.be'
+            ]);
+            if (!hosts.has(parsedUrl.hostname.toLowerCase())) {
+                return false;
+            }
+            return parsedUrl.hostname.toLowerCase() === 'youtu.be' ||
+                parsedUrl.pathname.replace(/\/$/, '') === '/watch';
+        } catch {
+            return false;
+        }
     }
 
     getStateIcon(state) {

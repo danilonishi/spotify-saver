@@ -103,7 +103,7 @@ class SpotifyAPI:
         )
         candidates = {}
         for query in dict.fromkeys(queries):
-            response = client.search(q=query, type="track", limit=50)
+            response = client.search(q=query, type="track", limit=10)
             for candidate in response.get("tracks", {}).get("items", []):
                 candidates[candidate.get("id") or candidate.get("name")] = candidate
 

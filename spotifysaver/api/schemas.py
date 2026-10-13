@@ -30,7 +30,7 @@ class DownloadRequest(BaseModel):
     output_format: str = Field(
         default=APIConfig.DEFAULT_FORMAT,
         description="Audio format for downloaded files",
-        pattern="^(m4a|mp3)$",
+        pattern="^(m4a|mp3|opus)$",
     )
     bit_rate: int = Field(
         default=256,

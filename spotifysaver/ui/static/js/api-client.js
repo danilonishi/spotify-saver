@@ -187,10 +187,45 @@ class ApiClient {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            throw new Error(errorData.detail || 'Download error');
+            const message = this.formatErrorDetail(errorData.detail) ||
+                `Download error (HTTP ${response.status})`;
+            const error = new Error(message);
+            error.status = response.status;
+            throw error;
         }
 
         return await response.json();
+    }
+
+    formatErrorDetail(detail) {
+        if (typeof detail === 'string') {
+            return detail;
+        }
+
+        const formatItem = (item) => {
+            if (typeof item === 'string') {
+                return item;
+            }
+            if (!item || typeof item !== 'object') {
+                return String(item);
+            }
+
+            const location = Array.isArray(item.loc)
+                ? item.loc.filter((part) => part !== 'body').join('.')
+                : '';
+            const message = typeof item.msg === 'string'
+                ? item.msg
+                : JSON.stringify(item);
+            return location ? `${location}: ${message}` : message;
+        };
+
+        if (Array.isArray(detail)) {
+            return detail.map(formatItem).filter(Boolean).join('; ');
+        }
+        if (detail && typeof detail === 'object') {
+            return formatItem(detail);
+        }
+        return '';
     }
 
     async getDownloadStatus(taskId) {

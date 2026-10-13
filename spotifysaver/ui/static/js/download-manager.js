@@ -234,11 +234,13 @@ class DownloadManager {
             const result = await this.apiClient.startDownload(queueItem.formData);
             queueItem.id = result.task_id;
             queueItem.status = 'queued';
+            queueItem.submissionRejected = false;
             this.uiManager.addLogEntry(`Download queued with ID: ${result.task_id}`, 'success');
             this.uiManager.renderDownloadQueue(this.queue);
         } catch (error) {
             queueItem.status = 'failed';
             queueItem.error_message = error.message;
+            queueItem.submissionRejected = error.status >= 400 && error.status < 500;
             this.uiManager.updateStatus(`Error: ${error.message}`, 'error');
             this.uiManager.addLogEntry(`Error: ${error.message}`, 'error');
             this.uiManager.renderDownloadQueue(this.queue);
@@ -310,8 +312,10 @@ class DownloadManager {
             return item;
         });
 
-        // Keep locally created items the server hasn't acknowledged yet.
-        this.queue = merged.concat(localOnly.filter((item) => !item.error_message));
+        // Keep unacknowledged items, including rejected submissions, visible locally.
+        this.queue = merged.concat(localOnly.filter(
+            (item) => !item.error_message || item.submissionRejected
+        ));
         this.uiManager.renderDownloadQueue(this.queue);
         this.updateGlobalStatus();
     }
@@ -536,10 +540,16 @@ class DownloadManager {
     async clearCompleted() {
         try {
             const result = await this.apiClient.clearCompletedDownloads();
+            const rejectedCount = this.queue.filter((item) => item.submissionRejected).length;
+            this.queue = this.queue.filter((item) => !item.submissionRejected);
+            const removedCount = result.removed + rejectedCount;
             this.uiManager.updateStatus(
-                result.removed ? `Removed ${result.removed} finished download${result.removed === 1 ? '' : 's'}.` : 'No completed downloads to clear.',
+                removedCount
+                    ? `Removed ${removedCount} finished or rejected download entr${removedCount === 1 ? 'y' : 'ies'}.`
+                    : 'No completed downloads to clear.',
                 'info'
             );
+            this.uiManager.renderDownloadQueue(this.queue);
             await this.pollOnce();
         } catch (error) {
             this.uiManager.updateStatus(`Could not clear completed downloads: ${error.message}`, 'error');
@@ -563,6 +573,7 @@ class DownloadManager {
             if (String(taskId).startsWith('local-')) {
                 item.status = 'queued';
                 item.error_message = null;
+                item.submissionRejected = false;
                 this.uiManager.renderDownloadQueue(this.queue);
                 await this.submitToServer(item);
                 if (item.status === 'failed') {

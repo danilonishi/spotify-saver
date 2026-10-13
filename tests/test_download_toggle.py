@@ -25,6 +25,31 @@ def test_download_request_defaults_to_disabled():
     assert request.overwrite_existing is False
 
 
+def test_download_request_accepts_opus_for_youtube_audio():
+    request = DownloadRequest(
+        spotify_url="https://www.youtube.com/watch?v=3TNpOD6bov8",
+        output_format="opus",
+        bit_rate=256,
+        download_lyrics=True,
+        generate_nfo=True,
+        overwrite_existing=False,
+    )
+
+    assert request.output_format == "opus"
+    assert request.bit_rate == 256
+    assert request.download_lyrics is True
+    assert request.generate_nfo is True
+    assert request.overwrite_existing is False
+
+
+def test_youtube_audio_options_do_not_enable_unplayable_formats(tmp_path):
+    downloader = YouTubeDownloader(base_dir=str(tmp_path))
+
+    options = downloader._get_ydl_opts(tmp_path / "audio")
+
+    assert "allow_unplayable_formats" not in options
+
+
 def test_download_status_defaults_to_m4a():
     status = DownloadStatus(task_id="task-1", status="queued", progress=0)
 
@@ -264,6 +289,52 @@ def test_direct_youtube_track_uses_artist_or_channel_folder(
     if metadata.get("fulltitle"):
         assert FakeYoutubeDL.downloaded_path.name == "帝国のテーマ - The Archadian Empire.mp3"
     assert FakeYoutubeDL.options["postprocessors"][0]["preferredcodec"] == "mp3"
+
+
+def test_direct_youtube_track_fails_when_download_creates_no_output(
+    tmp_path, monkeypatch
+):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    metadata = {
+        "title": "Track One",
+        "channel": "Artist One",
+        "ext": "webm",
+    }
+
+    class FakeYoutubeDL:
+        def __init__(self, options):
+            self.params = options
+            self.params["outtmpl"] = {"default": self.params["outtmpl"]}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, _url, download):
+            assert download is False
+            return metadata
+
+        def prepare_filename(self, info):
+            return self.params["outtmpl"]["default"] % info
+
+        def download(self, _urls):
+            return 0
+
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.yt_dlp.YoutubeDL",
+        FakeYoutubeDL,
+    )
+
+    result = downloader.download_youtube_track_cli(
+        "https://www.youtube.com/watch?v=3TNpOD6bov8",
+        output_format=AudioFormat.OPUS,
+    )
+
+    assert result["completed_tracks"] == 0
+    assert result["failed_tracks"] == 1
+    assert result["failed_track_names"] == ["Track One"]
 
 
 def test_album_counts_existing_output_when_download_returns_no_path(tmp_path, monkeypatch):

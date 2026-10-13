@@ -95,7 +95,7 @@ def test_resolve_youtube_track_title_uses_spotify_album_and_duration(
 
         def search(self, q, type, limit):
             assert type == "track"
-            assert limit == 50
+            assert limit == 10
             return {
                 "tracks": {
                     "items": [

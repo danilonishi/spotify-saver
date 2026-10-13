@@ -18,7 +18,7 @@ class APIConfig:
     MAX_CONCURRENT_DOWNLOADS: int = 1
 
     # File settings
-    ALLOWED_FORMATS: List[str] = ["m4a", "mp3"]
+    ALLOWED_FORMATS: List[str] = ["m4a", "mp3", "opus"]
     DEFAULT_FORMAT: str = "m4a"
 
     # Service settings

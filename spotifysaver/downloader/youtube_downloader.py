@@ -201,7 +201,6 @@ class YouTubeDownloader:
             "retries": 5,
             "fragment_retries": 5,
             "skip_unavailable_fragments": True,
-            "allow_unplayable_formats": True,
             "force_keyframes_at_cuts": True,
         }
 
