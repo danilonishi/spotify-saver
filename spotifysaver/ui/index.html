@@ -22,6 +22,11 @@
                 <div class="form-group">
                     <label for="setup-token">One-time setup token:</label>
                     <input id="setup-token" type="password" autocomplete="one-time-code" required>
+                    <small>
+                        The token is printed in the server logs when SpotifySaver starts.
+                        With Docker Compose, run <code>docker compose logs --tail=100 spotifysaver</code>
+                        from your repository folder.
+                    </small>
                 </div>
                 <div class="form-group">
                     <label for="setup-password">Create administrator password:</label>
