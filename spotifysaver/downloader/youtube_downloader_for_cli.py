@@ -4,6 +4,8 @@ from pathlib import Path
 from threading import Event
 from typing import Optional
 
+from mutagen.oggopus import OggOpus
+
 from spotifysaver.services import YoutubeMusicSearcher, LrclibAPI
 from spotifysaver.metadata import NFOGenerator
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader, yt_dlp
@@ -306,6 +308,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         ydl_opts = self._get_ydl_opts(output_template, output_format, bitrate)
         ydl_opts["windowsfilenames"] = True
         ydl_opts["overwrites"] = overwrite_existing
+        ydl_opts["postprocessors"].append({"key": "FFmpegMetadata"})
         self._add_cancellation_hook(ydl_opts, cancellation_event)
 
         def make_result(title: str, output_path: Optional[Path], completed: bool) -> dict:
@@ -395,6 +398,11 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 return make_result(title, output_path, False)
 
         if output_path.is_file():
+            if output_format == AudioFormat.OPUS:
+                opus_audio = OggOpus(str(output_path))
+                opus_audio["title"] = title
+                opus_audio["artist"] = artist_name
+                opus_audio.save()
             self._save_youtube_cover(info, output_path.parent / "cover.jpg")
 
         return make_result(title, output_path, output_path.is_file())
