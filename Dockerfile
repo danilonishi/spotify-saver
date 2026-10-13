@@ -21,12 +21,15 @@ COPY --chown=spotifysaver:spotifysaver . .
 
 # Instalar la aplicación
 RUN pip install . && \
-    mkdir -p /music /config /logs && \
+    mkdir -p /music /videos /config /app/logs && \
     touch /config/cookies.txt && \
-    chown -R spotifysaver:spotifysaver /music /config /logs
+    chown -R spotifysaver:spotifysaver /music /videos /config /app/logs
 
 ENV SPOTIFYSAVER_OUTPUT_DIR="/music" \
+    SPOTIFYSAVER_VIDEO_DIR="/videos" \
+    SPOTIFYSAVER_CHANNEL_WATCHER_DB="/config/channel-watcher.sqlite3" \
     YTDLP_COOKIES_PATH="/config/cookies.txt" \
+    SPOTIFY_AUTH_CACHE_PATH="/config/.spotify-saver/.spotify-cache" \
     SPOTIFYSAVER_AUTO_OPEN_BROWSER="false" \
     SPOTIFYSAVER_UI_HOST="0.0.0.0"
 
@@ -40,5 +43,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Exponer puertos
 EXPOSE 8000
 
-# Comando por defecto
-CMD ["spotifysaver-api"]
+# Run without the development reloader in the container.
+CMD ["uvicorn", "spotifysaver.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

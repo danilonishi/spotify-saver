@@ -2,8 +2,8 @@
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![PyPI Version](https://img.shields.io/pypi/v/spotifysaver?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/spotifysaver/)
-[![Docker](https://img.shields.io/badge/Docker-Available-blue?logo=docker&logoColor=white)](https://github.com/gabrielbaute/spotify-saver/pkgs/container/spotify-saver)
-[![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-Auto--Build-green?logo=github)](https://github.com/gabrielbaute/spotify-saver/pkgs/container/spotify-saver)
+[![Docker](https://img.shields.io/badge/Docker-GHCR-blue?logo=docker&logoColor=white)](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
+[![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-Auto--Build-green?logo=github)](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
 [![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-orange?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
 [![yt-dlp](https://img.shields.io/badge/yt--dlp-2026.8.19%2B-red)](https://github.com/yt-dlp/yt-dlp)
 [![YouTube Music](https://img.shields.io/badge/YouTube_Music-API-yellow)](https://ytmusicapi.readthedocs.io/)
@@ -212,11 +212,153 @@ This will start the API server with an integrated web interface that you can acc
 
 ## 🐳 Docker Support
 
-The original SpotifySaver is available as a Docker container with full web interface support. Choose between GitHub Container Registry or building locally.
+Docker images are published to
+[GitHub Container Registry](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
+from pushes to `main` and version tags (`v*`). `latest` tracks `main`; version
+tags are also available for pinned deployments. The first successful workflow
+run creates the package. Set its visibility to **Public** in GitHub Packages
+if servers should be able to pull images without authenticating. Until the
+first publish workflow has succeeded, use the local-build override below.
 
-⚠️ The docker repository does **not** have the features from this branch.
+### Install with Docker Compose
 
-Please refer to https://github.com/gabrielbaute/spotify-saver for the original docker installation.
+Requirements: Docker Engine/Desktop with the Compose plugin. Clone this
+repository, then create the host folders and environment file:
+
+```powershell
+New-Item -ItemType Directory -Force data\music, data\videos, data\config
+Copy-Item .env.docker.example .env
+```
+
+On Linux/macOS, the equivalent setup is:
+
+```sh
+mkdir -p data/music data/videos data/config
+cp .env.docker.example .env
+```
+
+Direct YouTube downloads and the Channel Watcher do not need Spotify
+credentials. Spotify URL-based downloads use an interactive OAuth callback,
+which is not currently configured for this headless Docker deployment. Until
+that flow is configured, use direct YouTube URLs for downloads in Docker.
+
+Start the published image:
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+To build and run the checked-out source instead of pulling GHCR, add the build
+override:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+To update a server to the latest published `main` image, run `git pull` for
+the Compose files, then:
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+To publish a versioned image, push a version tag such as `v0.7.5`; the workflow
+publishes it as `0.7.5` as well as updating the major/minor tags. Set
+`IMAGE_TAG=0.7.5` in `.env` to pin the deployment to that image instead of
+following `latest`.
+
+Open `http://127.0.0.1:8000`. The API is also available at
+`http://127.0.0.1:8000/docs`. The port is bound to loopback only; for access
+from other devices on your home network, use the existing Caddy reverse proxy
+setup below rather than exposing the application port directly.
+
+The UI's folder selectors operate on container paths. Audio downloads are
+stored under `/music`, video and watched-channel downloads under `/videos`,
+and both paths map to `data/music` and `data/videos` on the host by default.
+You can set `MUSIC_DIR`, `VIDEO_DIR`, and `CONFIG_DIR` in `.env` to change the
+host-side folders. Keep the config directory: it stores the watched-channel
+database, channel download archives, cookies, and other home-directory app
+state. Back up these folders before migrating or reinstalling:
+
+```text
+data/music/
+data/videos/
+data/config/
+```
+
+On Linux, make sure the mounted directories are writable by the container's
+non-root user (UID 1000). For example, if these are dedicated directories:
+
+```sh
+sudo chown -R 1000:1000 data/music data/videos data/config
+```
+
+Useful maintenance commands:
+
+```sh
+docker compose logs -f spotifysaver
+git pull
+docker compose pull
+docker compose up -d
+docker compose down
+```
+
+`docker compose down` stops and removes the container but leaves the bind
+mounted data folders and named log volume intact. Do not use
+`docker compose down -v` unless you intend to remove the named log volume as
+well.
+
+### Put the app behind an existing Caddy container
+
+If Caddy is already running in Docker, keep it as the only HTTPS entry point.
+Attach SpotifySaver to the same user-defined Docker network as Caddy; no second
+proxy or host-wide web-server installation is needed.
+
+1. Find the Docker network shared by the Caddy container and its other proxied
+   services:
+
+   ```sh
+   docker inspect <caddy-container-name> --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}'
+   ```
+
+2. Set `CADDY_DOCKER_NETWORK` in SpotifySaver's `.env` to that exact network
+   name.
+3. Start SpotifySaver with the Caddy Compose override:
+
+   ```sh
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml pull
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+```
+
+4. Add a site to the existing Caddyfile, using the hostname and TLS policy
+   already configured for your home network:
+
+   ```caddyfile
+   spotify.home.example {
+       reverse_proxy spotifysaver:8000
+   }
+   ```
+
+   Reload Caddy using the method used by its existing deployment, then open
+   `https://spotify.home.example` on a client device.
+
+The app's browser UI uses same-origin API URLs, so its REST requests and SSE
+notification stream both pass through Caddy. Keep the published app port bound
+to `127.0.0.1`; Caddy reaches the container directly over the shared Docker
+network. Configure Caddy with a certificate trusted by each client device.
+For a private/local CA, install that CA on phones and computers as well as
+configuring Caddy; otherwise browsers can warn about the certificate and may
+block browser notifications.
+
+To return to standalone Compose mode, stop the combined stack and start without
+the override:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml down
+docker compose up -d
+```
 
 ## 📂 Output Structure
 ```

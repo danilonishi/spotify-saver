@@ -1,26 +1,31 @@
 services:
   spotifysaver:
     container_name: spotifysaver
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/danilonishi/spotify-saver:${IMAGE_TAG:-latest}
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "127.0.0.1:${API_PORT:-8000}:8000"
     environment:
-      # Spotify API (requerido)
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
-      - SPOTIFY_REDIRECT_URI=${SPOTIFY_REDIRECT_URI:-http://localhost:8000/callback}
-      # Configuración de la app
-      - SPOTIFYSAVER_LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - YTDLP_FORMAT=${YTDLP_FORMAT:-best[ext=m4a]/best}
-      # Configurar cookies en directorio escribible
-      - YTDLP_COOKIES_PATH=/config/cookies.txt
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://127.0.0.1:8888/callback}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SPOTIFYSAVER_OUTPUT_DIR: /music
+      SPOTIFYSAVER_VIDEO_DIR: /videos
+      SPOTIFYSAVER_CHANNEL_WATCHER_DB: /config/channel-watcher.sqlite3
+      YTDLP_FORMAT: ${YTDLP_FORMAT:-best[ext=m4a]/best}
+      YTDLP_COOKIES_PATH: /config/cookies.txt
+      HOME: /config
     volumes:
-      - ${MUSIC_DIR:-./music}:/music
-      - ${CONFIG_DIR:-./config}:/config
-      - spotifysaver_logs:/logs
-    command: ["spotifysaver-api"]
+      - ${MUSIC_DIR:-./data/music}:/music
+      - ${VIDEO_DIR:-./data/videos}:/videos
+      - ${CONFIG_DIR:-./data/config}:/config
+      - spotifysaver_logs:/app/logs
+    command:
+      - sh
+      - -c
+      - >-
+        exec uvicorn spotifysaver.api.main:app --host 0.0.0.0 --port 8000
+        --log-level "$$(printf '%s' "$${LOG_LEVEL:-info}" | tr '[:upper:]' '[:lower:]')"
     restart: unless-stopped
     # Configuración de seguridad
     security_opt:

@@ -1,0 +1,5 @@
+services:
+  spotifysaver:
+    build:
+      context: .
+      dockerfile: Dockerfile

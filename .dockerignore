@@ -1,4 +1,5 @@
 .git
+.github/
 __pycache__/
 *.pyc
 *.pyo
@@ -9,6 +10,11 @@ __pycache__/
 *.DS_Store
 node_modules/
 .dockerignore
+tests/
+testing/
+Playlists/
+Videos/
+.venv/
 # Python virtual environments
 venv/
 env/
@@ -36,6 +42,8 @@ docker-compose.override.yml
 # Music and config directories (should be mounted)
 music/
 Music/
+videos/
+Videos/
 config/
 test_output/
 string/

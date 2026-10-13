@@ -1,0 +1,10 @@
+services:
+  spotifysaver:
+    networks:
+      - default
+      - caddy
+
+networks:
+  caddy:
+    external: true
+    name: ${CADDY_DOCKER_NETWORK:?Set CADDY_DOCKER_NETWORK to the existing Caddy network}
