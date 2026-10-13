@@ -377,7 +377,6 @@ class ApiClient {
             {
                 method: 'PUT',
                 mode: 'cors',
-                credentials: 'omit',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ directory })
             }
@@ -385,6 +384,101 @@ class ApiClient {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.detail || 'Could not save the download folder');
+        }
+        return response.json();
+    }
+
+    async getAuthenticationStatus() {
+        const response = await fetch(`${this.apiUrl}/auth/status`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-cache'
+        });
+        if (!response.ok) {
+            throw new Error('Could not check SpotifySaver sign-in status');
+        }
+        return response.json();
+    }
+
+    async setInitialPassword(setupToken, password) {
+        return this.sendAuthenticationRequest('/auth/setup', {
+            setup_token: setupToken,
+            password
+        });
+    }
+
+    async login(password) {
+        return this.sendAuthenticationRequest('/auth/login', { password });
+    }
+
+    async logout() {
+        return this.sendAuthenticationRequest('/auth/logout', {});
+    }
+
+    async sendAuthenticationRequest(path, payload) {
+        const response = await fetch(`${this.apiUrl}${path}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Authentication request failed');
+        }
+        return response.json();
+    }
+
+    async getSpotifySettings() {
+        const response = await fetch(`${this.apiUrl}/spotify/settings`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-cache'
+        });
+        if (!response.ok) {
+            throw new Error('Could not fetch Spotify settings');
+        }
+        return response.json();
+    }
+
+    async saveSpotifySettings(settings) {
+        const response = await fetch(`${this.apiUrl}/spotify/settings`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not save Spotify settings');
+        }
+        return response.json();
+    }
+
+    async removeSpotifySettings() {
+        const response = await fetch(`${this.apiUrl}/spotify/settings`, {
+            method: 'DELETE',
+            headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not remove Spotify settings');
+        }
+        return response.json();
+    }
+
+    async startSpotifyAuthorization() {
+        const response = await fetch(`${this.apiUrl}/spotify/authorization`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not start Spotify authorization');
         }
         return response.json();
     }

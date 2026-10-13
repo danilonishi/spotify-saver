@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-13-6">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-13-8">
 </head>
 <body>
     <!-- Header -->
@@ -15,7 +15,31 @@
 
     <!-- Main content -->
     <div class="container">
-        <main id="download-dashboard" class="dashboard">
+        <section id="authentication-panel" class="form-section authentication-panel" aria-labelledby="authentication-heading">
+            <h2 id="authentication-heading">Sign in to SpotifySaver</h2>
+            <p id="authentication-help" class="watcher-help"></p>
+            <form id="initial-setup-form" class="hidden">
+                <div class="form-group">
+                    <label for="setup-token">One-time setup token:</label>
+                    <input id="setup-token" type="password" autocomplete="one-time-code" required>
+                </div>
+                <div class="form-group">
+                    <label for="setup-password">Create administrator password:</label>
+                    <input id="setup-password" type="password" autocomplete="new-password" minlength="12" required>
+                    <small>Use at least 12 characters. This password protects the app and its settings.</small>
+                </div>
+                <button class="download-btn" type="submit">Set password and continue</button>
+            </form>
+            <form id="login-form" class="hidden">
+                <div class="form-group">
+                    <label for="login-password">Administrator password:</label>
+                    <input id="login-password" type="password" autocomplete="current-password" required>
+                </div>
+                <button class="download-btn" type="submit">Sign in</button>
+            </form>
+            <p id="authentication-status" role="status" aria-live="polite"></p>
+        </section>
+        <main id="download-dashboard" class="dashboard hidden">
             <!-- Left column -->
             <div class="left-column">
                 <!-- Download progress section -->
@@ -558,6 +582,32 @@
                     </form>
                 </section>
 
+                <section id="spotify-settings-panel" class="form-section hidden" aria-labelledby="spotify-settings-heading">
+                    <h2 id="spotify-settings-heading">Spotify Account</h2>
+                    <p class="watcher-help">Create an app in the Spotify Developer Dashboard, then enter its Client ID and Client Secret. Your secret is saved on this server and is never shown again. Spotify playlist access also requires connecting your Spotify account.</p>
+                    <form id="spotify-settings-form">
+                        <div class="form-group">
+                            <label for="spotify-client-id">Spotify Client ID:</label>
+                            <input id="spotify-client-id" type="text" autocomplete="off" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="spotify-client-secret">Spotify Client Secret:</label>
+                            <input id="spotify-client-secret" type="password" autocomplete="new-password" placeholder="Enter to set or replace the saved secret">
+                        </div>
+                        <div class="form-group">
+                            <label for="spotify-redirect-uri">OAuth redirect URL:</label>
+                            <input id="spotify-redirect-uri" type="url" autocomplete="url" required>
+                            <small>Add this exact URL to the Redirect URIs in your Spotify Developer app.</small>
+                        </div>
+                        <p id="spotify-settings-status" class="watcher-help" role="status">Loading Spotify settings...</p>
+                        <div class="jellyfin-settings-actions">
+                            <button id="spotify-save-settings" class="download-btn" type="submit">Save Spotify Settings</button>
+                            <button id="spotify-connect" class="output-dir-button" type="button" disabled>Connect to Spotify</button>
+                            <button id="spotify-remove-settings" class="clear-btn" type="button" disabled>Remove Spotify Settings</button>
+                        </div>
+                    </form>
+                </section>
+
             </div>
         </main>
     </div>
@@ -565,6 +615,7 @@
     <div class="theme-toggle-container">
         <button id="theme-toggle-btn" class="theme-toggle-btn" type="button" aria-pressed="false">🌙 Dark mode</button>
         <button id="settings-toggle-btn" class="theme-toggle-btn" type="button" aria-pressed="false">⚙️ Settings</button>
+        <button id="logout-btn" class="theme-toggle-btn hidden" type="button">Sign out</button>
     </div>
     <div id="notification-container" class="notification-container" aria-live="polite" aria-relevant="additions" aria-label="Notifications"></div>
 
@@ -596,11 +647,11 @@
         </div>
     </footer>
     <!-- Load JavaScript modules in dependency order -->
-    <script src="/static/js/api-client.js?v=2026-10-13-7"></script>
+    <script src="/static/js/api-client.js?v=2026-10-13-8"></script>
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
     <script src="/static/js/ui-manager.js?v=2026-10-13-4"></script>
     <script src="/static/js/download-manager.js?v=2026-10-13-14"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-13-1"></script>
-    <script src="/static/js/app.js?v=2026-10-13-16"></script>
+    <script src="/static/js/app.js?v=2026-10-13-17"></script>
 </body>
 </html>

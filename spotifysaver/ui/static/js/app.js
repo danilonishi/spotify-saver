@@ -33,6 +33,17 @@ class SpotifySaverUI {
         try {
             this.initializeEventListeners();
             this.loadPersistedState();
+
+            const authentication = await this.apiClient.getAuthenticationStatus();
+            if (!authentication.configured) {
+                this.showAuthentication('setup');
+                return;
+            }
+            if (!authentication.authenticated) {
+                this.showAuthentication('login');
+                return;
+            }
+            this.showAuthenticatedDashboard();
             
             // Check API status with retry mechanism
             const apiAvailable = await this.apiClient.checkApiStatusWithRetry();
@@ -46,6 +57,7 @@ class SpotifySaverUI {
                 await this.channelWatcherManager.load();
                 this.channelWatcherManager.startPolling();
                 await this.loadJellyfinLibraryScanSettings();
+                await this.loadSpotifySettings();
                 window.setInterval(() => this.refreshJellyfinLibraryScanStatus(), 30000);
             } else {
                 this.uiManager.updateStatus('API not available. Make sure it is running.', 'error');
@@ -59,7 +71,9 @@ class SpotifySaverUI {
 
         } catch (error) {
             console.error('Failed to initialize UI:', error);
-            this.uiManager.updateStatus('Failed to initialize. Please refresh the page.', 'error');
+            this.showAuthenticationError(
+                `Could not initialize SpotifySaver: ${error.message}`
+            );
         }
     }
 
@@ -93,6 +107,27 @@ class SpotifySaverUI {
         });
         settingsToggleBtn.addEventListener('click', () => {
             this.setSettingsVisible(!this.settingsVisible);
+        });
+        document.getElementById('initial-setup-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            this.submitInitialSetup();
+        });
+        document.getElementById('login-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            this.submitLogin();
+        });
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            this.logout();
+        });
+        document.getElementById('spotify-settings-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            this.saveSpotifySettings();
+        });
+        document.getElementById('spotify-connect').addEventListener('click', () => {
+            this.connectSpotify();
+        });
+        document.getElementById('spotify-remove-settings').addEventListener('click', () => {
+            this.removeSpotifySettings();
         });
         document.getElementById('enable-browser-notifications').addEventListener(
             'click',
@@ -248,6 +283,166 @@ class SpotifySaverUI {
         this.uiManager.setPreferredOutputDirectories(preferences);
     }
 
+    showAuthentication(mode) {
+        const setupMode = mode === 'setup';
+        document.getElementById('authentication-panel').classList.remove('hidden');
+        document.getElementById('download-dashboard').classList.add('hidden');
+        document.getElementById('settings-toggle-btn').classList.add('hidden');
+        document.getElementById('logout-btn').classList.add('hidden');
+        document.getElementById('authentication-heading').textContent =
+            setupMode ? 'Set up SpotifySaver' : 'Sign in to SpotifySaver';
+        document.getElementById('authentication-help').textContent = setupMode
+            ? 'Enter the one-time setup token from the server logs and create an administrator password.'
+            : 'Sign in with the administrator password for this SpotifySaver server.';
+        document.getElementById('initial-setup-form').classList.toggle('hidden', !setupMode);
+        document.getElementById('login-form').classList.toggle('hidden', setupMode);
+        document.getElementById('authentication-status').textContent = '';
+    }
+
+    showAuthenticatedDashboard() {
+        document.getElementById('authentication-panel').classList.add('hidden');
+        document.getElementById('download-dashboard').classList.remove('hidden');
+        document.getElementById('settings-toggle-btn').classList.remove('hidden');
+        document.getElementById('logout-btn').classList.remove('hidden');
+    }
+
+    showAuthenticationError(message) {
+        document.getElementById('authentication-panel').classList.remove('hidden');
+        document.getElementById('download-dashboard').classList.add('hidden');
+        const status = document.getElementById('authentication-status');
+        status.textContent = message;
+        status.className = 'status-error';
+    }
+
+    async submitInitialSetup() {
+        const form = document.getElementById('initial-setup-form');
+        const status = document.getElementById('authentication-status');
+        const submit = form.querySelector('button[type="submit"]');
+        submit.disabled = true;
+        status.textContent = 'Setting up administrator access...';
+        status.className = 'watcher-help';
+        try {
+            await this.apiClient.setInitialPassword(
+                document.getElementById('setup-token').value.trim(),
+                document.getElementById('setup-password').value
+            );
+            window.location.reload();
+        } catch (error) {
+            status.textContent = error.message;
+            status.className = 'status-error';
+        } finally {
+            submit.disabled = false;
+        }
+    }
+
+    async submitLogin() {
+        const form = document.getElementById('login-form');
+        const status = document.getElementById('authentication-status');
+        const submit = form.querySelector('button[type="submit"]');
+        submit.disabled = true;
+        status.textContent = 'Signing in...';
+        status.className = 'watcher-help';
+        try {
+            await this.apiClient.login(document.getElementById('login-password').value);
+            window.location.reload();
+        } catch (error) {
+            status.textContent = error.message;
+            status.className = 'status-error';
+        } finally {
+            submit.disabled = false;
+        }
+    }
+
+    async logout() {
+        try {
+            await this.apiClient.logout();
+            window.location.reload();
+        } catch (error) {
+            this.uiManager.updateStatus(error.message, 'error');
+        }
+    }
+
+    async loadSpotifySettings() {
+        const redirectInput = document.getElementById('spotify-redirect-uri');
+        redirectInput.value = `${window.location.origin}/api/v1/spotify/callback`;
+        try {
+            const settings = await this.apiClient.getSpotifySettings();
+            document.getElementById('spotify-client-id').value = settings.client_id || '';
+            redirectInput.value = settings.redirect_uri || redirectInput.value;
+            document.getElementById('spotify-client-secret').value = '';
+            this.renderSpotifySettings(settings);
+        } catch (error) {
+            this.setSpotifySettingsMessage(error.message, 'status-error');
+        }
+    }
+
+    async saveSpotifySettings() {
+        const saveButton = document.getElementById('spotify-save-settings');
+        saveButton.disabled = true;
+        this.setSpotifySettingsMessage('Saving Spotify settings...', 'watcher-help');
+        try {
+            const settings = await this.apiClient.saveSpotifySettings({
+                client_id: document.getElementById('spotify-client-id').value.trim(),
+                client_secret: document.getElementById('spotify-client-secret').value,
+                redirect_uri: document.getElementById('spotify-redirect-uri').value.trim()
+            });
+            document.getElementById('spotify-client-secret').value = '';
+            this.renderSpotifySettings(settings);
+        } catch (error) {
+            this.setSpotifySettingsMessage(error.message, 'status-error');
+        } finally {
+            saveButton.disabled = false;
+        }
+    }
+
+    async connectSpotify() {
+        const connectButton = document.getElementById('spotify-connect');
+        connectButton.disabled = true;
+        this.setSpotifySettingsMessage('Opening Spotify authorization...', 'watcher-help');
+        try {
+            const result = await this.apiClient.startSpotifyAuthorization();
+            window.location.assign(result.authorization_url);
+        } catch (error) {
+            this.setSpotifySettingsMessage(error.message, 'status-error');
+            connectButton.disabled = false;
+        }
+    }
+
+    async removeSpotifySettings() {
+        if (!confirm('Remove the saved Spotify credentials and account authorization?')) {
+            return;
+        }
+        const removeButton = document.getElementById('spotify-remove-settings');
+        removeButton.disabled = true;
+        try {
+            const result = await this.apiClient.removeSpotifySettings();
+            document.getElementById('spotify-client-id').value = '';
+            document.getElementById('spotify-client-secret').value = '';
+            this.renderSpotifySettings(result);
+        } catch (error) {
+            this.setSpotifySettingsMessage(error.message, 'status-error');
+        }
+    }
+
+    renderSpotifySettings(settings) {
+        document.getElementById('spotify-connect').disabled =
+            !settings.credentials_configured;
+        document.getElementById('spotify-remove-settings').disabled =
+            !settings.credentials_configured;
+        const message = settings.authorized
+            ? 'Spotify account is connected. Spotify URLs and playlist downloads are ready.'
+            : settings.credentials_configured
+                ? 'Credentials are saved. Connect your Spotify account to enable playlist access.'
+                : 'Spotify is not configured. Direct YouTube downloads do not require Spotify credentials.';
+        this.setSpotifySettingsMessage(message, 'watcher-help');
+    }
+
+    setSpotifySettingsMessage(message, className) {
+        const status = document.getElementById('spotify-settings-status');
+        status.textContent = message;
+        status.className = className;
+    }
+
     async loadJellyfinLibraryScanSettings() {
         try {
             const settings = await this.apiClient.getJellyfinLibraryScanSettings();
@@ -400,6 +595,7 @@ class SpotifySaverUI {
         dashboard.classList.toggle('settings-mode', visible);
         document.getElementById('download-settings-panel').classList.toggle('hidden', visible);
         document.getElementById('jellyfin-settings-panel').classList.toggle('hidden', !visible);
+        document.getElementById('spotify-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('panel-visibility-settings').classList.toggle('hidden', !visible);
         document.getElementById('notification-preferences-panel').classList.toggle('hidden', !visible);
         const button = document.getElementById('settings-toggle-btn');

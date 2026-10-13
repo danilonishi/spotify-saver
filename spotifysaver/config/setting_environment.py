@@ -54,6 +54,9 @@ class Config:
         "SPOTIFY_SCOPES",
         "playlist-read-private playlist-read-collaborative",
     )
+    SPOTIFY_AUTO_OPEN_BROWSER = os.getenv(
+        "SPOTIFYSAVER_AUTO_OPEN_BROWSER", "true"
+    ).lower() == "true"
 
     # Logger configuration
     LOG_LEVEL = os.getenv("LOG_LEVEL", "info").lower()

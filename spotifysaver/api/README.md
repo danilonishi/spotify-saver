@@ -337,9 +337,15 @@ Music/
 
 ## 🛡️ Security Considerations
 
-- The API does not include authentication by default
-- Do not expose the API directly to the internet without authentication
-- Consider using a reverse proxy (nginx) in production
+- The API requires an administrator password, established with a one-time
+  setup token printed to the server logs on first startup.
+- Keep the setup token private; it permits the first administrator account to
+  be created and becomes invalid after use.
+- Spotify credentials and authentication data are stored in the server's
+  security database and protected by filesystem permissions, not encrypted.
+- Use HTTPS for remote web access, and protect server logs, configuration files,
+  and Docker administrator access.
+- Consider using a reverse proxy (such as Caddy) in production.
 - Validate and sanitize all input URLs
 
 ## 📝 Logging

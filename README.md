@@ -73,9 +73,9 @@ poetry install
 pip install git+https://github.com/danilonishi/spotify-saver.git
 ```
 
-⚠️ Spotify URLs require a Spotify developer app with a client ID and client secret in the project's `.env` file. Direct YouTube downloads do not require Spotify credentials.
-
-Spotify playlist access uses Spotify user authorization. Add `http://127.0.0.1:8888/callback` to the app's Redirect URIs in the Spotify Developer Dashboard. The first playlist request opens a Spotify login/authorization page; the resulting token is cached under `~/.spotify-saver`.
+Spotify URLs require a Spotify developer app and a Spotify account connection.
+Configure these in **Settings → Spotify Account** in the web interface. Direct
+YouTube downloads do not require Spotify credentials.
 
 ## ⚙️ Configuration
 
@@ -210,6 +210,12 @@ This will start the API server with an integrated web interface that you can acc
 - Web Interface & API: `http://127.0.0.1:8000`
 - API Documentation: `http://127.0.0.1:8000/docs`
 
+The web interface and API require an administrator password. On first startup,
+the server logs a one-time setup token; enter it in the browser to create the
+password. Store and protect the server's configuration directory because it
+contains the password hash, Spotify credentials, and authorization tokens.
+Use HTTPS for remote access.
+
 ## 🐳 Docker Support
 
 Docker images are published to
@@ -225,12 +231,14 @@ first publish workflow has succeeded, use the local-build override below.
 Requirements: Docker Engine/Desktop with the Compose plugin. Clone this
 repository, then create the host folders and environment file:
 
+In **Windows PowerShell**, run:
+
 ```powershell
 New-Item -ItemType Directory -Force data\music, data\videos, data\config
 Copy-Item .env.docker.example .env
 ```
 
-On Linux/macOS, the equivalent setup is:
+On **Linux/macOS**, run the equivalent commands in a terminal using Bash:
 
 ```sh
 mkdir -p data/music data/videos data/config
@@ -238,9 +246,10 @@ cp .env.docker.example .env
 ```
 
 Direct YouTube downloads and the Channel Watcher do not need Spotify
-credentials. Spotify URL-based downloads use an interactive OAuth callback,
-which is not currently configured for this headless Docker deployment. Until
-that flow is configured, use direct YouTube URLs for downloads in Docker.
+credentials. Spotify URL-based downloads can be configured from **Settings →
+Spotify Account** after signing in. The app asks Spotify to authorize in your
+browser and receives the callback on the server; this works with a headless
+Docker deployment.
 
 Start the published image:
 
@@ -248,6 +257,42 @@ Start the published image:
 docker compose pull
 docker compose up -d
 ```
+
+### First-time sign-in
+
+On first launch, SpotifySaver writes a one-time administrator setup token to
+the server logs. From the directory containing the Compose files, read it with:
+
+```sh
+docker compose logs --tail=100 spotifysaver
+```
+
+Open SpotifySaver in your browser, enter that token, and create an administrator
+password of at least 12 characters. The token is generated again after a server
+restart until the initial password has been set, and becomes invalid once it is
+used. Do not share the logs while they contain the token. After setup, sign in
+with the password you created. Login attempts are rate-limited.
+
+The admin password, sessions, and Spotify app credentials are persisted in
+`CONFIG_DIR` (the `data/config` folder by default); the database is readable
+only by the container account on Linux. The Spotify OAuth token cache is stored
+in the same config directory with restricted file permissions. Back up this
+directory and protect access to it.
+
+### Configure Spotify
+
+1. Create an app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/).
+2. In SpotifySaver, open **Settings → Spotify Account**. Copy the displayed
+   OAuth redirect URL into the app's allowed Redirect URIs in the Spotify
+   Developer Dashboard. It must match exactly; for a Caddy deployment it uses
+   the public HTTPS hostname.
+3. Enter the app's Client ID and Client Secret and save them.
+4. Select **Connect to Spotify** and approve access in Spotify.
+
+The Client Secret is stored on the server and is never returned to the browser
+after saving. The server-side security database is protected by filesystem
+permissions, not encrypted; anyone with access to the server's config files or
+Docker administrator access can read it. Keep those host files private.
 
 To build and run the checked-out source instead of pulling GHCR, add the build
 override:

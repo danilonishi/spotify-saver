@@ -7,8 +7,12 @@ from typing import List
 class APIConfig:
     """Configuration settings for the FastAPI application."""
 
-    # CORS settings
-    ALLOWED_ORIGINS: List[str] = ["*"]
+    # Cross-origin access is opt-in; the bundled UI uses same-origin requests.
+    ALLOWED_ORIGINS: List[str] = [
+        origin.strip()
+        for origin in os.getenv("SPOTIFYSAVER_CORS_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
 
     # API settings
     DEFAULT_OUTPUT_DIR: str = "Music"
@@ -45,5 +49,17 @@ class APIConfig:
                 os.path.expanduser("~"),
                 ".spotify-saver",
                 "channel-watcher.sqlite3",
+            ),
+        )
+
+    @classmethod
+    def get_security_db_path(cls) -> str:
+        """Get the persistent database path for authentication and credentials."""
+        return os.getenv(
+            "SPOTIFYSAVER_SECURITY_DB",
+            os.path.join(
+                os.path.expanduser("~"),
+                ".spotify-saver",
+                "security.sqlite3",
             ),
         )

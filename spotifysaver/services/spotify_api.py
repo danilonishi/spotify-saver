@@ -42,7 +42,7 @@ class SpotifyAPI:
             redirect_uri=Config.SPOTIFY_REDIRECT_URI,
             scope=Config.SPOTIFY_SCOPES,
             cache_path=str(cache_path),
-            open_browser=True,
+            open_browser=Config.SPOTIFY_AUTO_OPEN_BROWSER,
         )
         self.sp = spotipy.Spotify(
             auth_manager=auth_manager

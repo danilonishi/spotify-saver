@@ -7,11 +7,11 @@ services:
     environment:
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
-      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://127.0.0.1:8888/callback}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       SPOTIFYSAVER_OUTPUT_DIR: /music
       SPOTIFYSAVER_VIDEO_DIR: /videos
       SPOTIFYSAVER_CHANNEL_WATCHER_DB: /config/channel-watcher.sqlite3
+      SPOTIFYSAVER_SECURITY_DB: /config/.spotify-saver/security.sqlite3
       YTDLP_FORMAT: ${YTDLP_FORMAT:-best[ext=m4a]/best}
       YTDLP_COOKIES_PATH: /config/cookies.txt
       HOME: /config
