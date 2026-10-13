@@ -77,7 +77,7 @@ def test_jellyfin_settings_endpoint_reports_invalid_server_url(tmp_path):
     with pytest.raises(HTTPException) as error:
         asyncio.run(
             set_jellyfin_library_scan_settings(
-                JellyfinLibraryScanSettingsUpdate(server_url="jellyfin.local"),
+                JellyfinLibraryScanSettingsUpdate(server_url="ftp://jellyfin.local"),
                 _request(service),
             )
         )
@@ -213,22 +213,19 @@ def test_existing_jellyfin_settings_database_gets_scan_generation_migration(tmp_
     assert store.get_settings()["api_key"] == "saved-key"
 
 
-def test_jellyfin_server_url_must_be_http_or_https(tmp_path):
+def test_jellyfin_server_url_without_scheme_defaults_to_http(tmp_path):
     store = JellyfinLibraryScanStore(str(tmp_path / "settings.sqlite3"))
     store.initialize()
     service = JellyfinLibraryScanService(store, is_queue_idle=lambda: True)
 
-    try:
-        service.save_settings(
-            "jellyfin.local:8096",
-            "secret-api-key",
-            clear_api_key=False,
-            scan_interval_minutes=5,
-        )
-    except ValueError as error:
-        assert "http://" in str(error)
-    else:
-        raise AssertionError("A Jellyfin URL without a scheme should be rejected")
+    settings = service.save_settings(
+        "192.168.1.10:8096",
+        "secret-api-key",
+        clear_api_key=False,
+        scan_interval_minutes=5,
+    )
+
+    assert settings["server_url"] == "http://192.168.1.10:8096"
 
 
 def test_completed_download_waits_for_idle_queue_then_requests_scan(

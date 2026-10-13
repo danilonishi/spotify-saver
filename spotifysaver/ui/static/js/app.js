@@ -221,6 +221,9 @@ class SpotifySaverUI {
 
         clearQueueBtn.addEventListener('click', () => this.downloadManager.clearQueue());
         clearCompletedBtn.addEventListener('click', () => this.downloadManager.clearCompleted());
+        document.getElementById('jellyfin-server-url').addEventListener('blur', (event) => {
+            event.target.value = this.normalizeJellyfinServerUrl(event.target.value);
+        });
         document.getElementById('jellyfin-settings-form').addEventListener('submit', (event) => {
             event.preventDefault();
             this.saveJellyfinLibraryScanSettings();
@@ -482,8 +485,10 @@ class SpotifySaverUI {
         saveButton.disabled = true;
         this.setJellyfinLibraryScanMessage('Saving Jellyfin settings...', 'watcher-help');
         try {
+            const serverUrlInput = document.getElementById('jellyfin-server-url');
+            serverUrlInput.value = this.normalizeJellyfinServerUrl(serverUrlInput.value);
             const settings = await this.apiClient.saveJellyfinLibraryScanSettings({
-                server_url: document.getElementById('jellyfin-server-url').value.trim(),
+                server_url: serverUrlInput.value,
                 api_key: document.getElementById('jellyfin-api-key').value,
                 clear_api_key: false,
                 scan_interval_minutes: Number(
@@ -498,6 +503,13 @@ class SpotifySaverUI {
         } finally {
             saveButton.disabled = false;
         }
+    }
+
+    normalizeJellyfinServerUrl(value) {
+        const trimmed = value.trim();
+        return trimmed && !/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
+            ? `http://${trimmed}`
+            : trimmed;
     }
 
     async removeJellyfinApiKey() {

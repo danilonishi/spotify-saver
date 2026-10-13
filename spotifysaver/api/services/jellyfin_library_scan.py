@@ -211,6 +211,8 @@ class JellyfinLibraryScanStore:
 
 def _validate_server_url(server_url: str) -> str:
     normalized = server_url.strip().rstrip("/")
+    if normalized and "://" not in normalized:
+        normalized = f"http://{normalized}"
     try:
         parsed = urlsplit(normalized)
         parsed.port

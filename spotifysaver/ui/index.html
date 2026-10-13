@@ -541,10 +541,11 @@
                                 <button class="watcher-tooltip" type="button" aria-label="Help: Enter the address of your Jellyfin server, including the port if needed." data-tooltip="Enter the address of your Jellyfin server, including the port if needed.">i</button>
                             </div>
                             <input
-                                type="url"
+                                type="text"
+                                inputmode="url"
                                 id="jellyfin-server-url"
-                                placeholder="http://192.168.1.10:8096"
-                                title="Enter the address of your Jellyfin server, including the port if needed.">
+                                placeholder="192.168.1.10:8096"
+                                title="Enter the address of your Jellyfin server, including the port if needed. http:// will be added if you do not enter a scheme.">
                         </div>
                         <div class="form-group">
                             <div class="watcher-label-row">
