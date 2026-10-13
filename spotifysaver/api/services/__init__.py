@@ -8,6 +8,7 @@ from .jellyfin_library_scan import (
     JellyfinLibraryScanService,
     JellyfinLibraryScanStore,
 )
+from .notification_hub import NotificationHub
 
 __all__ = [
     "DownloadService",
@@ -17,4 +18,5 @@ __all__ = [
     "DownloadDirectoryStore",
     "JellyfinLibraryScanService",
     "JellyfinLibraryScanStore",
+    "NotificationHub",
 ]

@@ -985,6 +985,9 @@ class ChannelWatcherService:
         providers: Optional[dict[str, ChannelProvider]] = None,
         archive_dir: Optional[str] = None,
         channel_list_timeout_seconds: float = CHANNEL_LIST_TIMEOUT_SECONDS,
+        publish_notification: Optional[
+            Callable[..., Awaitable[None]]
+        ] = None,
     ):
         self.store = store or ChannelWatcherStore()
         self.enqueue_video = enqueue_video
@@ -993,6 +996,7 @@ class ChannelWatcherService:
             archive_dir or Path.home() / ".spotify-saver" / "channel-watch-archives"
         )
         self.channel_list_timeout_seconds = channel_list_timeout_seconds
+        self.publish_notification = publish_notification
         self._stop_event = asyncio.Event()
         self._task: Optional[asyncio.Task[None]] = None
         self._check_tasks: dict[str, asyncio.Task[None]] = {}
@@ -1211,6 +1215,13 @@ class ChannelWatcherService:
                 )
             self.store.record_failure(channel_id, str(error), retry_at)
             logger.error("Could not check watched channel %s: %s", current_channel["url"], error)
+            if self.publish_notification:
+                await self.publish_notification(
+                    "check_failed",
+                    f"Could not check {current_channel.get('title') or current_channel['url']}: {error}",
+                    source=current_channel.get("title") or current_channel["url"],
+                    channel_id=channel_id,
+                )
             return
 
         completed_at = utc_now()
@@ -1238,6 +1249,15 @@ class ChannelWatcherService:
             queued_count,
             next_at.isoformat(),
         )
+        if discovered_count and self.publish_notification:
+            source = scan.title or channel.get("title") or channel["url"]
+            await self.publish_notification(
+                "new_content",
+                f"Found {discovered_count} new upload(s) from {source}.",
+                source=source,
+                channel_id=channel_id,
+                count=str(discovered_count),
+            )
 
     async def _queue_pending_videos(
         self,

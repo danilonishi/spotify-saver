@@ -28,6 +28,7 @@ from ...spotlog import get_logger
 from ..config import APIConfig
 from ..services.channel_watcher import ChannelWatcherStore, utc_now
 from ..services.jellyfin_library_scan import JellyfinLibraryScanService
+from ..services.notification_hub import NotificationHub
 
 
 logger = get_logger("API")
@@ -74,6 +75,31 @@ discard_after_stop: set[str] = set()
 preserve_after_stop: set[str] = set()
 queue_lock = asyncio.Lock()
 jellyfin_library_scan_service: JellyfinLibraryScanService | None = None
+notification_hub: NotificationHub | None = None
+
+
+def set_notification_hub(hub: NotificationHub | None) -> None:
+    """Attach the application-scoped live notification broadcaster."""
+    global notification_hub
+    notification_hub = hub
+
+
+async def _publish_download_attention(task: DownloadStatus) -> None:
+    if notification_hub is None:
+        return
+    if task.warning_message:
+        message = task.warning_message
+    elif task.status in {"failed", "completed_with_errors"}:
+        message = task.error_message or f"Download {task.status.replace('_', ' ')}."
+    else:
+        return
+    title = task.title or task.current_track or "Download"
+    await notification_hub.publish(
+        "download_attention",
+        f"{title}: {message}",
+        title=title,
+        task_id=task.task_id,
+    )
 
 
 def set_jellyfin_library_scan_service(
@@ -833,6 +859,7 @@ async def download_task(task_id: str, request: DownloadRequest):
         if task is not None and task.status != "queued":
             cancellation_events.pop(task_id, None)
             download_archives.pop(task_id, None)
+            await _publish_download_attention(task)
 
 
 async def enqueue_watched_video(channel: dict, video_url: str) -> None:

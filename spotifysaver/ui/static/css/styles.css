@@ -544,6 +544,25 @@ select:focus {
     cursor: grabbing;
 }
 
+.notification-preference-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+}
+
+.browser-notification-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.notification-preference-option,
+.notification-preference-option:active {
+    cursor: pointer;
+}
+
 .panel-visibility-option.is-dragging {
     opacity: 0.45;
 }
@@ -615,6 +634,65 @@ body.dark-mode .panel-visibility-option {
 
 body.dark-mode .panel-visibility-drag-handle {
     color: #9ca8b8;
+}
+
+.notification-container {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 1000;
+    display: grid;
+    gap: 10px;
+    width: min(420px, calc(100vw - 32px));
+    pointer-events: none;
+}
+
+.notification-toast {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border-left: 4px solid #3182ce;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    color: #2d3748;
+    pointer-events: auto;
+    overflow-wrap: anywhere;
+    animation: notification-appear 0.18s ease-out;
+}
+
+.notification-check_failed,
+.notification-download_attention {
+    border-left-color: #e53e3e;
+}
+
+.notification-dismiss {
+    flex: 0 0 auto;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+body.dark-mode .notification-toast {
+    background: #2d3748;
+    color: #e2e8f0;
+}
+
+@keyframes notification-appear {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Download queue section */
@@ -1015,6 +1093,17 @@ body.dark-mode .watcher-tooltip {
         grid-template-columns: 1fr;
         gap: 8px;
     }
+
+    .notification-preference-options {
+        grid-template-columns: 1fr;
+    }
+
+    .notification-container {
+        right: 12px;
+        bottom: 12px;
+        width: calc(100vw - 24px);
+    }
+
     .right-column {
         grid-template-rows: auto auto;
         gap: 8px;

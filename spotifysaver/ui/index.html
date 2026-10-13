@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-13-5">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-13-6">
 </head>
 <body>
     <!-- Header -->
@@ -58,7 +58,27 @@
                         </div>
                     </div>
                 </section>
-            
+
+                <section id="notification-preferences-panel" class="form-section hidden" aria-labelledby="notification-preferences-heading">
+                    <h2 id="notification-preferences-heading">Notifications</h2>
+                    <p class="watcher-help">Choose which notifications are displayed. Category preferences are saved in this browser. Browser notifications require permission and work while this page is open.</p>
+                    <div class="browser-notification-controls">
+                        <button id="enable-browser-notifications" class="output-dir-button" type="button">Enable browser notifications</button>
+                        <span id="browser-notification-status" class="watcher-help" role="status"></span>
+                    </div>
+                    <div class="notification-preference-options">
+                        <div class="panel-visibility-option notification-preference-option">
+                            <label><input type="checkbox" data-notification-preference="new_content" checked><span>New content found</span></label>
+                        </div>
+                        <div class="panel-visibility-option notification-preference-option">
+                            <label><input type="checkbox" data-notification-preference="check_failed" checked><span>Channel check failed</span></label>
+                        </div>
+                        <div class="panel-visibility-option notification-preference-option">
+                            <label><input type="checkbox" data-notification-preference="download_attention" checked><span>Download needs attention</span></label>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Settings download section -->
                 <div id="download-settings-panel" class="form-section download-view-panel">
                     <h2>Download</h2>
@@ -546,6 +566,7 @@
         <button id="theme-toggle-btn" class="theme-toggle-btn" type="button" aria-pressed="false">🌙 Dark mode</button>
         <button id="settings-toggle-btn" class="theme-toggle-btn" type="button" aria-pressed="false">⚙️ Settings</button>
     </div>
+    <div id="notification-container" class="notification-container" aria-live="polite" aria-relevant="additions" aria-label="Notifications"></div>
 
     <!-- Footer -->
     <footer class="main-footer">
@@ -580,6 +601,6 @@
     <script src="/static/js/ui-manager.js?v=2026-10-13-4"></script>
     <script src="/static/js/download-manager.js?v=2026-10-13-14"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-13-1"></script>
-    <script src="/static/js/app.js?v=2026-10-12-13"></script>
+    <script src="/static/js/app.js?v=2026-10-13-16"></script>
 </body>
 </html>

@@ -958,17 +958,47 @@ def test_success_queues_only_new_videos_not_already_on_disk(tmp_path):
     async def enqueue(watched_channel, video_url):
         queued.append((watched_channel, video_url))
 
+    notifications = []
+
+    async def publish_notification(category, message, **details):
+        notifications.append((category, message, details))
+
     service = ChannelWatcherService(
         store=store,
         enqueue_video=enqueue,
         providers={"youtube": provider},
         archive_dir=str(tmp_path / "archives"),
+        publish_notification=publish_notification,
     )
     asyncio.run(service.check_channel(channel["id"]))
 
     assert [url for _, url in queued] == ["https://www.youtube.com/watch?v=new-video"]
     assert queued[0][0]["download_archive"].endswith(f"{channel['id']}.txt")
     assert store.get_channel(channel["id"])["last_error"] is None
+    assert notifications[0][0] == "new_content"
+    assert notifications[0][2]["count"] == "3"
+
+
+def test_failed_channel_check_publishes_notification(tmp_path):
+    store = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
+    channel = _add_channel(store, tmp_path / "videos")
+    notifications = []
+
+    async def publish_notification(category, message, **details):
+        notifications.append((category, message, details))
+
+    service = ChannelWatcherService(
+        store=store,
+        providers={"youtube": FakeChannelProvider(error=RuntimeError("upstream unavailable"))},
+        publish_notification=publish_notification,
+    )
+
+    asyncio.run(service.check_channel(channel["id"]))
+
+    assert len(notifications) == 1
+    assert notifications[0][0] == "check_failed"
+    assert "upstream unavailable" in notifications[0][1]
+    assert notifications[0][2]["channel_id"] == channel["id"]
 
 
 def test_newly_discovered_upload_is_not_filtered_by_check_timestamp(tmp_path):

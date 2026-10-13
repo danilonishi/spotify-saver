@@ -7,13 +7,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import channel_watcher, download, jellyfin, user_preferences
+from .routers import channel_watcher, download, jellyfin, notifications, user_preferences
 from .config import APIConfig
 from .services import (
     ChannelWatcherService,
     DownloadDirectoryStore,
     JellyfinLibraryScanService,
     JellyfinLibraryScanStore,
+    NotificationHub,
 )
 from .. import __version__
 
@@ -30,6 +31,9 @@ def create_app() -> FastAPI:
     """
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        notification_hub = NotificationHub()
+        app.state.notification_hub = notification_hub
+        download.set_notification_hub(notification_hub)
         download_directory_store = DownloadDirectoryStore()
         download_directory_store.initialize()
         app.state.download_directory_store = download_directory_store
@@ -40,7 +44,10 @@ def create_app() -> FastAPI:
         app.state.jellyfin_library_scan = jellyfin_scan
         download.set_jellyfin_library_scan_service(jellyfin_scan)
         await jellyfin_scan.start()
-        watcher = ChannelWatcherService(enqueue_video=download.enqueue_watched_video)
+        watcher = ChannelWatcherService(
+            enqueue_video=download.enqueue_watched_video,
+            publish_notification=notification_hub.publish,
+        )
         app.state.channel_watcher = watcher
         try:
             watcher.start()
@@ -51,6 +58,7 @@ def create_app() -> FastAPI:
             finally:
                 await jellyfin_scan.stop()
                 download.set_jellyfin_library_scan_service(None)
+                download.set_notification_hub(None)
 
     app = FastAPI(
         title="SpotifySaver API",
@@ -84,6 +92,9 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         jellyfin.router, prefix="/api/v1", tags=["jellyfin-library-scan"]
+    )
+    app.include_router(
+        notifications.router, prefix="/api/v1", tags=["notifications"]
     )
 
     # Serve the main HTML file

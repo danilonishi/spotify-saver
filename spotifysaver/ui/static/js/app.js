@@ -18,6 +18,8 @@ class SpotifySaverUI {
         this.settingsVisible = false;
         this.isInitialized = false;
         this.retryCount = 0;
+        this.notificationSource = null;
+        this.notificationConnectionWarningShown = false;
         this.channelWatcherManager = new ChannelWatcherManager(
             this.apiClient,
             this.uiManager,
@@ -40,6 +42,7 @@ class SpotifySaverUI {
                 await this.loadSavedOutputDirectoryPreferences();
                 await this.loadOutputDirectories();
                 await this.loadAppVersion();
+                this.connectNotifications();
                 await this.channelWatcherManager.load();
                 this.channelWatcherManager.startPolling();
                 await this.loadJellyfinLibraryScanSettings();
@@ -91,8 +94,13 @@ class SpotifySaverUI {
         settingsToggleBtn.addEventListener('click', () => {
             this.setSettingsVisible(!this.settingsVisible);
         });
+        document.getElementById('enable-browser-notifications').addEventListener(
+            'click',
+            () => this.toggleBrowserNotifications()
+        );
         this.setSettingsVisible(false);
         this.initializePanelVisibilityControls();
+        this.initializeNotificationPreferences();
         const pickerIds = {
             audio: { editor: 'media-root-editor', trigger: 'set-media-root-btn', apply: 'apply-media-root-btn', addTrigger: 'add-folder-btn', addEditor: 'add-folder-editor', addInput: 'new-folder-input', create: 'create-folder-btn' },
             video: { editor: 'video-media-root-editor', trigger: 'video-set-media-root-btn', apply: 'video-apply-media-root-btn', addTrigger: 'video-add-folder-btn', addEditor: 'video-add-folder-editor', addInput: 'video-new-folder-input', create: 'video-create-folder-btn' },
@@ -393,6 +401,7 @@ class SpotifySaverUI {
         document.getElementById('download-settings-panel').classList.toggle('hidden', visible);
         document.getElementById('jellyfin-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('panel-visibility-settings').classList.toggle('hidden', !visible);
+        document.getElementById('notification-preferences-panel').classList.toggle('hidden', !visible);
         const button = document.getElementById('settings-toggle-btn');
         button.setAttribute('aria-pressed', String(visible));
         button.textContent = visible ? '⬅️ Back to downloads' : '⚙️ Settings';
@@ -447,6 +456,147 @@ class SpotifySaverUI {
             this.savePanelLayout();
             this.applyPanelLayout(panelOptions);
         });
+    }
+
+    initializeNotificationPreferences() {
+        this.browserNotificationsEnabled =
+            localStorage.getItem('spotifysaver_browser_notifications') === 'enabled';
+        document.querySelectorAll('input[data-notification-preference]').forEach((control) => {
+            const key = `spotifysaver_notification_${control.dataset.notificationPreference}`;
+            const saved = localStorage.getItem(key);
+            control.checked = saved === null ? true : saved === 'enabled';
+            control.addEventListener('change', () => {
+                localStorage.setItem(key, control.checked ? 'enabled' : 'disabled');
+            });
+        });
+        this.updateBrowserNotificationControls();
+    }
+
+    async toggleBrowserNotifications() {
+        const status = document.getElementById('browser-notification-status');
+        if (!('Notification' in window)) {
+            status.textContent = 'Browser notifications are not supported by this browser.';
+            return;
+        }
+        if (!window.isSecureContext) {
+            status.textContent = 'Browser notifications require HTTPS or localhost.';
+            return;
+        }
+
+        if (this.browserNotificationsEnabled && Notification.permission === 'granted') {
+            this.browserNotificationsEnabled = false;
+            localStorage.setItem('spotifysaver_browser_notifications', 'disabled');
+            this.updateBrowserNotificationControls();
+            return;
+        }
+
+        let permission = Notification.permission;
+        if (permission === 'default') {
+            try {
+                permission = await Notification.requestPermission();
+            } catch (error) {
+                console.error('Could not request browser notification permission:', error);
+                status.textContent = 'Could not request browser notification permission.';
+                return;
+            }
+        }
+        this.browserNotificationsEnabled = permission === 'granted';
+        localStorage.setItem(
+            'spotifysaver_browser_notifications',
+            this.browserNotificationsEnabled ? 'enabled' : 'disabled'
+        );
+        this.updateBrowserNotificationControls();
+    }
+
+    updateBrowserNotificationControls() {
+        const button = document.getElementById('enable-browser-notifications');
+        const status = document.getElementById('browser-notification-status');
+        if (!('Notification' in window)) {
+            button.disabled = true;
+            status.textContent = 'Browser notifications are not supported by this browser.';
+            return;
+        }
+        if (!window.isSecureContext) {
+            button.disabled = true;
+            status.textContent = 'Browser notifications require HTTPS or localhost.';
+            return;
+        }
+        button.disabled = Notification.permission === 'denied';
+        if (Notification.permission === 'denied') {
+            status.textContent = 'Permission is blocked. Change it in your browser site settings.';
+        } else if (Notification.permission === 'granted' && this.browserNotificationsEnabled) {
+            status.textContent = 'Browser notifications are enabled.';
+            button.textContent = 'Disable browser notifications';
+            button.disabled = false;
+        } else {
+            status.textContent = 'Browser notifications are off.';
+            button.textContent = 'Enable browser notifications';
+        }
+    }
+
+    connectNotifications() {
+        if (this.notificationSource || !window.EventSource) return;
+        const lastEventId = localStorage.getItem('spotifysaver_notification_last_id') || '0';
+        const url = new URL(`${this.apiClient.apiUrl}/notifications/events`);
+        url.searchParams.set('after', lastEventId);
+        this.notificationSource = new EventSource(url);
+        this.notificationSource.addEventListener('notification', (event) => {
+            localStorage.setItem('spotifysaver_notification_last_id', event.lastEventId);
+            let notification;
+            try {
+                notification = JSON.parse(event.data);
+            } catch (error) {
+                console.warn('Could not parse a server notification:', error);
+                return;
+            }
+            const preference = Array.from(
+                document.querySelectorAll('input[data-notification-preference]')
+            ).find((control) => control.dataset.notificationPreference === notification.category);
+            if (preference?.checked) this.showNotification(notification);
+        });
+        this.notificationSource.onopen = () => {
+            this.notificationConnectionWarningShown = false;
+        };
+        this.notificationSource.onerror = () => {
+            if (this.notificationConnectionWarningShown) return;
+            this.notificationConnectionWarningShown = true;
+            console.warn('Live notifications disconnected; the browser will retry automatically.');
+        };
+    }
+
+    showNotification(notification) {
+        if (
+            this.browserNotificationsEnabled &&
+            'Notification' in window &&
+            Notification.permission === 'granted'
+        ) {
+            const browserNotification = new Notification('SpotifySaver', {
+                body: notification.message,
+                tag: `spotify-saver-${notification.id}`
+            });
+            browserNotification.onclick = () => {
+                window.focus();
+                browserNotification.close();
+            };
+            return;
+        }
+        const container = document.getElementById('notification-container');
+        const toast = document.createElement('div');
+        toast.className = `notification-toast notification-${notification.category}`;
+        toast.setAttribute('role', 'status');
+
+        const message = document.createElement('span');
+        message.textContent = notification.message;
+        const dismiss = document.createElement('button');
+        dismiss.type = 'button';
+        dismiss.className = 'notification-dismiss';
+        dismiss.setAttribute('aria-label', 'Dismiss notification');
+        dismiss.textContent = '×';
+        dismiss.addEventListener('click', () => toast.remove());
+
+        toast.append(message, dismiss);
+        container.appendChild(toast);
+        window.setTimeout(() => toast.remove(), 10000);
     }
 
     getSavedPanelLayout() {
