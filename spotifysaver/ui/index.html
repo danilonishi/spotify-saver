@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-13-8">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-14-9">
 </head>
 <body>
     <!-- Header -->
@@ -589,6 +589,10 @@
 
                 <section id="spotify-settings-panel" class="form-section hidden" aria-labelledby="spotify-settings-heading">
                     <h2 id="spotify-settings-heading">Spotify Account</h2>
+                    <p id="spotify-connection-indicator" class="spotify-connection-indicator" role="status" aria-live="polite">
+                        <span class="spotify-connection-dot" aria-hidden="true"></span>
+                        <span class="spotify-connection-label">Checking connection...</span>
+                    </p>
                     <p class="watcher-help">Create an app in the Spotify Developer Dashboard, then enter its Client ID and Client Secret. Your secret is saved on this server and is never shown again. Spotify playlist access also requires connecting your Spotify account.</p>
                     <form id="spotify-settings-form">
                         <div class="form-group">
@@ -657,6 +661,6 @@
     <script src="/static/js/ui-manager.js?v=2026-10-13-4"></script>
     <script src="/static/js/download-manager.js?v=2026-10-13-14"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-13-1"></script>
-    <script src="/static/js/app.js?v=2026-10-13-17"></script>
+    <script src="/static/js/app.js?v=2026-10-14-18"></script>
 </body>
 </html>

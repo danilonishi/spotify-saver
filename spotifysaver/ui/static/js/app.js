@@ -372,6 +372,7 @@ class SpotifySaverUI {
             document.getElementById('spotify-client-secret').value = '';
             this.renderSpotifySettings(settings);
         } catch (error) {
+            this.setSpotifyConnectionIndicator('Spotify connection status unavailable', 'is-unknown');
             this.setSpotifySettingsMessage(error.message, 'status-error');
         }
     }
@@ -429,12 +430,23 @@ class SpotifySaverUI {
             !settings.credentials_configured;
         document.getElementById('spotify-remove-settings').disabled =
             !settings.credentials_configured;
+        this.setSpotifyConnectionIndicator(
+            settings.authorized ? 'Connected' : 'Not connected',
+            settings.authorized ? 'is-connected' : 'is-disconnected'
+        );
         const message = settings.authorized
             ? 'Spotify account is connected. Spotify URLs and playlist downloads are ready.'
             : settings.credentials_configured
                 ? 'Credentials are saved. Connect your Spotify account to enable playlist access.'
                 : 'Spotify is not configured. Direct YouTube downloads do not require Spotify credentials.';
         this.setSpotifySettingsMessage(message, 'watcher-help');
+    }
+
+    setSpotifyConnectionIndicator(message, stateClass) {
+        const indicator = document.getElementById('spotify-connection-indicator');
+        indicator.classList.remove('is-connected', 'is-disconnected', 'is-unknown');
+        indicator.classList.add(stateClass);
+        indicator.querySelector('.spotify-connection-label').textContent = message;
     }
 
     setSpotifySettingsMessage(message, className) {

@@ -81,6 +81,30 @@ main {
     line-height: 1.4;
 }
 
+.spotify-connection-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: -8px 0 16px;
+    font-weight: 600;
+}
+
+.spotify-connection-dot {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 10px;
+    border-radius: 50%;
+    background: #718096;
+}
+
+.spotify-connection-indicator.is-connected .spotify-connection-dot {
+    background: #38a169;
+}
+
+.spotify-connection-indicator.is-disconnected .spotify-connection-dot {
+    background: #e53e3e;
+}
+
 #authentication-status.status-error,
 #spotify-settings-status.status-error {
     margin-top: 12px;
