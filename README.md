@@ -35,6 +35,7 @@ Compared with the upstream baseline, this branch adds:
 - **Simplified download folders:** Browse and select download folders in the web interface.
 - **Web interface improvements:** Dark mode and customizable interface.
 - **Backup and restore:** Easier to migrate the server or share configurations.
+- **Storage safeguards:** Set a minimum free space to avoid completely filling the storage.
 - **Improved visibility:** Downloads are reported by the server to all connected clients.
 - **Support for large Spotify playlists:** Downloading large playlists were capped at 50 tracks due to Spotify list being paginated. This is fixed here.
 - **Overwrite control:** Keep existing files by default (skipping download), or choose to overwrite them.
@@ -198,7 +199,8 @@ This will start the API server with an integrated web interface that you can acc
 - **Overwrite control**: Keep existing files by default or replace them on request
 - **Channel Watcher**: Add YouTube channels, configure each channel's schedule and video download settings, and view last-check or rate-limit cooldown status
 - **Jellyfin library scans**: Configure the Jellyfin server URL, API key, and minimum interval between refresh requests; manually request a scan to bypass the cooldown. The API key is stored server-side and is not returned to the UI.
-- **Configuration backup and restore**: Export watched channels, download-folder preferences, dark mode, notification preferences, dashboard layout and panel states, Jellyfin URL/scan interval, and Spotify Client ID/redirect URL as JSON. Restore replaces those settings while retaining destination passwords, API keys, Spotify secrets, and authorization tokens. Browser notification permission remains browser-controlled and must be granted on the destination. Backups do not include active downloads or activity logs; folder paths may need adapting after migration.
+- **Storage safeguards**: View free space for each filesystem used by audio, video, and watched-channel folders. Set a minimum free-space reserve in Settings; `0` disables blocking. Queued downloads resume automatically when space recovers. A low-space warning is sent once per filesystem until space recovers, and active downloads are allowed to finish.
+- **Configuration backup and restore**: Export watched channels, download-folder preferences, storage reserve, dark mode, notification preferences, dashboard layout and panel states, Jellyfin URL/scan interval, and Spotify Client ID/redirect URL as JSON. Restore replaces those settings while retaining destination passwords, API keys, Spotify secrets, and authorization tokens. Browser notification permission remains browser-controlled and must be granted on the destination. Backups do not include active downloads or activity logs; folder paths may need adapting after migration.
 - **Responsive design**: Works on desktop and mobile devices
 - **Automatic browser opening**: Opens your default browser automatically
 

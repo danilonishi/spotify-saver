@@ -29,6 +29,7 @@ from ..config import APIConfig
 from ..services.channel_watcher import ChannelWatcherStore, utc_now
 from ..services.jellyfin_library_scan import JellyfinLibraryScanService
 from ..services.notification_hub import NotificationHub
+from ..services.storage_protection import StorageProtectionService
 
 
 logger = get_logger("API")
@@ -76,12 +77,42 @@ preserve_after_stop: set[str] = set()
 queue_lock = asyncio.Lock()
 jellyfin_library_scan_service: JellyfinLibraryScanService | None = None
 notification_hub: NotificationHub | None = None
+storage_protection_service: StorageProtectionService | None = None
 
 
 def set_notification_hub(hub: NotificationHub | None) -> None:
     """Attach the application-scoped live notification broadcaster."""
     global notification_hub
     notification_hub = hub
+
+
+def set_storage_protection_service(
+    service: StorageProtectionService | None,
+) -> None:
+    """Attach the application-scoped storage reserve checker."""
+    global storage_protection_service
+    storage_protection_service = service
+
+
+def get_known_download_paths() -> list[dict[str, str]]:
+    """Return paths used by queued and active work for storage reporting."""
+    known_paths = []
+    for task_id in order:
+        task = tasks.get(task_id)
+        request = requests_by_task.get(task_id)
+        if (
+            task is None
+            or request is None
+            or task.status not in {"queued", "processing", "cancelling"}
+        ):
+            continue
+        known_paths.append(
+            {
+                "label": task.title or f"Queued download {task_id[:8]}",
+                "path": request.output_dir or APIConfig.get_output_dir(),
+            }
+        )
+    return known_paths
 
 
 async def _publish_download_attention(task: DownloadStatus) -> None:
@@ -185,11 +216,35 @@ async def _try_start_next() -> None:
         if paused:
             return
         while pending and len(active) < APIConfig.MAX_CONCURRENT_DOWNLOADS:
-            task_id = pending.pop(0)
-            request = requests_by_task.get(task_id)
-            task = tasks.get(task_id)
-            if request is None or task is None or task.status == "cancelled":
-                continue
+            task_id = None
+            request = None
+            for candidate_id in list(pending):
+                candidate_request = requests_by_task.get(candidate_id)
+                candidate_task = tasks.get(candidate_id)
+                if (
+                    candidate_request is None
+                    or candidate_task is None
+                    or candidate_task.status == "cancelled"
+                ):
+                    pending.remove(candidate_id)
+                    continue
+                if storage_protection_service is not None:
+                    was_storage_blocked = candidate_task.storage_blocked
+                    blocked, reason = await storage_protection_service.check_destination(
+                        candidate_request.output_dir or APIConfig.get_output_dir()
+                    )
+                    candidate_task.storage_blocked = blocked
+                    if blocked:
+                        candidate_task.error_message = reason
+                        continue
+                    if was_storage_blocked:
+                        candidate_task.error_message = None
+                pending.remove(candidate_id)
+                task_id = candidate_id
+                request = candidate_request
+                break
+            if task_id is None or request is None:
+                break
             active.add(task_id)
             cancellation_events[task_id] = Event()
             asyncio.create_task(_run_task(task_id, request))

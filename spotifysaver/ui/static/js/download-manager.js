@@ -325,6 +325,7 @@ class DownloadManager {
         item.error_message = task.error_message;
         item.failed_track_names = task.failed_track_names || [];
         item.warning_message = task.warning_message;
+        item.storage_blocked = task.storage_blocked === true;
         item.output_directory = task.output_directory;
         item.queue_position = task.queue_position;
         item.playlistVerification = task.playlist_verification;

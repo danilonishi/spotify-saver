@@ -919,6 +919,23 @@ body.dark-mode .notification-toast {
     font-size: 14px;
 }
 
+.storage-filesystem-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding-left: 20px;
+}
+
+.storage-filesystem {
+    overflow-wrap: anywhere;
+    color: #2d3748;
+    font-size: 14px;
+}
+
+.storage-filesystem-low {
+    color: #c53030;
+}
+
 #watched-channel-list {
     display: grid;
     gap: 6px;
@@ -1521,6 +1538,14 @@ body.dark-mode .watcher-tooltip {
 
     body.dark-mode .queue-track-empty {
         color: #aeb8c5;
+    }
+
+    body.dark-mode .storage-filesystem {
+        color: #b8c0cc;
+    }
+
+    body.dark-mode .storage-filesystem-low {
+        color: #fc8181;
     }
 
     body.dark-mode .clear-queue-btn {

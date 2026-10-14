@@ -105,11 +105,15 @@ class UIManager {
                 failed: 'Failed',
                 cancelled: 'Cancelled'
             };
-            status.textContent = item.status === 'downloading' && item.progress != null
-                ? `Downloading ${Math.round(item.progress)}%`
-                : item.status === 'completed_with_errors'
-                    ? 'Completed with errors'
-                    : statusLabels[item.status] || item.status;
+            if (item.storage_blocked) {
+                status.textContent = 'Waiting for storage';
+            } else if (item.status === 'downloading' && item.progress != null) {
+                status.textContent = `Downloading ${Math.round(item.progress)}%`;
+            } else if (item.status === 'completed_with_errors') {
+                status.textContent = 'Completed with errors';
+            } else {
+                status.textContent = statusLabels[item.status] || item.status;
+            }
             status.title = `Download status: ${status.textContent}`;
 
             const removeBtn = document.createElement('button');
@@ -143,7 +147,7 @@ class UIManager {
             }
             details.appendChild(summary);
 
-            if (item.status === 'failed' && item.error_message) {
+            if ((item.status === 'failed' || item.storage_blocked) && item.error_message) {
                 const errorMessage = document.createElement('p');
                 errorMessage.className = 'status-error queue-item-error';
                 errorMessage.textContent = item.error_message;

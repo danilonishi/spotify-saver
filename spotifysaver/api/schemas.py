@@ -138,6 +138,12 @@ class DownloadDirectoryPreferenceUpdate(BaseModel):
     directory: str = Field(min_length=1)
 
 
+class StorageReserveUpdate(BaseModel):
+    """Minimum free space to retain on every destination filesystem."""
+
+    minimum_free_space_gb: float = Field(default=0, ge=0, le=100000)
+
+
 class JellyfinLibraryScanSettingsUpdate(BaseModel):
     """Server-side Jellyfin connection and scan interval settings."""
 
@@ -230,6 +236,10 @@ class DownloadStatus(BaseModel):
     queue_position: Optional[int] = Field(
         default=None,
         description="1-based position in the pending queue; 0 means it is currently downloading",
+    )
+    storage_blocked: bool = Field(
+        default=False,
+        description="Whether the task is queued until its destination has enough free space",
     )
 
 

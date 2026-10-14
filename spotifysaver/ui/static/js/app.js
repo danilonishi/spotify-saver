@@ -58,7 +58,9 @@ class SpotifySaverUI {
                 this.channelWatcherManager.startPolling();
                 await this.loadJellyfinLibraryScanSettings();
                 await this.loadSpotifySettings();
+                await this.loadStorageStatus();
                 window.setInterval(() => this.refreshJellyfinLibraryScanStatus(), 30000);
+                window.setInterval(() => this.refreshStorageStatus(), 30000);
             } else {
                 this.uiManager.updateStatus('API not available. Make sure it is running.', 'error');
             }
@@ -242,6 +244,10 @@ class SpotifySaverUI {
         });
         document.getElementById('jellyfin-scan-now').addEventListener('click', () => {
             this.requestJellyfinLibraryScan();
+        });
+        document.getElementById('storage-reserve-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            this.saveStorageSettings();
         });
         
         // Allow starting a download with Enter
@@ -702,6 +708,101 @@ class SpotifySaverUI {
         }
     }
 
+    async loadStorageStatus() {
+        try {
+            const status = await this.apiClient.getStorageStatus();
+            this.renderStorageStatus(status, true);
+        } catch (error) {
+            this.setStorageSettingsMessage(error.message, 'status-error');
+        }
+    }
+
+    async refreshStorageStatus() {
+        try {
+            const status = await this.apiClient.getStorageStatus();
+            this.renderStorageStatus(status, false);
+        } catch (error) {
+            console.warn('Could not refresh storage status:', error);
+        }
+    }
+
+    async saveStorageSettings() {
+        const saveButton = document.getElementById('storage-save-settings');
+        saveButton.disabled = true;
+        this.setStorageSettingsMessage('Saving storage settings...', 'watcher-help');
+        try {
+            const status = await this.apiClient.saveStorageSettings({
+                minimum_free_space_gb: Number(
+                    document.getElementById('storage-minimum-free-gb').value
+                )
+            });
+            this.renderStorageStatus(status, true);
+            this.setStorageSettingsMessage('Storage settings saved.', 'watcher-help');
+        } catch (error) {
+            this.setStorageSettingsMessage(error.message, 'status-error');
+        } finally {
+            saveButton.disabled = false;
+        }
+    }
+
+    renderStorageStatus(status, updateInput) {
+        if (updateInput) {
+            document.getElementById('storage-minimum-free-gb').value =
+                status.minimum_free_space_gb ?? 0;
+        }
+        const filesystems = document.getElementById('storage-filesystem-list');
+        filesystems.replaceChildren();
+        (status.filesystems || []).forEach((filesystem) => {
+            const item = document.createElement('li');
+            const labels = Array.from(
+                new Set((filesystem.paths || []).map((entry) => entry.label))
+            ).join(', ');
+            const paths = Array.from(
+                new Set((filesystem.paths || []).map((entry) => entry.path))
+            ).join(', ');
+            item.className = filesystem.below_reserve
+                ? 'storage-filesystem storage-filesystem-low'
+                : 'storage-filesystem';
+            item.textContent =
+                `${filesystem.label}: ${this.formatStorageBytes(filesystem.free_bytes)} free` +
+                ` of ${this.formatStorageBytes(filesystem.total_bytes)} (${labels}). ${paths}`;
+            if (filesystem.below_reserve) {
+                item.textContent +=
+                    ` Below the ${status.minimum_free_space_gb} GB reserve; new downloads to this storage wait.`;
+            }
+            filesystems.appendChild(item);
+        });
+        (status.errors || []).forEach((error) => {
+            const item = document.createElement('li');
+            item.className = 'storage-filesystem storage-filesystem-low';
+            item.textContent = `${error.label} (${error.path}): ${error.error}`;
+            filesystems.appendChild(item);
+        });
+        if (!filesystems.childElementCount) {
+            const empty = document.createElement('li');
+            empty.className = 'queue-empty';
+            empty.textContent = 'No download storage locations are configured.';
+            filesystems.appendChild(empty);
+        }
+        this.setStorageSettingsMessage(
+            status.protection_enabled
+                ? `Protection enabled. Keep at least ${status.minimum_free_space_gb} GB free on each destination filesystem.`
+                : 'Protection is disabled. Downloads will not be blocked for low free space.',
+            'watcher-help'
+        );
+    }
+
+    formatStorageBytes(bytes) {
+        const gigabytes = Number(bytes || 0) / 1_000_000_000;
+        return `${gigabytes.toFixed(2)} GB`;
+    }
+
+    setStorageSettingsMessage(message, className) {
+        const status = document.getElementById('storage-settings-status');
+        status.textContent = message;
+        status.className = className;
+    }
+
     async refreshJellyfinLibraryScanStatus() {
         try {
             const settings = await this.apiClient.getJellyfinLibraryScanSettings();
@@ -849,6 +950,7 @@ class SpotifySaverUI {
         const dashboard = document.getElementById('download-dashboard');
         dashboard.classList.toggle('settings-mode', visible);
         document.getElementById('download-settings-panel').classList.toggle('hidden', visible);
+        document.getElementById('storage-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('jellyfin-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('spotify-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('configuration-backup-panel').classList.toggle('hidden', !visible);

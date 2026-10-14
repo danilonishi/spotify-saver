@@ -15,6 +15,7 @@ from .routers import (
     jellyfin,
     notifications,
     spotify_settings,
+    storage,
     user_preferences,
 )
 from .config import APIConfig
@@ -24,6 +25,8 @@ from .services import (
     JellyfinLibraryScanService,
     JellyfinLibraryScanStore,
     NotificationHub,
+    StorageProtectionService,
+    StorageProtectionStore,
 )
 from .services.security_store import SecurityStore
 from ..config import Config
@@ -73,17 +76,60 @@ def create_app() -> FastAPI:
         )
         app.state.jellyfin_library_scan = jellyfin_scan
         download.set_jellyfin_library_scan_service(jellyfin_scan)
-        await jellyfin_scan.start()
         watcher = ChannelWatcherService(
             enqueue_video=download.enqueue_watched_video,
             publish_notification=notification_hub.publish,
         )
         app.state.channel_watcher = watcher
+        storage_store = StorageProtectionStore(
+            APIConfig.get_channel_watcher_db_path()
+        )
+        storage_store.initialize()
+
+        def storage_paths() -> list[dict[str, str]]:
+            directories = download_directory_store.get_download_directories()
+            channels = watcher.store.list_channels()
+            paths = [
+                {
+                    "label": "Audio downloads",
+                    "path": directories["audio"] or APIConfig.get_output_dir(),
+                },
+                {
+                    "label": "Video downloads",
+                    "path": directories["video"] or APIConfig.get_video_dir(),
+                },
+                {
+                    "label": "Channel Watcher default",
+                    "path": directories["watcher"] or APIConfig.get_video_dir(),
+                },
+            ]
+            paths.extend(
+                {
+                    "label": f"Watched channel: {channel.get('title') or channel['url']}",
+                    "path": channel["output_dir"],
+                }
+                for channel in channels
+            )
+            paths.extend(download.get_known_download_paths())
+            return paths
+
+        storage_protection = StorageProtectionService(
+            store=storage_store,
+            paths_provider=storage_paths,
+            notification_hub=notification_hub,
+            queue_kick=download._try_start_next,
+        )
+        app.state.storage_protection = storage_protection
+        download.set_storage_protection_service(storage_protection)
         try:
+            await jellyfin_scan.start()
             watcher.start()
+            await storage_protection.start()
             yield
         finally:
             try:
+                await storage_protection.stop()
+                download.set_storage_protection_service(None)
                 await watcher.stop()
             finally:
                 await jellyfin_scan.stop()
@@ -185,6 +231,7 @@ def create_app() -> FastAPI:
     app.include_router(
         spotify_settings.router, prefix="/api/v1", tags=["spotify-settings"]
     )
+    app.include_router(storage.router, prefix="/api/v1", tags=["storage"])
 
     # Serve the main HTML file
     @app.get("/", tags=["UI"])

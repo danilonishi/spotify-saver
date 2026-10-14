@@ -18,6 +18,12 @@ from spotifysaver.api.services.jellyfin_library_scan import (
     JellyfinLibraryScanStore,
 )
 from spotifysaver.api.services.security_store import SecurityStore
+from spotifysaver.api.services.notification_hub import NotificationHub
+from spotifysaver.api.services.storage_protection import (
+    GB,
+    StorageProtectionService,
+    StorageProtectionStore,
+)
 from spotifysaver.config import Config
 
 
@@ -68,8 +74,21 @@ def _stores(tmp_path, label):
 
 
 def _state(tmp_path, label):
+    database_path = str(tmp_path / f"{label}.sqlite3")
     channel_store, directory_store, jellyfin_store, security_store = _stores(
         tmp_path, label
+    )
+    storage_store = StorageProtectionStore(database_path)
+    storage_store.initialize()
+
+    async def queue_kick():
+        return None
+
+    storage_protection = StorageProtectionService(
+        storage_store,
+        paths_provider=lambda: [],
+        notification_hub=NotificationHub(),
+        queue_kick=queue_kick,
     )
     watcher = _StoppedWatcher(channel_store)
     jellyfin = JellyfinLibraryScanService(jellyfin_store, is_queue_idle=lambda: True)
@@ -79,6 +98,7 @@ def _state(tmp_path, label):
             download_directory_store=directory_store,
             jellyfin_library_scan=jellyfin,
             security_store=security_store,
+            storage_protection=storage_protection,
         ),
         channel_store,
         directory_store,
@@ -145,6 +165,7 @@ def _http_app(tmp_path, label):
     app.state.download_directory_store = directory_store
     app.state.jellyfin_library_scan = state.jellyfin_library_scan
     app.state.security_store = security_store
+    app.state.storage_protection = state.storage_protection
     setup_token = security_store.setup_token
     assert setup_token is not None
     assert security_store.complete_setup(setup_token, "integration-test-password")
@@ -357,6 +378,9 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
             "watcher": str(tmp_path / "source-watcher"),
         }
     )
+    source_app.state.storage_protection.store.set_minimum_free_bytes(
+        round(2.5 * GB)
+    )
 
     target_security.save_spotify_settings(
         "target-client-id",
@@ -392,6 +416,7 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
             "watcher": str(tmp_path / "target-watcher"),
         }
     )
+    target_app.state.storage_protection.store.set_minimum_free_bytes(GB)
 
     auth_cache = tmp_path / "http-test-spotify-cache"
     auth_cache.write_text("test-only OAuth state", encoding="utf-8")
@@ -423,6 +448,7 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
     )
     assert status == 200
     assert modified_backup["server"] != original_backup["server"]
+    assert original_backup["server"]["minimum_free_space_gb"] == 2.5
 
     status, result = asyncio.run(
         _asgi_request(
@@ -455,6 +481,7 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
                 "new_content": False,
                 "check_failed": True,
                 "download_attention": False,
+                "low_storage": False,
             },
             "panel_visibility": {},
             "panel_open": {},
@@ -472,7 +499,11 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
         "new_content": False,
         "check_failed": True,
         "download_attention": False,
+        "low_storage": False,
     }
+    assert target_app.state.storage_protection.store.get_minimum_free_bytes() == (
+        round(2.5 * GB)
+    )
     assert target_security.get_spotify_settings()["client_secret"] == (
         "target-client-secret"
     )

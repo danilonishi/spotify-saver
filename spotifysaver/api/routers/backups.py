@@ -17,6 +17,7 @@ from ..services.channel_watcher import (
 )
 from ..services.jellyfin_library_scan import _validate_server_url
 from ..services.security_store import SecurityStore
+from ..services.storage_protection import GB
 from .jellyfin import _service as _jellyfin_service
 from .spotify_settings import (
     CALLBACK_PATH,
@@ -94,6 +95,7 @@ class ServerConfigurationBackup(BaseModel):
     download_directories: DownloadDirectoriesBackup
     jellyfin: JellyfinBackup
     spotify: SpotifyBackup
+    minimum_free_space_gb: float = Field(default=0, ge=0, le=100000)
 
 
 class BrowserPreferencesBackup(BaseModel):
@@ -121,6 +123,7 @@ class ConfigurationBackup(BaseModel):
 def _configuration(request: Request) -> ServerConfigurationBackup:
     watcher = request.app.state.channel_watcher
     directory_store = request.app.state.download_directory_store
+    storage_protection = request.app.state.storage_protection
     jellyfin = _jellyfin_service(request).get_status()
     stored_spotify = _security_store(request).get_spotify_settings()
     spotify_client_id = (
@@ -158,6 +161,9 @@ def _configuration(request: Request) -> ServerConfigurationBackup:
             "client_id": spotify_client_id,
             "redirect_uri": spotify_redirect_uri,
         },
+        minimum_free_space_gb=round(
+            storage_protection.store.get_minimum_free_bytes() / GB, 2
+        ),
     )
 
 
@@ -209,6 +215,7 @@ async def restore_configuration_backup(
     security_store: SecurityStore = _security_store(request)
     jellyfin_service = _jellyfin_service(request)
     directory_store = request.app.state.download_directory_store
+    storage_protection = request.app.state.storage_protection
 
     current_spotify = security_store.get_spotify_settings()
     destination_secret = (
@@ -237,6 +244,9 @@ async def restore_configuration_backup(
         directory_store.restore_download_directories(
             backup.server.download_directories.model_dump()
         )
+        storage_protection.store.set_minimum_free_bytes(
+            round(backup.server.minimum_free_space_gb * GB)
+        )
         jellyfin_service.save_settings(
             server_url=backup.server.jellyfin.server_url or "",
             api_key=None,
@@ -255,4 +265,6 @@ async def restore_configuration_backup(
     finally:
         watcher.start()
 
+    await storage_protection.refresh()
+    await storage_protection.queue_kick()
     return {"restored": True}
