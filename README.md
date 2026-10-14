@@ -385,7 +385,17 @@ python -m pip install --upgrade "git+https://github.com/danilonishi/spotify-save
 Restart the SpotifySaver server after updating.
 
 For Docker, update to the latest published `main` image by running `git pull`
-for the Compose files, then:
+for the Compose files, then pull and start the service. If Caddy runs in Docker,
+include the Caddy override on **both** commands so the container stays attached
+to Caddy's shared network:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml pull
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+```
+
+If you do not use the Docker Caddy override (for example, Caddy runs on the
+host), use the base Compose file:
 
 ```sh
 docker compose pull
@@ -424,7 +434,7 @@ non-root user (UID 1000). For example, if these are dedicated directories:
 sudo chown -R 1000:1000 data/music data/videos data/config
 ```
 
-Useful maintenance commands:
+Useful maintenance commands for a deployment without the Docker Caddy override:
 
 ```sh
 docker compose logs -f spotifysaver
@@ -433,6 +443,11 @@ docker compose pull
 docker compose up -d
 docker compose down
 ```
+
+For a Docker Caddy deployment, add
+`-f docker-compose.yml -f docker-compose.caddy.yml` to each `docker compose`
+command instead. Omitting the override can detach SpotifySaver from Caddy's
+network when Compose recreates the container.
 
 `docker compose down` stops and removes the container but leaves the bind
 mounted data folders and named log volume intact. Do not use
