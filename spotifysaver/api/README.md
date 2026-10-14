@@ -183,9 +183,9 @@ checks pause for one hour, even when channels are scheduled more often. The
 cooldown is persisted across server restarts and displayed in the Channel Watcher
 section of the UI. This pause applies only to watcher checks; separate manual
 downloads are unaffected.
-An existing YouTube rate limit must still expire on YouTube's side; configuring
-`YTDLP_COOKIES_PATH` with a valid browser cookies file may help with access
-restrictions.
+An existing YouTube rate limit must still expire on YouTube's side. Cookies are
+disabled by default; a fresh browser cookies file may help with access
+restrictions, but stale or incompatible cookies can cause HTTP 403 errors.
 
 Hourly schedules use only the selected minute and run once each hour; daily
 and weekly schedules use the full selected local time. Weekly schedules include
@@ -291,8 +291,9 @@ curl "http://localhost:8000/api/v1/download/{task_id}/status"
 # .env file
 SPOTIFY_CLIENT_ID=your_client_id
 SPOTIFY_CLIENT_SECRET=your_client_secret
-YTDLP_COOKIES_PATH="cookies.txt"  # Optional
 SPOTIFYSAVER_OUTPUT_DIR="Music"   # Default output directory
+# Optional: only set when authentication is required; otherwise leave unset.
+# YTDLP_COOKIES_PATH="cookies.txt"
 ```
 
 ### CORS Configuration

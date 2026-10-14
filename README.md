@@ -97,7 +97,7 @@ Supported environment variables include:
 | `SPOTIFY_REDIRECT_URI`    | Spotify app redirect URI                   | `http://127.0.0.1:8888/callback`  |
 | `SPOTIFYSAVER_OUTPUT_DIR` | Audio download directory                   | `Music`                                      |
 | `SPOTIFYSAVER_VIDEO_DIR`  | Video download directory                   | `Videos`                                     |
-| `YTDLP_COOKIES_PATH`      | YouTube cookies file path (optional)       | -                                            |
+| `YTDLP_COOKIES_PATH`      | YouTube cookies file path (optional; for Docker, use a path inside the container such as `/config/cookies.txt`) | - |
 | `SPOTIFY_AUTH_CACHE_PATH` | Spotify authorization cache path           | `~/.spotify-saver/.spotify-cache`            |
 | `SPOTIFY_SCOPES`          | Spotify permissions requested              | `playlist-read-private playlist-read-collaborative` |
 | `LOG_LEVEL`               | Logging level                              | `info`                                       |
@@ -106,8 +106,26 @@ The `init` wizard also writes `API_PORT` and `API_HOST`, but the standalone
 server currently uses port `8000` and host `0.0.0.0`. For an example
 configuration file, see [`.env.example`](.env.example).
 
-Set `YTDLP_COOKIES_PATH` to a YouTube cookies file if yt-dlp cannot access
-some content without authentication.
+Cookies are disabled by default. Only configure `YTDLP_COOKIES_PATH` if a video
+requires authentication, and use a fresh export: stale or incompatible YouTube
+cookies can cause downloads to fail with HTTP 403. For Docker Compose, save the
+cookies file under the configured `CONFIG_DIR` on the host (by default,
+`./data/config/cookies.txt`) and set this in `.env`:
+
+```dotenv
+YTDLP_COOKIES_PATH=/config/cookies.txt
+```
+
+To disable cookies, remove or empty `YTDLP_COOKIES_PATH` in `.env`, then
+recreate the container with `docker compose up -d --force-recreate spotifysaver`.
+To back up or replace the file first, use the host path, for example:
+
+```bash
+cp ./data/config/cookies.txt ./data/config/cookies.txt.backup
+```
+
+Do not share the cookie file; it contains session credentials. If the cookie
+file is not present in your configured `CONFIG_DIR`, leave the setting disabled.
 
 ## 📚 Documentation
 

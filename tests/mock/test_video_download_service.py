@@ -3,6 +3,7 @@ import asyncio
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from spotifysaver.config.setting_environment import Config
 from spotifysaver.api.services.video_download_service import VideoDownloadService
 from yt_dlp.utils import DownloadCancelled
 
@@ -27,6 +28,17 @@ def test_video_download_does_not_resume_stale_partial_files():
     service = VideoDownloadService()
 
     assert service._ydl_opts("video.%(ext)s")["continuedl"] is False
+
+
+def test_video_download_uses_cookies_only_when_configured(monkeypatch):
+    service = VideoDownloadService()
+    monkeypatch.setattr(Config, "YTDLP_COOKIES_PATH", None)
+
+    assert service._ydl_opts("video.%(ext)s")["cookiefile"] is None
+
+    cookie_path = Path("/config/cookies.txt")
+    monkeypatch.setattr(Config, "YTDLP_COOKIES_PATH", cookie_path)
+    assert service._ydl_opts("video.%(ext)s")["cookiefile"] == str(cookie_path)
 
 
 def test_remove_partial_downloads_only_removes_matching_video_parts(tmp_path):

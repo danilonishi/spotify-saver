@@ -38,8 +38,8 @@ def init():
     )
 
     youtube_dl_cookies_path = click.prompt(
-        "Enter YouTube DL cookies path (optional)",
-        default="cookies.txt",
+        "Enter YouTube DL cookies path (optional; leave blank to disable)",
+        default="",
         type=str,
     )
 

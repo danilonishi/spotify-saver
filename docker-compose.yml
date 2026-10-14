@@ -13,7 +13,7 @@ services:
       SPOTIFYSAVER_CHANNEL_WATCHER_DB: /config/channel-watcher.sqlite3
       SPOTIFYSAVER_SECURITY_DB: /config/.spotify-saver/security.sqlite3
       YTDLP_FORMAT: ${YTDLP_FORMAT:-best[ext=m4a]/best}
-      YTDLP_COOKIES_PATH: /config/cookies.txt
+      YTDLP_COOKIES_PATH: ${YTDLP_COOKIES_PATH:-}
       HOME: /config
     volumes:
       - ${MUSIC_DIR:-./data/music}:/music
