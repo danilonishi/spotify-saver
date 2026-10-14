@@ -28,7 +28,13 @@ from spotifysaver.cli.commands.download.track import process_track
 )
 @click.option("--output", type=Path, default=Config.OUTPUT_DIR, help="Output directory")#"Music", help="Output directory")
 @click.option("--format", type=click.Choice(["m4a", "mp3", "opus"]), default="m4a")
-@click.option("--bitrate", type=int, default=128, help="Audio bitrate in kbps")
+@click.option(
+    "--bitrate",
+    type=int,
+    default=256,
+    show_default=True,
+    help="Audio bitrate in kbps",
+)
 @click.option("--verbose", is_flag=True, help="Show debug output")
 @click.option("--explain", is_flag=True, help="Show score breakdown for each track without downloading (for error analysis)")
 @click.option("--dry-run", is_flag=True, help="Simulate download without saving files")

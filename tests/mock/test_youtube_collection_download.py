@@ -1114,3 +1114,20 @@ def test_cli_routes_youtube_collection_without_spotify_client(monkeypatch, tmp_p
 
     assert result.exit_code == 0, result.output
     assert "Downloaded 2/2 tracks" in result.output
+
+
+def test_cli_audio_bitrate_defaults_to_256_kbps(monkeypatch):
+    received = {}
+
+    monkeypatch.setattr(cli_download_module, "SpotifyAPI", lambda: object())
+    monkeypatch.setattr(cli_download_module, "YoutubeMusicSearcher", lambda: object())
+    monkeypatch.setattr(
+        cli_download_module,
+        "process_track",
+        lambda *args: received.setdefault("bitrate", args[6]),
+    )
+
+    result = CliRunner().invoke(download_command, ["https://open.spotify.com/track/test"])
+
+    assert result.exit_code == 0, result.output
+    assert received["bitrate"] == 256
