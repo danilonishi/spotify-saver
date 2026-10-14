@@ -347,8 +347,25 @@ override:
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-To update a server to the latest published `main` image, run `git pull` for
-the Compose files, then:
+### Update
+
+For a source checkout installed with Poetry, update the checkout and reinstall:
+
+```sh
+git pull
+poetry install
+```
+
+If installed from Git with pip, upgrade from the repository:
+
+```sh
+python -m pip install --upgrade "git+https://github.com/danilonishi/spotify-saver.git"
+```
+
+Restart the SpotifySaver server after updating.
+
+For Docker, update to the latest published `main` image by running `git pull`
+for the Compose files, then:
 
 ```sh
 docker compose pull
