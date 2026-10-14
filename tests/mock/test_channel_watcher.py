@@ -976,7 +976,8 @@ def test_success_queues_only_new_videos_not_already_on_disk(tmp_path):
     assert queued[0][0]["download_archive"].endswith(f"{channel['id']}.txt")
     assert store.get_channel(channel["id"])["last_error"] is None
     assert notifications[0][0] == "new_content"
-    assert notifications[0][2]["count"] == "3"
+    assert notifications[0][1] == "Queued 1 new video(s) from Test channel for download."
+    assert notifications[0][2]["count"] == "1"
 
 
 def test_failed_channel_check_publishes_notification(tmp_path):

@@ -1249,14 +1249,14 @@ class ChannelWatcherService:
             queued_count,
             next_at.isoformat(),
         )
-        if discovered_count and self.publish_notification:
+        if queued_count and self.publish_notification:
             source = scan.title or channel.get("title") or channel["url"]
             await self.publish_notification(
                 "new_content",
-                f"Found {discovered_count} new upload(s) from {source}.",
+                f"Queued {queued_count} new video(s) from {source} for download.",
                 source=source,
                 channel_id=channel_id,
-                count=str(discovered_count),
+                count=str(queued_count),
             )
 
     async def _queue_pending_videos(
