@@ -600,6 +600,61 @@ class ChannelWatcherStore:
             ).fetchall()
         return [self._row_to_dict(row) for row in rows]
 
+    def replace_channels(self, channels: list[dict[str, Any]]) -> None:
+        """Replace watched-channel settings while preserving discovery cursors."""
+        values = []
+        for channel in channels:
+            normalized_url = _normalize_channel_url(channel["url"])
+            filters = _content_filter_settings(channel)
+            _get_timezone(channel["timezone"])
+            if channel["interval"] == "weekly" and channel["check_weekday"] is None:
+                raise ValueError("Weekly schedules require a weekday")
+            values.append(
+                (
+                    channel["id"],
+                    channel["platform"],
+                    normalized_url,
+                    channel["url"].strip(),
+                    channel.get("title"),
+                    channel["output_dir"],
+                    channel["interval"],
+                    channel["check_hour"],
+                    channel["check_minute"],
+                    channel.get("check_weekday"),
+                    channel["timezone"],
+                    channel["video_format"],
+                    channel["video_resolution"],
+                    int(channel["include_subtitles"]),
+                    json.dumps(filters),
+                    channel["created_at"],
+                    channel.get("last_checked_at"),
+                    None,
+                    channel.get("discovery_cursor_video_id"),
+                    int(channel["discovery_initialized"]),
+                    channel["next_check_at"],
+                    None,
+                    int(channel["active"]),
+                )
+            )
+
+        with self._connect() as connection:
+            connection.execute("DELETE FROM watched_channel_videos")
+            connection.execute("DELETE FROM watched_channels")
+            connection.executemany(
+                """
+                INSERT INTO watched_channels (
+                    id, platform, normalized_url, url, title, output_dir, interval,
+                    check_hour, check_minute, check_weekday, timezone, video_format,
+                    video_resolution, include_subtitles, filters_json, created_at,
+                    last_checked_at, check_started_at, discovery_cursor_video_id,
+                    discovery_initialized, next_check_at, last_error, active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                          ?, ?, ?, ?)
+                """,
+                values,
+            )
+            connection.commit()
+
     def get_channel(self, channel_id: str) -> Optional[dict[str, Any]]:
         with self._connect() as connection:
             connection.row_factory = sqlite3.Row

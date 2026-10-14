@@ -124,3 +124,25 @@ class DownloadDirectoryStore:
                 (directory,),
             )
         return self.get_download_directories()
+
+    def restore_download_directories(
+        self, directories: dict[str, Optional[str]]
+    ) -> None:
+        """Persist imported paths verbatim; they may need adapting on a new host."""
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO server_download_directories (
+                    id, audio_output_dir, video_output_dir, watcher_output_dir
+                ) VALUES (1, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    audio_output_dir = excluded.audio_output_dir,
+                    video_output_dir = excluded.video_output_dir,
+                    watcher_output_dir = excluded.watcher_output_dir
+                """,
+                (
+                    directories.get("audio"),
+                    directories.get("video"),
+                    directories.get("watcher"),
+                ),
+            )

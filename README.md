@@ -191,6 +191,7 @@ This will start the API server with an integrated web interface that you can acc
 - **Overwrite control**: Keep existing files by default or replace them on request
 - **Channel Watcher**: Add YouTube channels, configure each channel's schedule and video download settings, and view last-check or rate-limit cooldown status
 - **Jellyfin library scans**: Configure the Jellyfin server URL, API key, and minimum interval between refresh requests; manually request a scan to bypass the cooldown. The API key is stored server-side and is not returned to the UI.
+- **Configuration backup and restore**: Export watched channels, download-folder preferences, dark mode, notification preferences, dashboard layout and panel states, Jellyfin URL/scan interval, and Spotify Client ID/redirect URL as JSON. Restore replaces those settings while retaining destination passwords, API keys, Spotify secrets, and authorization tokens. Browser notification permission remains browser-controlled and must be granted on the destination. Backups do not include active downloads or activity logs; folder paths may need adapting after migration.
 - **Responsive design**: Works on desktop and mobile devices
 - **Automatic browser opening**: Opens your default browser automatically
 
@@ -215,6 +216,15 @@ the server logs a one-time setup token; enter it in the browser to create the
 password. Store and protect the server's configuration directory because it
 contains the password hash, Spotify credentials, and authorization tokens.
 Use HTTPS for remote access.
+
+In **Settings → Backup & Restore**, download a JSON configuration backup before
+migrating or reinstalling. The file includes watched channel URLs and server
+paths, so keep it private. Restoring replaces the included settings on the
+current instance. Passwords, Jellyfin API keys, Spotify client secrets, and
+Spotify authorization tokens, active downloads, per-video watcher history, and
+activity logs are not transferred; re-enter secrets and reconnect Spotify on
+the destination if needed. Review media folder paths after restoring because
+host and container paths can differ.
 
 ## 🐳 Docker Support
 

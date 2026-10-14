@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import (
     authentication,
+    backups,
     channel_watcher,
     download,
     jellyfin,
@@ -167,6 +168,7 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(authentication.router, prefix="/api/v1", tags=["authentication"])
+    app.include_router(backups.router, prefix="/api/v1", tags=["configuration-backup"])
     app.include_router(download.router, prefix="/api/v1", tags=["download"])
     app.include_router(
         channel_watcher.router, prefix="/api/v1", tags=["channel-watcher"]

@@ -95,15 +95,9 @@ class SpotifySaverUI {
             this.saveState();
             spotifyUrl.focus();
         });
-        const setDarkMode = (enabled) => {
-            document.body.classList.toggle('dark-mode', enabled);
-            themeToggleBtn.setAttribute('aria-pressed', String(enabled));
-            themeToggleBtn.textContent = enabled ? '☀️ Light mode' : '🌙 Dark mode';
-            localStorage.setItem('spotifysaver_theme', enabled ? 'dark' : 'light');
-        };
-        setDarkMode(localStorage.getItem('spotifysaver_theme') === 'dark');
+        this.setDarkMode(localStorage.getItem('spotifysaver_theme') === 'dark');
         themeToggleBtn.addEventListener('click', () => {
-            setDarkMode(!document.body.classList.contains('dark-mode'));
+            this.setDarkMode(!document.body.classList.contains('dark-mode'));
         });
         settingsToggleBtn.addEventListener('click', () => {
             this.setSettingsVisible(!this.settingsVisible);
@@ -128,6 +122,20 @@ class SpotifySaverUI {
         });
         document.getElementById('spotify-remove-settings').addEventListener('click', () => {
             this.removeSpotifySettings();
+        });
+        document.getElementById('download-configuration-backup').addEventListener(
+            'click',
+            () => this.downloadConfigurationBackup()
+        );
+        const backupFileInput = document.getElementById('configuration-backup-file');
+        const restoreBackupButton = document.getElementById('restore-configuration-backup');
+        backupFileInput.addEventListener('change', () => {
+            restoreBackupButton.disabled = backupFileInput.files.length === 0;
+        });
+        restoreBackupButton.addEventListener('click', () => {
+            this.restoreConfigurationBackup().catch((error) => {
+                this.setConfigurationBackupMessage(error.message, 'status-error');
+            });
         });
         document.getElementById('enable-browser-notifications').addEventListener(
             'click',
@@ -258,6 +266,228 @@ class SpotifySaverUI {
                 this.uiManager.addLogEntry('Logs and state manually cleared', 'info');
             }
         });
+    }
+
+    setDarkMode(enabled) {
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        document.body.classList.toggle('dark-mode', enabled);
+        themeToggleBtn.setAttribute('aria-pressed', String(enabled));
+        themeToggleBtn.textContent = enabled ? '☀️ Light mode' : '🌙 Dark mode';
+        localStorage.setItem('spotifysaver_theme', enabled ? 'dark' : 'light');
+    }
+
+    getBackupPanelIds() {
+        return [
+            'download-status-panel',
+            'download-settings-panel',
+            'download-queue-panel',
+            'channel-watcher-panel',
+            'activity-log-panel'
+        ];
+    }
+
+    getBackupBrowserPreferences() {
+        const panelIds = this.getBackupPanelIds();
+        const detailsIds = Array.from(
+            document.querySelectorAll('details.panel-details[id]'),
+            (panel) => panel.id
+        );
+        return {
+            dark_mode: document.body.classList.contains('dark-mode'),
+            browser_notifications_enabled: this.browserNotificationsEnabled,
+            notification_preferences: Object.fromEntries(
+                Array.from(
+                    document.querySelectorAll('input[data-notification-preference]'),
+                    (control) => [control.dataset.notificationPreference, control.checked]
+                )
+            ),
+            panel_visibility: Object.fromEntries(
+                panelIds.map((id) => [
+                    id,
+                    localStorage.getItem(`spotifysaver_panel_${id}`) !== 'hidden'
+                ])
+            ),
+            panel_open: Object.fromEntries(
+                detailsIds.map((id) => [
+                    id,
+                    document.getElementById(id).open
+                ])
+            ),
+            panel_layout: this.panelLayout
+        };
+    }
+
+    applyBackupBrowserPreferences(preferences) {
+        if (typeof preferences.dark_mode === 'boolean') {
+            this.setDarkMode(preferences.dark_mode);
+        }
+
+        if (typeof preferences.browser_notifications_enabled === 'boolean') {
+            this.browserNotificationsEnabled = preferences.browser_notifications_enabled;
+            localStorage.setItem(
+                'spotifysaver_browser_notifications',
+                preferences.browser_notifications_enabled ? 'enabled' : 'disabled'
+            );
+            this.updateBrowserNotificationControls();
+        }
+
+        const notificationPreferences = preferences.notification_preferences || {};
+        document.querySelectorAll('input[data-notification-preference]').forEach((control) => {
+            const category = control.dataset.notificationPreference;
+            if (typeof notificationPreferences[category] !== 'boolean') return;
+            control.checked = notificationPreferences[category];
+            localStorage.setItem(
+                `spotifysaver_notification_${category}`,
+                control.checked ? 'enabled' : 'disabled'
+            );
+        });
+
+        const panelIds = this.getBackupPanelIds();
+        const visibility = preferences.panel_visibility || {};
+        for (const panelId of panelIds) {
+            if (typeof visibility[panelId] !== 'boolean') continue;
+            const control = document.querySelector(
+                `input[data-panel-visibility="${panelId}"]`
+            );
+            this.setPanelVisibility(panelId, control, visibility[panelId]);
+            localStorage.setItem(
+                `spotifysaver_panel_${panelId}`,
+                visibility[panelId] ? 'visible' : 'hidden'
+            );
+        }
+
+        const panelOpen = preferences.panel_open || {};
+        for (const [panelId, isOpen] of Object.entries(panelOpen)) {
+            const panel = document.getElementById(panelId);
+            if (
+                panel instanceof HTMLDetailsElement
+                && panel.classList.contains('panel-details')
+                && typeof isOpen === 'boolean'
+            ) {
+                panel.open = isOpen;
+                localStorage.setItem(
+                    `spotifysaver_panel_open_${panelId}`,
+                    String(isOpen)
+                );
+            }
+        }
+
+        const knownPanels = new Set(panelIds);
+        const importedLayout = preferences.panel_layout || {};
+        const layout = { left: [], right: [] };
+        for (const column of ['left', 'right']) {
+            const values = Array.isArray(importedLayout[column])
+                ? importedLayout[column]
+                : [];
+            for (const panelId of values) {
+                if (
+                    knownPanels.has(panelId)
+                    && !layout.left.includes(panelId)
+                    && !layout.right.includes(panelId)
+                ) {
+                    layout[column].push(panelId);
+                }
+            }
+        }
+        for (const panelId of panelIds) {
+            if (!layout.left.includes(panelId) && !layout.right.includes(panelId)) {
+                layout[layout.left.length < 2 ? 'left' : 'right'].push(panelId);
+            }
+        }
+        this.panelLayout = layout;
+        this.savePanelLayout();
+        this.applyPanelLayout(document.querySelector('.panel-visibility-options'));
+    }
+
+    async downloadConfigurationBackup() {
+        const status = document.getElementById('configuration-backup-status');
+        try {
+            const response = await fetch(
+                `${this.apiClient.apiUrl}/configuration-backup`,
+                { credentials: 'same-origin', cache: 'no-store' }
+            );
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(result.detail || 'Could not create a configuration backup');
+            }
+            const backup = {
+                ...result,
+                browser_preferences: this.getBackupBrowserPreferences()
+            };
+            const blob = new Blob(
+                [JSON.stringify(backup, null, 2)],
+                { type: 'application/json' }
+            );
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `spotifysaver-config-${new Date().toISOString().slice(0, 10)}.json`;
+            link.click();
+            window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+            this.setConfigurationBackupMessage(
+                'Configuration backup downloaded. Keep the file somewhere private; it contains channel URLs and server paths.',
+                'watcher-help'
+            );
+        } catch (error) {
+            this.setConfigurationBackupMessage(error.message, 'status-error');
+        }
+    }
+
+    async restoreConfigurationBackup() {
+        const input = document.getElementById('configuration-backup-file');
+        const file = input.files[0];
+        if (!file) {
+            throw new Error('Choose a configuration backup file first');
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            throw new Error('The configuration backup file is larger than 5 MB');
+        }
+        const backup = JSON.parse(await file.text());
+        if (
+            backup?.schema_version !== 1
+            || !backup.server
+            || typeof backup.server !== 'object'
+        ) {
+            throw new Error('This is not a supported SpotifySaver configuration backup');
+        }
+        if (
+            !confirm(
+                'Restore this backup? It will replace watched channels and included settings on this instance. Existing API keys, passwords, Spotify secrets, and authorization tokens will not be imported.'
+            )
+        ) {
+            return;
+        }
+
+        const response = await fetch(
+            `${this.apiClient.apiUrl}/configuration-backup/restore`,
+            {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(backup)
+            }
+        );
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(result.detail || 'Could not restore the configuration backup');
+        }
+
+        this.applyBackupBrowserPreferences(backup.browser_preferences || {});
+        await this.loadSavedOutputDirectoryPreferences();
+        await this.loadOutputDirectories();
+        await this.channelWatcherManager.load();
+        await this.loadJellyfinLibraryScanSettings();
+        await this.loadSpotifySettings();
+        this.setConfigurationBackupMessage(
+            'Configuration restored. Re-enter any required secrets and reconnect Spotify if needed.',
+            'watcher-help'
+        );
+    }
+
+    setConfigurationBackupMessage(message, className) {
+        const status = document.getElementById('configuration-backup-status');
+        status.textContent = message;
+        status.className = className;
     }
 
     loadPersistedState() {
@@ -621,6 +851,7 @@ class SpotifySaverUI {
         document.getElementById('download-settings-panel').classList.toggle('hidden', visible);
         document.getElementById('jellyfin-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('spotify-settings-panel').classList.toggle('hidden', !visible);
+        document.getElementById('configuration-backup-panel').classList.toggle('hidden', !visible);
         document.getElementById('panel-visibility-settings').classList.toggle('hidden', !visible);
         document.getElementById('notification-preferences-panel').classList.toggle('hidden', !visible);
         const button = document.getElementById('settings-toggle-btn');
