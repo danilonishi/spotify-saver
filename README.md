@@ -1,6 +1,6 @@
 # SpotifySaver 🎵✨
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![PyPI Version](https://img.shields.io/pypi/v/spotifysaver?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/spotifysaver/)
 [![Docker](https://img.shields.io/badge/Docker-GHCR-blue?logo=docker&logoColor=white)](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
 [![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-Auto--Build-green?logo=github)](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
@@ -14,11 +14,11 @@
 
 > ⚠️This repository is a fork from gabrielbaute's SpotifySaver. It's being developed with quality of life features I missed when using his tool. You can easily see the changes made by clicking [here](https://github.com/gabrielbaute/spotify-saver/compare/main...danilonishi:spotify-saver:main).
 
-All-in-one tool for downloading and organizing music with Spotify metadata for Jellyfin.
+All-in-one tool for downloading content for Jellyfin or similar media servers.
 
-The app connects to the Spotify and YouTube Music APIs, retrieves information from Spotify, locate the media on Youtube, downloads and extract the audio data, generates an .nfo XML file to complete the metadata required by Jellyfin when building music libraries.
+The app allows you to download content for your media server. It can connect to Spotify and YouTube Music APIs, retrieve information, locate the media on Youtube, download and extract the audio and/or video data and generate a Jellyfin-compatible .nfo file for Jellyfin music libraries.
 
-## Changes in This Fork
+## Changes in this Fork
 
 <p align="center">
     <img src="screenshot.jpg" alt="SpotifySaver web interface" />
@@ -26,19 +26,21 @@ The app connects to the Spotify and YouTube Music APIs, retrieves information fr
 
 Compared with the upstream baseline, this branch adds:
 
-- **A server-managed download queue:** Server controlled downloading means you can queue downloads, pause or resume them, clear queued or completed items, and retry failed or partially failed downloads. Downloads continue if the browser is refreshed or closed; queue state is held in memory and does not survive an API server restart. The server currently processes one download at a time.
-- **Queue and track visibility:** Download names and track listings are reported by the server and shown to other connected browsers, regardless if they're the one that submitted the download.
-- **Simple download folders in the web UI:** Choose from folders under a configurable media root, shown as a path with the selected folder in bold. Use `[Parent]` to go up a level and double-click a folder to make it the new root. Audio, video, and Channel Watcher each keep their own selected folder in the server database. The selected paths are shared by all browsers connecting to that server and persist across browser data clearing and server restarts. If a selected folder is deleted, its preference falls back to the nearest existing parent directory, including the filesystem root.
-- **Audio and Video tabs:** The Video tab downloads YouTube videos or playlists as MP4/MKV/WebM with a maximum resolution and optional subtitles, into a separate video folder (default `Videos`, override with `SPOTIFYSAVER_VIDEO_DIR`). Video descriptions are saved in a Jellyfin-compatible NFO `<plot>` alongside each video. The download button follows the active tab. Video downloads require ffmpeg for merging streams.
-- **Channel Watcher:** Watch YouTube channels for new uploads manually or on an hourly, daily, or weekly schedule. Pause or resume automatic checks for each channel, or use **Check now** to trigger an immediate check even while paused. It tracks uploads by video ID, retries unqueued discoveries, and resumes safely when a check reaches its per-run limit. Each watched channel has its own download folder, video format, resolution, subtitle settings, and optional content filters for title keywords, duration, upload dates, Shorts, and livestreams; checks continue on the server and are visible in the web UI.
-- **Jellyfin library scans:** Open **Settings** in the web UI to configure a Jellyfin server URL and API key. SpotifySaver requests a library refresh after the download queue becomes idle, coalesces later completed downloads until the configured minimum interval has elapsed, and persists pending scans and scan settings across server restarts. It authenticates with Jellyfin's `Authorization: MediaBrowser Token="..."` header. Use **Scan library now** to request a manual scan that bypasses the interval cooldown but still waits for active downloads to finish.
-- **Web interface improvements:** Dark mode, browser-saved visibility and draggable two-column layout controls for the Download Status, Download, Download Queue, Channel Watcher, and Activity Log panels, collapsible album details and activity log, a clear-URL button for quick mobile pasting, and controls for clearing completed downloads.
-- **Direct youtube downloads.** You can now paste any youtube video or playlist link, and it will download and extract the audio content.
-- **M4A at 256 kbps as the default for API and web downloads.**
-- **Download over 50 tracks per album or playlist.** Downloading large playlists were capped at 50 tracks due to Spotify list being paginated. This is fixed here.
-- **Option to skip files.** Before, files were always redownloaded. Now a check is done before downloading.
-- **Album-numbered playlist tracks.** Tracks were saved with playlist entry number as track number, now they use the album number. This helps avoid duplicate files.
-- **Improved Spotify-youtube accuracy.** Often it matched wrong content from youtube. This will never be 100% but it's much better.
+- **A server-managed download queue:** Downloads continue if you refresh or close the browser.
+- **Access control:** Password protected UI and API to avoid unwanted agents observing and taking over your downloads.
+- **Video support:** Downloads YouTube videos as MP4, MKV or WebM with configurable resolution and quality and generates metadata for Jellyfin.
+- **Playlist support:** Download playlists from Spotify and YouTube.
+- **Channel Watcher:** Schedule channel checks and automatically download new uploads.
+- **Jellyfin library scans:** Automatically triggers Jellyfin media scan after downloads are completed.
+- **Simplified download folders:** Browse and select download folders in the web interface.
+- **Web interface improvements:** Dark mode and customizable interface.
+- **Backup and restore:** Easier to migrate the server or share configurations.
+- **Improved visibility:** Downloads are reported by the server to all connected clients.
+- **Support for large Spotify playlists:** Downloading large playlists were capped at 50 tracks due to Spotify list being paginated. This is fixed here.
+- **Overwrite control:** Keep existing files by default (skipping download), or choose to overwrite them.
+- **Notifications:** Browser and toaster notifications for events are available.
+- **Download queue controls:** Pause/resume the queue and retry failed downloads.
+- **Channel Watcher controls and filters:** Pause checks, check a channel on demand, and filter uploads by keywords, duration, date, Shorts, and livestreams.
 
 
 ## 🌟 Features
@@ -53,15 +55,15 @@ Compared with the upstream baseline, this branch adds:
 - ✅ Web interface (UI) with real-time progress
 - ✅ Stop an active download from the web interface or API
 - ✅ RESTful API for integrations
-- ✅ Docker support with auto-builds
+- ✅ [Docker support with auto-builds](https://github.com/danilonishi/spotify-saver#-docker-support)
 - ✅ Playlist support
-- ✅ M4A and MP3 audio output
+- ✅ M4A, MP3, and Opus audio output
 - ✅ Support for 96, 128, 192, and 256 kbps bitrates
 
 ### Requirements
-- Python 3.8+
+- Python 3.10+
 - FFmpeg
-- [Spotify Developer Account](https://developer.spotify.com/dashboard/)
+- [Spotify Developer Account](https://developer.spotify.com/dashboard/) (only for Spotify URL downloads)
 
 ```bash
 # Installation with Poetry (recommended)
@@ -79,27 +81,32 @@ YouTube downloads do not require Spotify credentials.
 
 ## ⚙️ Configuration
 
-Once in your project directory, run:
+Run this command to save configuration to `~/.spotify-saver/.env`:
 
 ```bash
 spotifysaver init
 ```
-This will create a local `.env` file with the environment variables that will be requested:
+The app also checks for a `.env` file in the project directory as a fallback.
+Supported environment variables include:
 
 | Variable                  | Description                                | Default Value                     |
 |---------------------------|--------------------------------------------|-----------------------------------|
 | `SPOTIFY_CLIENT_ID`       | ID of the Spotify app you created          | -                                 |
 | `SPOTIFY_CLIENT_SECRET`   | Secret key generated for your Spotify app  | -                                 |
-| `SPOTIFY_REDIRECT_URI`    | Spotify API Validation URI                 | `http://127.0.0.1:8888/callback`  |
-| `SPOTIFYSAVER_OUTPUT_DIR` | Custom directory path (optional)           | `./Music`                         |
-| `YTDLP_COOKIES_PATH`      | Cookie file path (optional)                | -                                 |
-| `API_PORT`                | API server port (optional)                 | `8000`                            |
-| `API_HOST`                | Host for the API (optional)                | `0.0.0.0`                         |
-| `UI_ENABLED`              | Enable/disable web interface (optional)    | `true`                            |
+| `SPOTIFY_REDIRECT_URI`    | Spotify app redirect URI                   | `http://127.0.0.1:8888/callback`  |
+| `SPOTIFYSAVER_OUTPUT_DIR` | Audio download directory                   | `Music`                                      |
+| `SPOTIFYSAVER_VIDEO_DIR`  | Video download directory                   | `Videos`                                     |
+| `YTDLP_COOKIES_PATH`      | YouTube cookies file path (optional)       | -                                            |
+| `SPOTIFY_AUTH_CACHE_PATH` | Spotify authorization cache path           | `~/.spotify-saver/.spotify-cache`            |
+| `SPOTIFY_SCOPES`          | Spotify permissions requested              | `playlist-read-private playlist-read-collaborative` |
+| `LOG_LEVEL`               | Logging level                              | `info`                                       |
 
-The variable `YTDLP_COOKIES_PATH` will indicate the location of the file with the Youtube Music cookies, in case we have problems with restrictions to yt-dlp, specifically it is for cases in which youtube blocks the app for "behaving like a bot" (~~which is not entirely false lol~~)
+The `init` wizard also writes `API_PORT` and `API_HOST`, but the standalone
+server currently uses port `8000` and host `0.0.0.0`. For an example
+configuration file, see [`.env.example`](.env.example).
 
-You can also check the .example.env file
+Set `YTDLP_COOKIES_PATH` to a YouTube cookies file if yt-dlp cannot access
+some content without authentication.
 
 ## 📚 Documentation
 
@@ -355,8 +362,9 @@ following `latest`.
 
 Open `http://127.0.0.1:8000`. The API is also available at
 `http://127.0.0.1:8000/docs`. The port is bound to loopback only; for access
-from other devices on your home network, use the existing Caddy reverse proxy
-setup below rather than exposing the application port directly.
+over HTTPS or from other devices, configure a reverse proxy rather than
+exposing the application port directly. See the optional
+[Caddy reverse proxy guide](CADDY.md).
 
 The UI's folder selectors operate on container paths. Audio downloads are
 stored under `/music`, video and watched-channel downloads under `/videos`,
@@ -407,11 +415,16 @@ well.
 │   └── YouTube/
 │       └── Collection Name/
 │           └── 01 - Video Title.mp3
+├── Videos/
+│   └── Channel Name/
+│       └── Video Title.mp4
 └── Playlists/
     └── Playlist Name/
         └── Playlist Name.m3u
 ```
-Direct YouTube videos are saved under an artist folder when artist metadata is available.
+Videos are saved under a folder named for the YouTube channel or uploader within
+the selected video folder (default: `Videos`). Playlist video filenames include
+their position in the playlist, such as `01 - Video Title.mp4`.
 
 ## 🤝 Contributions
 1. Fork the project
