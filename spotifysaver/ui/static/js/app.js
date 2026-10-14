@@ -134,6 +134,7 @@ class SpotifySaverUI {
             () => this.toggleBrowserNotifications()
         );
         this.setSettingsVisible(false);
+        this.initializePanelCollapsePersistence();
         this.initializePanelVisibilityControls();
         this.initializeNotificationPreferences();
         const pickerIds = {
@@ -675,6 +676,19 @@ class SpotifySaverUI {
             this.movePanelOption(draggedOption, target, destinationColumn, event);
             this.savePanelLayout();
             this.applyPanelLayout(panelOptions);
+        });
+    }
+
+    initializePanelCollapsePersistence() {
+        document.querySelectorAll('details.panel-details[id]').forEach((panel) => {
+            const key = `spotifysaver_panel_open_${panel.id}`;
+            const saved = localStorage.getItem(key);
+            if (saved !== null) {
+                panel.open = saved === 'true';
+            }
+            panel.addEventListener('toggle', () => {
+                localStorage.setItem(key, String(panel.open));
+            });
         });
     }
 
