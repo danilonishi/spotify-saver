@@ -367,7 +367,9 @@ override:
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-### Update
+## Update
+
+### Git/Poetry
 
 For a source checkout installed with Poetry, update the checkout and reinstall:
 
@@ -375,6 +377,8 @@ For a source checkout installed with Poetry, update the checkout and reinstall:
 git pull
 poetry install
 ```
+
+### Git/Pip
 
 If installed from Git with pip, upgrade from the repository:
 
@@ -384,17 +388,19 @@ python -m pip install --upgrade "git+https://github.com/danilonishi/spotify-save
 
 Restart the SpotifySaver server after updating.
 
+### Docker
+
 For Docker, update to the latest published `main` image by running `git pull`
-for the Compose files, then pull and start the service. If Caddy runs in Docker,
-include the Caddy override on **both** commands so the container stays attached
-to Caddy's shared network:
+for the Compose files, then pull and start the service.
+
+If Caddy runs in Docker, include the Caddy override on **both** commands so the container stays attached to Caddy's shared network:
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.caddy.yml pull
 docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
 ```
 
-If you do not use the Docker Caddy override (for example, Caddy runs on the
+If you do **not** use the Docker Caddy override (for example, Caddy runs on the
 host), use the base Compose file:
 
 ```sh
@@ -402,10 +408,7 @@ docker compose pull
 docker compose up -d
 ```
 
-To publish a versioned image, push a version tag such as `v0.7.5`; the workflow
-publishes it as `0.7.5` as well as updating the major/minor tags. Set
-`IMAGE_TAG=0.7.5` in `.env` to pin the deployment to that image instead of
-following `latest`.
+Docker images are published as latest when changes are pushed to main. To publish a versioned release image, push a new Git tag using the vX.Y.Z format (for example, v0.7.6). The workflow publishes versioned and major/minor tags. To pin your deployment to that release, set IMAGE_TAG=0.7.6 in .env instead of using latest.
 
 Open `http://127.0.0.1:8000`. The API is also available at
 `http://127.0.0.1:8000/docs`. The port is bound to loopback only; for access
