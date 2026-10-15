@@ -1311,6 +1311,10 @@ class SpotifySaverUI {
             'hidden',
             mode === 'watcher'
         );
+        document.getElementById('watcher-form-actions').classList.toggle(
+            'hidden',
+            mode !== 'watcher'
+        );
         localStorage.setItem('spotifysaver_active_tab', mode);
         this.downloadManager.mode = mode;
         this.uiManager.setActiveMode(mode);

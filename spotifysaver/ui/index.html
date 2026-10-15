@@ -495,13 +495,13 @@
                             </div>
                         </fieldset>
                         </details>
-                        <div class="watcher-form-actions">
-                            <button id="watcher-submit-btn" class="download-btn" type="button" title="Add this channel to the watch list">Watch Channel</button>
-                            <button id="watcher-cancel-btn" class="clear-queue-btn hidden" type="button" title="Discard these channel edits">Cancel</button>
-                        </div>
                     </div>
 
-                    <button id="download-btn" class="download-btn" title="Add this download to the queue">
+                    <div id="watcher-form-actions" class="watcher-form-actions hidden">
+                        <button id="watcher-submit-btn" class="download-btn primary-download-action" type="button" title="Add this channel to the watch list"><svg class="watcher-download-icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9M4 5a15 15 0 0 1 15 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><circle cx="4" cy="20" r="1.5" fill="currentColor" stroke="none"></circle></svg><span id="watcher-submit-label">Watch Channel</span></button>
+                        <button id="watcher-cancel-btn" class="clear-queue-btn hidden" type="button" title="Discard these channel edits">Cancel</button>
+                    </div>
+                    <button id="download-btn" class="download-btn primary-download-action" title="Add this download to the queue">
                         <span class="music-note" aria-hidden="true">♫︎</span> Start Download
                     </button>
                 </details>

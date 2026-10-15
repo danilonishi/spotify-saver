@@ -403,12 +403,41 @@ select:focus {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.download-btn .audio-download-icon {
-    font-size: 1.3em;
+.primary-download-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 56px;
+    min-height: 56px;
+    padding: 12px 15px;
+    line-height: 1;
 }
 
-.download-btn .video-download-icon {
-    font-size: 0.9em;
+.primary-download-action > .music-note,
+.primary-download-action > .watcher-download-icon {
+    display: inline-flex;
+    flex: 0 0 1.2em;
+    align-items: center;
+    justify-content: center;
+    width: 1.2em;
+    height: 1.2em;
+    font-size: 1em;
+    line-height: 1;
+}
+
+.primary-download-action > .watcher-download-icon {
+    margin: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.primary-download-action > .audio-download-icon {
+    font-size: 1.3em;
+    margin-right: -5px;
 }
 
 .download-btn:hover {
