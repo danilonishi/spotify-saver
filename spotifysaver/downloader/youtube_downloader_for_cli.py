@@ -40,6 +40,38 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         self.lrc_client = LrclibAPI()
         self.image_downloader = ImageDownloader()
 
+    @staticmethod
+    def _youtube_artist_names(info: dict) -> list[str]:
+        artist_metadata = (
+            info.get("artist") or info.get("channel") or info.get("uploader")
+        )
+        if isinstance(artist_metadata, dict):
+            artist_values = [artist_metadata.get("name", "")]
+        elif isinstance(artist_metadata, list):
+            artist_values = artist_metadata
+        else:
+            artist_values = str(artist_metadata or "").split(",")
+
+        artists = []
+        for artist_value in artist_values:
+            if isinstance(artist_value, dict):
+                artist_value = artist_value.get("name", "")
+            artist_name = str(artist_value).strip()
+            if artist_name and artist_name.casefold() not in {
+                name.casefold() for name in artists
+            }:
+                artists.append(artist_name)
+        return artists
+
+    @staticmethod
+    def _youtube_release_date(info: dict) -> str:
+        release_date = str(info.get("release_date") or info.get("upload_date") or "")
+        if len(release_date) == 8 and release_date.isdigit():
+            return (
+                f"{release_date[:4]}-{release_date[4:6]}-{release_date[6:8]}"
+            )
+        return release_date
+
     def download_youtube_playlist_cli(
         self,
         url: str,
@@ -53,6 +85,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         cancellation_event: Optional[Event] = None,
         title_callback: Optional[callable] = None,
         tracks_callback: Optional[callable] = None,
+        generate_nfo: bool = False,
     ) -> dict:
         """Download a YouTube playlist or YouTube Music album collection."""
         if not self.is_youtube_collection_url(url):
@@ -279,6 +312,48 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                         track_result_callback(index, track_name, "error")
                         reported_results.add(index)
 
+        if generate_nfo and completed_tracks:
+            nfo_tracks = []
+            for display_number, (track_name, expected_path) in expected_paths.items():
+                if not expected_path.is_file():
+                    continue
+                entry = entries[display_number - 1] or {}
+                video_url = entry.get("webpage_url") or entry.get("original_url")
+                if not video_url and entry.get("id"):
+                    video_url = f"https://www.youtube.com/watch?v={entry['id']}"
+                artists = self._youtube_artist_names(entry)
+                nfo_tracks.append(
+                    Track(
+                        number=display_number,
+                        total_tracks=total,
+                        name=track_name,
+                        duration=int(entry.get("duration") or 0),
+                        uri=video_url or "",
+                        artists=artists,
+                        album_artist=artists,
+                        release_date=self._youtube_release_date(entry),
+                        album_name=collection_name,
+                        youtube_url=video_url,
+                    )
+                )
+            if nfo_tracks:
+                collection_artists = self._youtube_artist_names(collection)
+                NFOGenerator.generate(
+                    Album(
+                        name=collection_name,
+                        artists=collection_artists
+                        or nfo_tracks[0].artists
+                        or ["Unknown Artist"],
+                        release_date=self._youtube_release_date(collection),
+                        genres=collection.get("categories") or [],
+                        cover_url="",
+                        tracks=nfo_tracks,
+                        uri=url,
+                    ),
+                    output_dir,
+                    url,
+                )
+
         return {
             "collection_name": collection_name,
             "completed_tracks": completed_tracks,
@@ -298,6 +373,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         progress_callback: Optional[callable] = None,
         cancellation_event: Optional[Event] = None,
         title_resolver: Optional[callable] = None,
+        generate_nfo: bool = False,
     ) -> dict:
         """Download one YouTube video and extract it to the selected audio format."""
         if not self.is_youtube_track_url(url):
@@ -351,23 +427,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     canonical_title = str(canonical_title).strip()
                     if canonical_title and canonical_title.casefold() not in title.casefold():
                         title = f"{title} - {canonical_title}"
-            artist_metadata = info.get("artist") or info.get("channel") or "Unknown Artist"
-            if isinstance(artist_metadata, dict):
-                artist_values = [artist_metadata.get("name", "")]
-            elif isinstance(artist_metadata, list):
-                artist_values = artist_metadata
-            else:
-                artist_values = str(artist_metadata).split(",")
-
-            artist_names = []
-            for artist_value in artist_values:
-                if isinstance(artist_value, dict):
-                    artist_value = artist_value.get("name", "")
-                artist_name_part = str(artist_value).strip()
-                if artist_name_part and artist_name_part.casefold() not in {
-                    name.casefold() for name in artist_names
-                }:
-                    artist_names.append(artist_name_part)
+            artist_names = self._youtube_artist_names(info)
             artist_name = ", ".join(artist_names) or "Unknown Artist"
             artist_directory = output_directory / self._sanitize_filename(str(artist_name))
             artist_directory.mkdir(parents=True, exist_ok=True)
@@ -384,6 +444,10 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 return make_result(title, output_path, False)
 
             if output_path.exists() and not overwrite_existing:
+                if generate_nfo:
+                    self._generate_youtube_track_nfo(
+                        info, title, artist_names, url, output_path.parent
+                    )
                 if progress_callback:
                     progress_callback(1, 1, title)
                 return make_result(title, output_path, True)
@@ -404,8 +468,48 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 opus_audio["artist"] = artist_name
                 opus_audio.save()
             self._save_youtube_cover(info, output_path.parent / "cover.jpg")
+            if generate_nfo:
+                self._generate_youtube_track_nfo(
+                    info, title, artist_names, url, output_path.parent
+                )
 
         return make_result(title, output_path, output_path.is_file())
+
+    @staticmethod
+    def _generate_youtube_track_nfo(
+        info: dict,
+        title: str,
+        artists: list[str],
+        source_url: str,
+        output_dir: Path,
+    ) -> None:
+        artist_names = artists or ["Unknown Artist"]
+        track = Track(
+            number=1,
+            total_tracks=1,
+            name=title,
+            duration=int(info.get("duration") or 0),
+            uri=source_url,
+            artists=artist_names,
+            album_artist=artist_names,
+            release_date=YouTubeDownloaderForCLI._youtube_release_date(info),
+            genres=info.get("categories") or [],
+            album_name=info.get("album") or title,
+            youtube_url=source_url,
+        )
+        NFOGenerator.generate(
+            Album(
+                name=track.album_name,
+                artists=artist_names,
+                release_date=track.release_date,
+                genres=track.genres or [],
+                cover_url="",
+                tracks=[track],
+                uri=source_url,
+            ),
+            output_dir,
+            source_url,
+        )
 
     def _save_youtube_cover(self, info: dict, output_path: Path) -> None:
         """Save the uploader's channel avatar as the artist folder cover."""

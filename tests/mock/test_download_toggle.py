@@ -1,4 +1,5 @@
 import os
+import asyncio
 import xml.etree.ElementTree as ET
 from threading import Event
 from pathlib import Path
@@ -373,6 +374,175 @@ def test_direct_youtube_opus_download_writes_title_and_artist_tags(
 
     assert result["completed_tracks"] == 1
     assert saved_tags == {"title": "Direct upload", "artist": "Test artist"}
+
+
+def test_direct_youtube_track_generates_nfo_when_enabled(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    metadata = {
+        "title": "Direct upload",
+        "channel": "Test artist",
+        "duration": 185,
+        "upload_date": "20241003",
+        "ext": "webm",
+    }
+    generated = []
+
+    class FakeYoutubeDL:
+        def __init__(self, options):
+            self.params = options
+            self.params["outtmpl"] = {"default": self.params["outtmpl"]}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, _url, download):
+            assert download is False
+            return metadata
+
+        def prepare_filename(self, info):
+            return self.params["outtmpl"]["default"] % info
+
+        def download(self, _urls):
+            output_path = Path(self.prepare_filename(metadata)).with_suffix(".m4a")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.touch()
+
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.yt_dlp.YoutubeDL",
+        FakeYoutubeDL,
+    )
+    monkeypatch.setattr(downloader, "_save_youtube_cover", lambda *_args: None)
+    monkeypatch.setattr(
+        NFOGenerator,
+        "generate",
+        lambda album, output_dir, source_url=None: generated.append(
+            (album, output_dir, source_url)
+        ),
+    )
+
+    result = downloader.download_youtube_track_cli(
+        "https://www.youtube.com/watch?v=direct-track",
+        generate_nfo=True,
+    )
+
+    assert result["completed_tracks"] == 1
+    album, output_dir, source_url = generated[0]
+    assert album.name == "Direct upload"
+    assert album.artists == ["Test artist"]
+    assert album.tracks[0].duration == 185
+    assert album.tracks[0].release_date == "2024-10-03"
+    assert album.tracks[0].youtube_url == source_url
+    assert output_dir == Path(result["output_directory"])
+    assert source_url == "https://www.youtube.com/watch?v=direct-track"
+
+
+def test_download_service_passes_nfo_setting_to_direct_youtube_track(
+    tmp_path, monkeypatch
+):
+    service = DownloadService(output_dir=str(tmp_path), generate_nfo=True)
+    calls = []
+
+    def download_youtube_track(*args):
+        calls.append(args)
+        return {"completed_tracks": 1}
+
+    monkeypatch.setattr(
+        service.downloader, "download_youtube_track_cli", download_youtube_track
+    )
+
+    result = asyncio.run(
+        service._download_youtube_track(
+            "https://www.youtube.com/watch?v=direct-track"
+        )
+    )
+
+    assert result["completed_tracks"] == 1
+    assert calls[0][-1] is True
+
+
+def test_direct_youtube_collection_generates_nfo_when_enabled(
+    tmp_path, monkeypatch
+):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    generated = []
+    collection_url = "https://www.youtube.com/playlist?list=collection-id"
+    collection = {
+        "title": "Sample Collection",
+        "playlist_count": 1,
+        "entries": [
+            {
+                "id": "collection-track",
+                "title": "Collection Track",
+                "channel": "Sample Artist",
+                "duration": 120,
+                "playlist_index": 1,
+            }
+        ],
+    }
+
+    class FakeYoutubeDL:
+        def __init__(self, options):
+            self.params = options
+            self.params["outtmpl"] = {"default": self.params["outtmpl"]}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, _url, download):
+            assert download is False
+            return collection
+
+        def prepare_filename(self, info):
+            template = self.params["outtmpl"]["default"]
+            return (
+                template.replace("%(playlist_index)02d", "01")
+                .replace("%(title)s", info["title"])
+                .replace("%(ext)s", "webm")
+            )
+
+        def download(self, _urls):
+            output_path = Path(
+                self.params["outtmpl"]["default"]
+                .replace("%(playlist_index)02d", "01")
+                .replace("%(title)s", "Collection Track")
+                .replace("%(ext)s", "m4a")
+            )
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.touch()
+
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.yt_dlp.YoutubeDL",
+        FakeYoutubeDL,
+    )
+    monkeypatch.setattr(
+        NFOGenerator,
+        "generate",
+        lambda album, output_dir, source_url=None: generated.append(
+            (album, output_dir, source_url)
+        ),
+    )
+
+    result = downloader.download_youtube_playlist_cli(
+        collection_url,
+        download_cover=False,
+        generate_nfo=True,
+    )
+
+    assert result["completed_tracks"] == 1
+    album, output_dir, source_url = generated[0]
+    assert album.name == "Sample Collection"
+    assert album.tracks[0].name == "Collection Track"
+    assert album.tracks[0].youtube_url == (
+        "https://www.youtube.com/watch?v=collection-track"
+    )
+    assert output_dir == Path(result["output_directory"])
+    assert source_url == collection_url
 
 
 def test_direct_youtube_track_fails_when_download_creates_no_output(

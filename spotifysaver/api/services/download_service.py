@@ -172,6 +172,7 @@ class DownloadService:
             self.cancellation_event,
             title_callback,
             tracks_callback,
+            getattr(self, "generate_nfo", False),
         )
         return {"content_type": "playlist", **result}
 
@@ -199,6 +200,7 @@ class DownloadService:
             titled_progress,
             self.cancellation_event,
             SpotifyAPI.resolve_youtube_track_title,
+            getattr(self, "generate_nfo", False),
         )
         return {"content_type": "track", **result}
 
