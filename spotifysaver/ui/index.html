@@ -497,6 +497,46 @@
                     </button>
                 </details>
 
+                <details id="storage-settings-panel" class="form-section hidden panel-details" aria-labelledby="storage-settings-heading" open>
+                    <summary class="panel-summary"><h2 id="storage-settings-heading">Storage</h2></summary>
+                    <p class="watcher-help">Storage is checked separately for each filesystem used by audio, video, and watched-channel downloads. New downloads wait in the queue when their destination would start below this reserve, then resume automatically when space recovers. Active downloads are not interrupted. Set the reserve to 0 to disable protection.</p>
+                    <form id="storage-reserve-form">
+                        <div class="form-group">
+                            <label for="storage-minimum-free-gb">Minimum free space to keep (GB):</label>
+                            <input
+                                type="number"
+                                id="storage-minimum-free-gb"
+                                min="0"
+                                max="100000"
+                                step="0.5"
+                                value="0"
+                                required>
+                        </div>
+                        <p id="storage-settings-status" class="watcher-help" role="status">Loading storage status...</p>
+                        <button id="storage-save-settings" class="download-btn" type="submit">Save storage settings</button>
+                    </form>
+                    <h3>Download storage</h3>
+                    <ul id="storage-filesystem-list" class="storage-filesystem-list">
+                        <li class="queue-empty">Loading storage information...</li>
+                    </ul>
+                </details>
+
+                <details id="configuration-backup-panel" class="form-section hidden panel-details" aria-labelledby="configuration-backup-heading" open>
+                    <summary class="panel-summary"><h2 id="configuration-backup-heading">Backup &amp; Restore</h2></summary>
+                    <p class="watcher-help">Download a configuration backup to move your watched channels and settings to another SpotifySaver instance. Backups include watched channel schedules and discovery cursors, download folders, the storage reserve, dark mode, notification preferences, panel visibility/order/collapse preferences, Jellyfin URL and scan interval, and Spotify Client ID and redirect URL.</p>
+                    <p class="watcher-help">Backups do not contain passwords, API keys, Spotify client secrets or authorization tokens, browser notification permission, active downloads, per-video watcher history, or activity logs. Re-enter secrets, grant browser notification permission, and reconnect Spotify after restoring. Folder paths may need to be changed for the destination server.</p>
+                    <div class="jellyfin-settings-actions">
+                        <button id="download-configuration-backup" class="download-btn" type="button">Download Configuration Backup</button>
+                    </div>
+                    <div class="form-group">
+                        <label for="configuration-backup-file">Restore from backup file:</label>
+                        <input id="configuration-backup-file" type="file" accept="application/json,.json">
+                    </div>
+                    <div class="jellyfin-settings-actions">
+                        <button id="restore-configuration-backup" class="output-dir-button" type="button" disabled>Restore Configuration</button>
+                    </div>
+                    <p id="configuration-backup-status" class="watcher-help" role="status"></p>
+                </details>
             </div>
 
             <!-- Right column -->
@@ -531,30 +571,6 @@
                             <div id="log-content"></div>
                         </div>
                         <button id="clear-logs-btn" class="clear-btn" title="Clear logs and reset state">🗑️ Clear</button>
-                </details>
-
-                <details id="storage-settings-panel" class="form-section hidden panel-details" aria-labelledby="storage-settings-heading" open>
-                    <summary class="panel-summary"><h2 id="storage-settings-heading">Storage</h2></summary>
-                    <p class="watcher-help">Storage is checked separately for each filesystem used by audio, video, and watched-channel downloads. New downloads wait in the queue when their destination would start below this reserve, then resume automatically when space recovers. Active downloads are not interrupted. Set the reserve to 0 to disable protection.</p>
-                    <form id="storage-reserve-form">
-                        <div class="form-group">
-                            <label for="storage-minimum-free-gb">Minimum free space to keep (GB):</label>
-                            <input
-                                type="number"
-                                id="storage-minimum-free-gb"
-                                min="0"
-                                max="100000"
-                                step="0.5"
-                                value="0"
-                                required>
-                        </div>
-                        <p id="storage-settings-status" class="watcher-help" role="status">Loading storage status...</p>
-                        <button id="storage-save-settings" class="download-btn" type="submit">Save storage settings</button>
-                    </form>
-                    <h3>Download storage</h3>
-                    <ul id="storage-filesystem-list" class="storage-filesystem-list">
-                        <li class="queue-empty">Loading storage information...</li>
-                    </ul>
                 </details>
 
                 <details id="jellyfin-settings-panel" class="form-section hidden panel-details" aria-labelledby="jellyfin-settings-heading" open>
@@ -641,23 +657,6 @@
                             <button id="spotify-remove-settings" class="clear-btn" type="button" disabled>Remove Spotify Settings</button>
                         </div>
                     </form>
-                </details>
-
-                <details id="configuration-backup-panel" class="form-section hidden panel-details" aria-labelledby="configuration-backup-heading" open>
-                    <summary class="panel-summary"><h2 id="configuration-backup-heading">Backup &amp; Restore</h2></summary>
-                    <p class="watcher-help">Download a configuration backup to move your watched channels and settings to another SpotifySaver instance. Backups include watched channel schedules and discovery cursors, download folders, the storage reserve, dark mode, notification preferences, panel visibility/order/collapse preferences, Jellyfin URL and scan interval, and Spotify Client ID and redirect URL.</p>
-                    <p class="watcher-help">Backups do not contain passwords, API keys, Spotify client secrets or authorization tokens, browser notification permission, active downloads, per-video watcher history, or activity logs. Re-enter secrets, grant browser notification permission, and reconnect Spotify after restoring. Folder paths may need to be changed for the destination server.</p>
-                    <div class="jellyfin-settings-actions">
-                        <button id="download-configuration-backup" class="download-btn" type="button">Download Configuration Backup</button>
-                    </div>
-                    <div class="form-group">
-                        <label for="configuration-backup-file">Restore from backup file:</label>
-                        <input id="configuration-backup-file" type="file" accept="application/json,.json">
-                    </div>
-                    <div class="jellyfin-settings-actions">
-                        <button id="restore-configuration-backup" class="output-dir-button" type="button" disabled>Restore Configuration</button>
-                    </div>
-                    <p id="configuration-backup-status" class="watcher-help" role="status"></p>
                 </details>
 
             </div>
