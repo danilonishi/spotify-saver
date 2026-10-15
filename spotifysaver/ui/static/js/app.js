@@ -119,6 +119,10 @@ class SpotifySaverUI {
             event.preventDefault();
             this.saveSpotifySettings();
         });
+        document.getElementById('copy-spotify-redirect-uri').addEventListener(
+            'click',
+            () => this.copySpotifyRedirectUri()
+        );
         document.getElementById('spotify-connect').addEventListener('click', () => {
             this.connectSpotify();
         });
@@ -608,7 +612,6 @@ class SpotifySaverUI {
         try {
             const settings = await this.apiClient.getSpotifySettings();
             document.getElementById('spotify-client-id').value = settings.client_id || '';
-            redirectInput.value = settings.redirect_uri || redirectInput.value;
             document.getElementById('spotify-client-secret').value = '';
             this.renderSpotifySettings(settings);
         } catch (error) {
@@ -633,6 +636,19 @@ class SpotifySaverUI {
             this.setSpotifySettingsMessage(error.message, 'status-error');
         } finally {
             saveButton.disabled = false;
+        }
+    }
+
+    async copySpotifyRedirectUri() {
+        const input = document.getElementById('spotify-redirect-uri');
+        const status = document.getElementById('spotify-redirect-copy-status');
+        try {
+            await navigator.clipboard.writeText(input.value);
+            status.textContent = 'Redirect URL copied.';
+            status.className = 'status-success';
+        } catch {
+            status.textContent = 'Could not copy automatically. Select and copy the URL above.';
+            status.className = 'status-error';
         }
     }
 
@@ -666,19 +682,23 @@ class SpotifySaverUI {
     }
 
     renderSpotifySettings(settings) {
+        const redirectMatches = settings.redirect_uri ===
+            document.getElementById('spotify-redirect-uri').value;
         document.getElementById('spotify-connect').disabled =
-            !settings.credentials_configured;
+            !settings.credentials_configured || !redirectMatches;
         document.getElementById('spotify-remove-settings').disabled =
             !settings.credentials_configured;
         this.setSpotifyConnectionIndicator(
             settings.authorized ? 'Connected' : 'Not connected',
             settings.authorized ? 'is-connected' : 'is-disconnected'
         );
-        const message = settings.authorized
-            ? 'Spotify account is connected. Spotify URLs and playlist downloads are ready.'
-            : settings.credentials_configured
-                ? 'Credentials are saved. Connect your Spotify account to enable playlist access.'
-                : 'Spotify is not configured. Direct YouTube downloads do not require Spotify credentials.';
+        const message = settings.credentials_configured && !redirectMatches
+            ? 'Save Spotify Settings to apply this redirect URL before connecting to Spotify.'
+            : settings.authorized
+                ? 'Spotify account is connected. Spotify URLs and playlist downloads are ready.'
+                : settings.credentials_configured
+                    ? 'Credentials are saved. Connect your Spotify account to enable playlist access.'
+                    : 'Spotify is not configured. Direct YouTube downloads do not require Spotify credentials.';
         this.setSpotifySettingsMessage(message, 'watcher-help');
     }
 

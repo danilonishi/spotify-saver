@@ -105,6 +105,27 @@ main {
     background: #e53e3e;
 }
 
+.spotify-redirect-control {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.spotify-redirect-control input {
+    flex: 1;
+    min-width: 0;
+}
+
+.spotify-redirect-control button {
+    flex: 0 0 auto;
+}
+
+#spotify-redirect-copy-status {
+    display: block;
+    min-height: 0;
+    margin-top: 6px;
+}
+
 #authentication-status.status-error,
 #spotify-settings-status.status-error {
     margin-top: 12px;
