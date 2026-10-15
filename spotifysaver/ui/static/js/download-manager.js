@@ -38,6 +38,7 @@ class DownloadManager {
             download_lyrics: document.getElementById('include-lyrics').checked,
             download_cover: true, // Always download cover
             generate_nfo: document.getElementById('create-nfo').checked,
+            trim_silence: document.getElementById('trim-silence').checked,
             overwrite_existing: document.getElementById('overwrite-existing').checked
         };
     }

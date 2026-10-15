@@ -226,6 +226,7 @@ This will start the API server with an integrated web interface that you can acc
 - ✅ URL validation for Spotify and supported YouTube links
 - ✅ Configurable audio format (M4A by default, or MP3) and bitrate (256 kbps by default)
 - ✅ Toggle lyrics and NFO file generation
+- ✅ Optionally trim silence from the beginning and end of audio tracks (off by default; re-encodes audio)
 - ✅ Stop active downloads and choose whether to overwrite existing files
 - ✅ Custom output directory
 - ✅ Real-time download progress

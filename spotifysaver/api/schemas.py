@@ -19,6 +19,10 @@ class DownloadRequest(BaseModel):
     )
     download_cover: bool = Field(default=True, description="Whether to download cover art")
     generate_nfo: bool = Field(default=False, description="Whether to generate NFO metadata files")
+    trim_silence: bool = Field(
+        default=False,
+        description="Whether to trim silence at the beginning and end of audio tracks",
+    )
     overwrite_existing: bool = Field(
         default=False,
         description="Whether to overwrite local files that already exist. Missing files are always downloaded.",

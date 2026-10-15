@@ -755,6 +755,7 @@ async def download_task(task_id: str, request: DownloadRequest):
                 output_format=request.output_format,
                 bit_rate=request.bit_rate,
                 overwrite_existing=request.overwrite_existing or bool(request.download_files),
+                trim_silence=request.trim_silence,
             )
             downloader = getattr(download_service, "downloader", None)
             if downloader is not None:

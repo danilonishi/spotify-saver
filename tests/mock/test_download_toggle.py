@@ -24,6 +24,7 @@ def test_download_request_defaults_to_disabled():
     )
 
     assert request.overwrite_existing is False
+    assert request.trim_silence is False
 
 
 def test_download_request_accepts_opus_for_youtube_audio():
@@ -33,6 +34,7 @@ def test_download_request_accepts_opus_for_youtube_audio():
         bit_rate=256,
         download_lyrics=True,
         generate_nfo=True,
+        trim_silence=True,
         overwrite_existing=False,
     )
 
@@ -40,6 +42,7 @@ def test_download_request_accepts_opus_for_youtube_audio():
     assert request.bit_rate == 256
     assert request.download_lyrics is True
     assert request.generate_nfo is True
+    assert request.trim_silence is True
     assert request.overwrite_existing is False
 
 
@@ -461,6 +464,34 @@ def test_download_service_passes_nfo_setting_to_direct_youtube_track(
 
     assert result["completed_tracks"] == 1
     assert calls[0][-1] is True
+
+
+def test_download_service_configures_silence_trimming(tmp_path):
+    service = DownloadService(output_dir=str(tmp_path), trim_silence=True)
+
+    assert service.downloader.trim_silence is True
+
+
+def test_trim_silence_postprocessor_is_disabled_by_default(tmp_path):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+
+    class FakeYoutubeDL:
+        def __init__(self):
+            self.postprocessors = []
+            self.params = {}
+
+        def add_post_processor(self, processor):
+            self.postprocessors.append(processor)
+
+    ydl = FakeYoutubeDL()
+    bitrate = downloader.int_to_bitrate(128)
+
+    downloader._add_trim_silence_postprocessor(ydl, AudioFormat.MP3, bitrate)
+    assert ydl.postprocessors == []
+
+    downloader.trim_silence = True
+    downloader._add_trim_silence_postprocessor(ydl, AudioFormat.MP3, bitrate)
+    assert len(ydl.postprocessors) == 1
 
 
 def test_direct_youtube_collection_generates_nfo_when_enabled(

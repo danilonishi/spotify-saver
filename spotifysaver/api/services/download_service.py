@@ -42,6 +42,7 @@ class DownloadService:
         output_format: str = APIConfig.DEFAULT_FORMAT,
         bit_rate: int = 256,
         overwrite_existing: bool = False,
+        trim_silence: bool = False,
     ):
         """Initialize the download service.
 
@@ -57,6 +58,7 @@ class DownloadService:
         self.download_cover = download_cover
         self.generate_nfo = generate_nfo
         self.overwrite_existing = overwrite_existing
+        self.trim_silence = trim_silence
         self.cancellation_event: Optional[Event] = None
         # Convert string format to enum for internal use
         self.output_format = YouTubeDownloader.string_to_audio_format(output_format)
@@ -66,6 +68,7 @@ class DownloadService:
         self.spotify = None
         self.searcher = None
         self.downloader = YouTubeDownloaderForCLI(base_dir=self.output_dir)
+        self.downloader.trim_silence = trim_silence
         # Called as (current, total, fraction 0-1 of the current item)
         self.progress_fraction_callback: Optional[Callable[[int, int, float], None]] = None
         self._position = (1, 1)

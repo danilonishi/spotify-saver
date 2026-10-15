@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlparse
 from spotifysaver.services import YoutubeMusicSearcher, LrclibAPI
 from spotifysaver.metadata import NFOGenerator, MusicFileMetadata
 from spotifysaver.downloader.image_downloader import ImageDownloader
+from spotifysaver.downloader.trim_silence import FFmpegTrimSilencePP
 from spotifysaver.models import Track, Album, Playlist
 from spotifysaver.enums import AudioFormat, Bitrate
 from spotifysaver.config import Config
@@ -48,6 +49,7 @@ class YouTubeDownloader:
         self.lrc_client = LrclibAPI()
         self.image_downloader = ImageDownloader()
         self.ydl_error_callback: Optional[Callable[[str], None]] = None
+        self.trim_silence = False
 
     @staticmethod
     def is_youtube_collection_url(url: str) -> bool:
@@ -206,6 +208,18 @@ class YouTubeDownloader:
 
         self._add_progress_split_hooks(opts)
         return opts
+
+    def _add_trim_silence_postprocessor(
+        self, ydl, output_format: AudioFormat, bitrate: Bitrate
+    ) -> None:
+        if getattr(self, "trim_silence", False):
+            ydl.add_post_processor(
+                FFmpegTrimSilencePP(
+                    ydl,
+                    output_format.value,
+                    bitrate.value,
+                )
+            )
 
     def _add_progress_split_hooks(self, opts: dict) -> None:
         """Split per-item progress: downloading is 50%, ffmpeg post-processing the other 50%."""
@@ -491,6 +505,9 @@ class YouTubeDownloader:
         try:
             # 1. Download the audio
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                self._add_trim_silence_postprocessor(
+                    ydl, output_format, bitrate
+                )
                 ydl.download([yt_url])
 
             if cancellation_event and cancellation_event.is_set():

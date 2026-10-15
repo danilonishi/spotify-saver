@@ -218,6 +218,16 @@
                     <div class="form-group">
                         <div class="watcher-checkbox-field">
                             <label class="checkbox-label">
+                                <input type="checkbox" id="trim-silence" title="Trim silence from the beginning and end of downloaded audio tracks">
+                                Trim silence at start and end
+                            </label>
+                            <button class="watcher-tooltip" type="button" aria-label="Help: Trim silence at the beginning and end of downloaded audio tracks. This re-encodes audio." data-tooltip="Trim silence at the beginning and end of downloaded audio tracks. This re-encodes audio and may slightly affect sound quality.">i</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="watcher-checkbox-field">
+                            <label class="checkbox-label">
                                 <input type="checkbox" id="overwrite-existing" title="Replace matching files already in the download folder">
                                 Overwrite if exists locally
                             </label>
@@ -714,7 +724,7 @@
     <script src="/static/js/api-client.js?v=2026-10-14-9"></script>
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
     <script src="/static/js/ui-manager.js?v=2026-10-13-4"></script>
-    <script src="/static/js/download-manager.js?v=2026-10-13-14"></script>
+    <script src="/static/js/download-manager.js?v=2026-10-15-1"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-13-1"></script>
     <script src="/static/js/app.js?v=2026-10-14-24"></script>
 </body>

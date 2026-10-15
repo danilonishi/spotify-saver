@@ -109,6 +109,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             ydl_opts["postprocessors"].append({"key": "EmbedThumbnail"})
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            self._add_trim_silence_postprocessor(ydl, output_format, bitrate)
             if cancellation_event and cancellation_event.is_set():
                 return {
                     "collection_name": "YouTube Collection",
@@ -400,6 +401,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             return make_result("YouTube track", None, False)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            self._add_trim_silence_postprocessor(ydl, output_format, bitrate)
             info = ydl.extract_info(url, download=False)
             if not isinstance(info, dict):
                 raise ValueError("YouTube did not return track metadata")
