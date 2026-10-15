@@ -25,8 +25,263 @@ class SpotifySaverUI {
             this.uiManager,
             this
         );
+        this.urlHandoff = this.captureUrlHandoff();
 
         this.initialize();
+    }
+
+    captureUrlHandoff() {
+        const handoffKey = 'spotifysaver_url_handoff';
+        const handoffErrorKey = 'spotifysaver_url_handoff_error';
+        const handoffModeKey = 'spotifysaver_url_handoff_mode';
+        const handoffMediaChoiceKey = 'spotifysaver_url_handoff_media_choice';
+        const currentUrl = new URL(window.location.href);
+        let handoffUrl = null;
+        let handoffError = null;
+
+        if (currentUrl.searchParams.has('url')) {
+            const values = currentUrl.searchParams.getAll('url');
+            currentUrl.searchParams.delete('url');
+            window.history.replaceState(
+                window.history.state,
+                '',
+                `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+            );
+
+            if (values.length !== 1 || !values[0].trim()) {
+                handoffError = 'The supplied source link is invalid.';
+            } else if (this.isSupportedHandoffUrl(values[0].trim())) {
+                handoffUrl = values[0].trim();
+                window.sessionStorage.setItem(handoffKey, handoffUrl);
+                const isChannelHandoff = this.isYouTubeChannelUrl(handoffUrl);
+                if (isChannelHandoff) {
+                    window.sessionStorage.setItem(handoffModeKey, 'true');
+                    window.sessionStorage.removeItem(handoffMediaChoiceKey);
+                } else {
+                    window.sessionStorage.setItem(handoffModeKey, 'true');
+                    if (this.isSpotifyHandoffUrl(handoffUrl)) {
+                        window.sessionStorage.removeItem(handoffMediaChoiceKey);
+                    } else {
+                        window.sessionStorage.setItem(handoffMediaChoiceKey, 'true');
+                    }
+                }
+            } else {
+                handoffError = 'This link is not a supported Spotify or YouTube source.';
+            }
+
+            if (handoffError) {
+                window.sessionStorage.removeItem(handoffKey);
+                window.sessionStorage.removeItem(handoffModeKey);
+                window.sessionStorage.removeItem(handoffMediaChoiceKey);
+                window.sessionStorage.setItem(handoffErrorKey, handoffError);
+            } else {
+                window.sessionStorage.removeItem(handoffErrorKey);
+            }
+        } else {
+            handoffUrl = window.sessionStorage.getItem(handoffKey);
+            handoffError = window.sessionStorage.getItem(handoffErrorKey);
+        }
+
+        return {
+            url: handoffUrl,
+            error: handoffError,
+            focused: window.sessionStorage.getItem(handoffModeKey) === 'true',
+            requiresMediaChoice:
+                window.sessionStorage.getItem(handoffMediaChoiceKey) === 'true'
+        };
+    }
+
+    isSupportedHandoffUrl(sourceUrl) {
+        try {
+            const parsedUrl = new URL(sourceUrl);
+            if (!['http:', 'https:'].includes(parsedUrl.protocol) ||
+                parsedUrl.username || parsedUrl.password) {
+                return false;
+            }
+            const hostname = parsedUrl.hostname.toLowerCase();
+            if (
+                hostname === 'open.spotify.com' &&
+                /^\/(?:intl-[a-z]{2}(?:-[a-z]{2})?\/)?(?:track|album|playlist)\/[a-zA-Z0-9]+\/?$/.test(
+                    parsedUrl.pathname
+                )
+            ) {
+                return true;
+            }
+            return (
+                this.isYouTubeChannelUrl(sourceUrl) ||
+                this.downloadManager.isYouTubeTrackUrl(sourceUrl) ||
+                this.downloadManager.isYouTubeCollectionUrl(sourceUrl)
+            );
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    isYouTubeChannelUrl(sourceUrl) {
+        try {
+            const parsedUrl = new URL(sourceUrl);
+            if (!['http:', 'https:'].includes(parsedUrl.protocol) ||
+                parsedUrl.username || parsedUrl.password) {
+                return false;
+            }
+            const hostname = parsedUrl.hostname.toLowerCase();
+            if (!['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(hostname)) {
+                return false;
+            }
+            const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+            if (!pathParts.length) {
+                return false;
+            }
+            if (pathParts[0].startsWith('@')) {
+                return pathParts[0].length > 1;
+            }
+            return ['channel', 'c', 'user'].includes(pathParts[0]) &&
+                Boolean(pathParts[1]);
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    isSpotifyHandoffUrl(sourceUrl) {
+        try {
+            return new URL(sourceUrl).hostname.toLowerCase() === 'open.spotify.com';
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    applyUrlHandoff() {
+        const handoffKey = 'spotifysaver_url_handoff';
+        const handoffErrorKey = 'spotifysaver_url_handoff_error';
+        const urlInput = document.getElementById('spotify-url');
+
+        if (this.urlHandoff.url) {
+            if (this.isYouTubeChannelUrl(this.urlHandoff.url)) {
+                const channelUrlInput = document.getElementById('watcher-url');
+                channelUrlInput.value = this.urlHandoff.url;
+                this.switchTab('watcher');
+                this.uiManager.updateStatus(
+                    'Channel URL ready. Review the watcher settings, then select Watch Channel to start watching.',
+                    'info'
+                );
+                channelUrlInput.focus();
+            } else {
+                urlInput.value = this.urlHandoff.url;
+                this.switchTab('audio');
+                this.saveState();
+                this.uiManager.updateStatus(
+                    'Source link ready. Choose audio or video for YouTube, review your settings, then select Download to queue it.',
+                    'info'
+                );
+            }
+        } else if (this.urlHandoff.error) {
+            this.uiManager.updateStatus(this.urlHandoff.error, 'error');
+        }
+
+        if (this.urlHandoff.focused) {
+            this.enterUrlHandoffMode(this.urlHandoff.url || urlInput.value);
+            if (this.urlHandoff.url) {
+                const handoffInput = this.isYouTubeChannelUrl(this.urlHandoff.url)
+                    ? document.getElementById('watcher-url')
+                    : urlInput;
+                handoffInput.focus();
+            }
+        }
+
+        window.sessionStorage.removeItem(handoffKey);
+        window.sessionStorage.removeItem(handoffErrorKey);
+        window.sessionStorage.removeItem('spotifysaver_url_handoff_mode');
+        this.urlHandoff = {
+            url: null,
+            error: null,
+            focused: this.urlHandoff.focused,
+            requiresMediaChoice: this.urlHandoff.requiresMediaChoice
+        };
+    }
+
+    enterUrlHandoffMode(sourceUrl) {
+        const dashboard = document.getElementById('download-dashboard');
+        const isChannelHandoff = this.isYouTubeChannelUrl(sourceUrl);
+        dashboard.classList.add('download-handoff-mode');
+        dashboard.classList.toggle(
+            'spotify-handoff-source',
+            this.isSpotifyHandoffUrl(sourceUrl)
+        );
+        dashboard.classList.toggle('youtube-channel-handoff', isChannelHandoff);
+        document.body.classList.add('download-handoff-mode');
+        document.getElementById('download-settings-panel').open = true;
+        document.getElementById('url-handoff-notice').classList.remove('hidden');
+        const requiresMediaChoice = this.urlHandoff.requiresMediaChoice;
+        this.uiManager.setDownloadButtonState('Download', requiresMediaChoice);
+        document.querySelector('#url-handoff-notice h3').textContent = isChannelHandoff
+            ? 'Review channel watcher'
+            : 'Review your download';
+        document.getElementById('url-handoff-help').textContent = isChannelHandoff
+            ? 'Review the channel settings, then select Watch Channel to start watching.'
+            : requiresMediaChoice
+                ? 'Choose Audio or Video for this YouTube link before downloading.'
+                : 'Review your folder and settings, then download when ready.';
+        document.getElementById('settings-toggle-btn').classList.add('hidden');
+        document.getElementById('logout-btn').classList.add('hidden');
+    }
+
+    exitUrlHandoffMode() {
+        const dashboard = document.getElementById('download-dashboard');
+        dashboard.classList.remove(
+            'download-handoff-mode',
+            'spotify-handoff-source',
+            'youtube-channel-handoff'
+        );
+        document.body.classList.remove('download-handoff-mode');
+        document.getElementById('url-handoff-notice').classList.add('hidden');
+        this.uiManager.setDownloadButtonState();
+        document.getElementById('settings-toggle-btn').classList.remove('hidden');
+        document.getElementById('logout-btn').classList.remove('hidden');
+        window.sessionStorage.removeItem('spotifysaver_url_handoff_mode');
+        window.sessionStorage.removeItem('spotifysaver_url_handoff_media_choice');
+        this.urlHandoff.focused = false;
+        this.urlHandoff.requiresMediaChoice = false;
+    }
+
+    confirmUrlHandoffMediaType(mode) {
+        if (!this.urlHandoff.focused || !this.urlHandoff.requiresMediaChoice ||
+            !['audio', 'video'].includes(mode)) {
+            return;
+        }
+        this.urlHandoff.requiresMediaChoice = false;
+        window.sessionStorage.removeItem('spotifysaver_url_handoff_media_choice');
+        this.uiManager.setDownloadButtonState('Download');
+        document.getElementById('url-handoff-help').textContent =
+            `You selected ${mode}. Review your folder and settings, then download when ready.`;
+    }
+
+    async startDownloadFromUi() {
+        if (this.urlHandoff.focused && this.urlHandoff.requiresMediaChoice) {
+            this.uiManager.updateStatus(
+                'Choose Audio or Video for this YouTube link before downloading.',
+                'warning'
+            );
+            return;
+        }
+        const queued = await this.downloadManager.startDownload();
+        if (queued && this.urlHandoff.focused) {
+            document.body.classList.add('download-handoff-complete');
+            document.getElementById('url-handoff-help').textContent =
+                'Download queued successfully.';
+            this.uiManager.setDownloadButtonState('Queued', true);
+            this.uiManager.updateStatus(
+                'Download queued successfully. This window should close automatically.',
+                'success'
+            );
+            window.postMessage(
+                {
+                    source: 'spotify-saver',
+                    type: 'download-queued',
+                    version: 1
+                },
+                window.location.origin
+            );
+        }
     }
 
     async initialize() {
@@ -70,6 +325,7 @@ class SpotifySaverUI {
             // The server owns the download queue; pull its current state so
             // downloads that kept running while the page was closed show up.
             await this.downloadManager.hydrateFromServer();
+            this.applyUrlHandoff();
 
         } catch (error) {
             console.error('Failed to initialize UI:', error);
@@ -90,7 +346,11 @@ class SpotifySaverUI {
         const clearCompletedBtn = document.getElementById('clear-completed-btn');
         const settingsToggleBtn = document.getElementById('settings-toggle-btn');
         
-        downloadBtn.addEventListener('click', () => this.downloadManager.startDownload());
+        downloadBtn.addEventListener('click', () => this.startDownloadFromUi());
+        document.getElementById('url-handoff-return-btn').addEventListener(
+            'click',
+            () => this.exitUrlHandoffMode()
+        );
         stopDownloadBtn.addEventListener('click', () => this.downloadManager.stopDownload());
         clearUrlBtn.addEventListener('click', () => {
             spotifyUrl.value = '';
@@ -209,7 +469,10 @@ class SpotifySaverUI {
         });
 
         document.querySelectorAll('.tab-button').forEach((tab) => {
-            tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
+            tab.addEventListener('click', () => {
+                this.switchTab(tab.dataset.tab);
+                this.confirmUrlHandoffMediaType(tab.dataset.tab);
+            });
         });
         const savedTab = localStorage.getItem('spotifysaver_active_tab');
         this.switchTab(['audio', 'video', 'watcher'].includes(savedTab) ? savedTab : 'audio');
@@ -257,7 +520,7 @@ class SpotifySaverUI {
         // Allow starting a download with Enter
         spotifyUrl.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                this.downloadManager.startDownload();
+                this.startDownloadFromUi();
             }
         });
         document.getElementById('watcher-url').addEventListener('keypress', (event) => {

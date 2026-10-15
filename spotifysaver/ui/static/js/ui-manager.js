@@ -9,6 +9,8 @@ class UIManager {
         this.onOutputDirectorySelected = null;
         this.activeMode = 'audio';
         this.downloading = false;
+        this.downloadButtonLabel = null;
+        this.downloadButtonDisabled = false;
         this.preferredOutputDirectories = {
             audio: null,
             video: null,
@@ -23,7 +25,8 @@ class UIManager {
 
     updateDownloadButtonLabel() {
         const button = document.getElementById('download-btn');
-        if (this.downloading) {
+        button.disabled = this.downloadButtonDisabled;
+        if (this.downloading && !this.downloadButtonLabel) {
             button.textContent = 'Enqueue Download';
             return;
         }
@@ -34,7 +37,16 @@ class UIManager {
             : 'music-note audio-download-icon';
         icon.setAttribute('aria-hidden', 'true');
         icon.textContent = this.activeMode === 'video' ? '🎬︎' : '♫︎';
-        button.replaceChildren(icon, document.createTextNode(' Start Download'));
+        button.replaceChildren(
+            icon,
+            document.createTextNode(` ${this.downloadButtonLabel || 'Start Download'}`)
+        );
+    }
+
+    setDownloadButtonState(label = null, disabled = false) {
+        this.downloadButtonLabel = label;
+        this.downloadButtonDisabled = disabled;
+        this.updateDownloadButtonLabel();
     }
 
     updateUI(downloading, paused = false) {
@@ -441,6 +453,11 @@ class UIManager {
         const statusMessage = document.getElementById('status-message');
         statusMessage.textContent = message;
         statusMessage.className = `status-${type}`;
+        const handoffStatus = document.getElementById('url-handoff-result');
+        if (document.body.classList.contains('download-handoff-mode') && handoffStatus) {
+            handoffStatus.textContent = message;
+            handoffStatus.className = `url-handoff-result status-${type}`;
+        }
     }
 
     updateProgress(percentage) {

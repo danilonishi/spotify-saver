@@ -190,9 +190,9 @@ class DownloadManager {
 
     // The server owns the queue: adding an item just hands it a download
     // request, and the server keeps running it even if this page is closed.
-    startDownload() {
+    async startDownload() {
         if (!this.validateForm()) {
-            return;
+            return false;
         }
 
         const formData = this.getFormData();
@@ -202,7 +202,7 @@ class DownloadManager {
             ['queued', 'downloading', 'paused'].includes(item.status));
         if (duplicate) {
             this.uiManager.updateStatus(`${duplicate.title} is already in the queue.`, 'info');
-            return;
+            return false;
         }
 
         const queueItem = {
@@ -226,8 +226,8 @@ class DownloadManager {
         this.uiManager.renderDownloadQueue(this.queue);
         this.uiManager.addLogEntry(`${queueItem.title} added to queue`, 'info');
         this.loadQueueItemDetails(queueItem);
-        this.submitToServer(queueItem);
         this.ensurePolling();
+        return this.submitToServer(queueItem);
     }
 
     async submitToServer(queueItem) {
@@ -238,6 +238,7 @@ class DownloadManager {
             queueItem.submissionRejected = false;
             this.uiManager.addLogEntry(`Download queued with ID: ${result.task_id}`, 'success');
             this.uiManager.renderDownloadQueue(this.queue);
+            return true;
         } catch (error) {
             queueItem.status = 'failed';
             queueItem.error_message = error.message;
@@ -245,6 +246,7 @@ class DownloadManager {
             this.uiManager.updateStatus(`Error: ${error.message}`, 'error');
             this.uiManager.addLogEntry(`Error: ${error.message}`, 'error');
             this.uiManager.renderDownloadQueue(this.queue);
+            return false;
         }
     }
 

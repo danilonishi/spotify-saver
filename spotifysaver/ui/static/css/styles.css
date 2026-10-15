@@ -611,6 +611,82 @@ select:focus {
     display: none;
 }
 
+body.download-handoff-mode .theme-toggle-container {
+    display: none;
+}
+
+body.download-handoff-mode > header,
+body.download-handoff-mode > .container > footer,
+body.download-handoff-mode > footer {
+    display: none;
+}
+
+#download-dashboard.download-handoff-mode {
+    display: block;
+}
+
+#download-dashboard.download-handoff-mode > .left-column,
+#download-dashboard.download-handoff-mode > .right-column {
+    display: block;
+}
+
+#download-dashboard.download-handoff-mode > .left-column > :not(#download-settings-panel),
+#download-dashboard.download-handoff-mode > .right-column > :not(#download-settings-panel) {
+    display: none !important;
+}
+
+#download-dashboard.download-handoff-mode #download-settings-panel {
+    display: block !important;
+}
+
+#download-dashboard.download-handoff-mode #download-settings-panel > .panel-summary {
+    pointer-events: none;
+}
+
+#download-dashboard.download-handoff-mode #download-settings-panel > .panel-summary::before {
+    display: none;
+}
+
+#download-dashboard.download-handoff-mode:not(.youtube-channel-handoff) .tab-button[data-tab="watcher"],
+#download-dashboard.spotify-handoff-source .tab-button[data-tab="video"] {
+    display: none;
+}
+
+#download-dashboard.youtube-channel-handoff .tab-button[data-tab="audio"],
+#download-dashboard.youtube-channel-handoff .tab-button[data-tab="video"] {
+    display: none;
+}
+
+.url-handoff-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 12px 0 16px;
+    padding: 12px 14px;
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    background: #f7fafc;
+}
+
+.url-handoff-notice h3,
+.url-handoff-notice p {
+    margin: 0;
+}
+
+.url-handoff-notice p {
+    margin-top: 4px;
+}
+
+.url-handoff-result {
+    margin-top: 8px !important;
+    font-weight: 600;
+}
+
+body.download-handoff-complete #url-handoff-return-btn {
+    display: none;
+}
+
 .panel-visibility-options {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1423,6 +1499,11 @@ body.dark-mode .watcher-tooltip {
         background: #1b222c;
         color: #b8c0cc;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+    }
+
+    body.dark-mode .url-handoff-notice {
+        border-color: #4a5568;
+        background: #2d3748;
     }
 
     body.dark-mode .form-section h2,

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-14-13">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-16-2">
 </head>
 <body>
     <!-- Header -->
@@ -114,6 +114,14 @@
                 <!-- Settings download section -->
                 <details id="download-settings-panel" class="form-section download-view-panel panel-details" open>
                     <summary class="panel-summary"><h2>Download</h2></summary>
+                    <div id="url-handoff-notice" class="url-handoff-notice hidden" role="region" aria-label="Review download">
+                        <div>
+                            <h3>Review your download</h3>
+                            <p id="url-handoff-help">Review your folder and settings, then download when ready.</p>
+                            <p id="url-handoff-result" class="url-handoff-result hidden" role="status" aria-live="polite"></p>
+                        </div>
+                        <button id="url-handoff-return-btn" class="output-dir-button" type="button">Back to dashboard</button>
+                    </div>
 
                     <div class="tabs" role="tablist" aria-label="Download type">
                         <button id="tab-audio-btn" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tab-audio" data-tab="audio" title="Download audio from Spotify or YouTube.">Audio</button>
@@ -123,7 +131,7 @@
 
                     <div id="download-url-group" class="form-group">
                         <div class="watcher-label-row">
-                            <label for="spotify-url">Spotify or YouTube album/playlist URL:</label>
+                            <label for="spotify-url">Spotify or YouTube video, album, or playlist URL:</label>
                             <button class="watcher-tooltip" type="button" aria-label="Help: Paste a Spotify or YouTube video, album, or playlist URL." data-tooltip="Paste a Spotify or YouTube video, album, or playlist URL.">i</button>
                         </div>
                         <div class="url-input-group">
@@ -723,9 +731,9 @@
     <!-- Load JavaScript modules in dependency order -->
     <script src="/static/js/api-client.js?v=2026-10-14-9"></script>
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
-    <script src="/static/js/ui-manager.js?v=2026-10-13-4"></script>
-    <script src="/static/js/download-manager.js?v=2026-10-15-1"></script>
+    <script src="/static/js/ui-manager.js?v=2026-10-15-6"></script>
+    <script src="/static/js/download-manager.js?v=2026-10-15-2"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-13-1"></script>
-    <script src="/static/js/app.js?v=2026-10-14-24"></script>
+    <script src="/static/js/app.js?v=2026-10-16-2"></script>
 </body>
 </html>
