@@ -142,6 +142,25 @@ class SecurityStore:
         actual = _password_digest(password, row[0])
         return hmac.compare_digest(actual, row[1])
 
+    def change_password(
+        self, current_password: str, new_password: str, keep_token: Optional[str]
+    ) -> bool:
+        """Replace the password and revoke every session except ``keep_token``."""
+        if not self.verify_password(current_password):
+            return False
+        salt = secrets.token_bytes(16)
+        password_hash = _password_digest(new_password, salt)
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE admin_credentials SET salt = ?, password_hash = ? WHERE id = 1",
+                (salt, password_hash),
+            )
+            connection.execute(
+                "DELETE FROM auth_sessions WHERE token_hash != ?",
+                (self._token_hash(keep_token or ""),),
+            )
+        return True
+
     @staticmethod
     def _token_hash(token: str) -> str:
         return hashlib.sha256(token.encode("utf-8")).hexdigest()

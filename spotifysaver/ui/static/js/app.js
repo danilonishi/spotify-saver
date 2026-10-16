@@ -375,6 +375,10 @@ class SpotifySaverUI {
         document.getElementById('logout-btn').addEventListener('click', () => {
             this.logout();
         });
+        document.getElementById('change-password-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            this.changePassword();
+        });
         document.getElementById('spotify-settings-form').addEventListener('submit', (event) => {
             event.preventDefault();
             this.saveSpotifySettings();
@@ -860,6 +864,32 @@ class SpotifySaverUI {
         }
     }
 
+    async changePassword() {
+        const form = document.getElementById('change-password-form');
+        const status = document.getElementById('password-settings-status');
+        const current = document.getElementById('current-password').value;
+        const next = document.getElementById('new-password').value;
+        if (next !== document.getElementById('confirm-new-password').value) {
+            status.textContent = 'New passwords do not match.';
+            status.className = 'status-error';
+            return;
+        }
+        const submit = form.querySelector('button[type="submit"]');
+        submit.disabled = true;
+        status.textContent = 'Changing password...';
+        status.className = 'watcher-help';
+        try {
+            await this.apiClient.changePassword(current, next);
+            form.reset();
+            status.textContent = 'Password changed. Other sessions were signed out.';
+        } catch (error) {
+            status.textContent = error.message;
+            status.className = 'status-error';
+        } finally {
+            submit.disabled = false;
+        }
+    }
+
     async logout() {
         try {
             await this.apiClient.logout();
@@ -1236,6 +1266,7 @@ class SpotifySaverUI {
         document.getElementById('storage-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('jellyfin-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('spotify-settings-panel').classList.toggle('hidden', !visible);
+        document.getElementById('password-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('configuration-backup-panel').classList.toggle('hidden', !visible);
         document.getElementById('panel-visibility-settings').classList.toggle('hidden', !visible);
         document.getElementById('notification-preferences-panel').classList.toggle('hidden', !visible);

@@ -18,6 +18,11 @@ class LoginCredentials(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=12, max_length=256)
+
+
 def _store(request: Request) -> SecurityStore:
     store: SecurityStore | None = getattr(request.app.state, "security_store", None)
     if store is None:
@@ -90,6 +95,27 @@ async def login(
     token, expires_at = store.create_session()
     _set_session_cookie(response, request, token)
     return {"authenticated": True, "expires_at": expires_at}
+
+
+@router.post("/auth/password")
+async def change_password(settings: PasswordChange, request: Request):
+    """Change the administrator password and sign out all other sessions."""
+    store = _store(request)
+    client_key = _client_key(request)
+    if store.login_is_blocked(client_key):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed attempts; try again in 15 minutes",
+        )
+    if not store.change_password(
+        settings.current_password,
+        settings.new_password,
+        request.cookies.get(SESSION_COOKIE),
+    ):
+        store.record_login_failure(client_key)
+        raise HTTPException(status_code=403, detail="Current password is incorrect")
+    store.clear_login_failures(client_key)
+    return {"changed": True}
 
 
 @router.post("/auth/logout")

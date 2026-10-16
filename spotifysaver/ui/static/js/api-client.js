@@ -411,6 +411,13 @@ class ApiClient {
         return this.sendAuthenticationRequest('/auth/login', { password });
     }
 
+    async changePassword(currentPassword, newPassword) {
+        return this.sendAuthenticationRequest('/auth/password', {
+            current_password: currentPassword,
+            new_password: newPassword
+        });
+    }
+
     async logout() {
         return this.sendAuthenticationRequest('/auth/logout', {});
     }

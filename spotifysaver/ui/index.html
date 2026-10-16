@@ -690,6 +690,29 @@
                     </form>
                 </details>
 
+                <details id="password-settings-panel" class="form-section hidden panel-details" aria-labelledby="password-settings-heading">
+                    <summary class="panel-summary"><h2 id="password-settings-heading">Access Password</h2></summary>
+                    <form id="change-password-form">
+                        <div class="form-group">
+                            <label for="current-password">Current password:</label>
+                            <input id="current-password" type="password" autocomplete="current-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="new-password">New password:</label>
+                            <input id="new-password" type="password" autocomplete="new-password" minlength="12" required>
+                            <small>Use at least 12 characters. Other signed-in browsers will be signed out.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirm-new-password">Confirm new password:</label>
+                            <input id="confirm-new-password" type="password" autocomplete="new-password" minlength="12" required>
+                        </div>
+                        <p id="password-settings-status" class="watcher-help" role="status"></p>
+                        <div class="jellyfin-settings-actions">
+                            <button class="download-btn" type="submit">Change Password</button>
+                        </div>
+                    </form>
+                </details>
+
             </div>
         </main>
     </div>
