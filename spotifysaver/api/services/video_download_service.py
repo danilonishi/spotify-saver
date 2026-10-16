@@ -373,6 +373,7 @@ class VideoDownloadService:
 
         return {
             "content_type": "playlist" if collection else "track",
+            "download_url": url,
             "collection_name": collection or None,
             "completed_tracks": completed,
             "failed_tracks": len(failed_names),

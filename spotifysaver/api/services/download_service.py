@@ -212,6 +212,7 @@ class DownloadService:
                 raise RuntimeError("SoundCloud download was interrupted")
             return {
                 "content_type": "track",
+                "download_url": track_url,
                 "completed_tracks": 1,
                 "failed_tracks": 0,
                 "failed_track_names": [],
@@ -257,7 +258,11 @@ class DownloadService:
             tracks_callback,
             getattr(self, "generate_nfo", False),
         )
-        return {"content_type": "playlist", **result}
+        return {
+            "content_type": "playlist",
+            "download_url": playlist_url,
+            **result,
+        }
 
     async def _download_youtube_track(
         self,
@@ -285,7 +290,7 @@ class DownloadService:
             SpotifyAPI.resolve_youtube_track_title,
             getattr(self, "generate_nfo", False),
         )
-        return {"content_type": "track", **result}
+        return {"content_type": "track", "download_url": track_url, **result}
 
     async def _download_track(
         self,
@@ -314,6 +319,9 @@ class DownloadService:
 
         return {
             "content_type": "track",
+            "download_url": (
+                updated_track.youtube_url if updated_track else track.youtube_url
+            ),
             "completed_tracks": 1 if audio_path else 0,
             "failed_tracks": 0 if audio_path else 1,
             "failed_track_names": [] if audio_path else [track.name],

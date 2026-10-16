@@ -205,7 +205,7 @@ def test_soundcloud_track_with_original_download_uses_original_format(
     assert output_path.is_file()
 
 
-def test_soundcloud_unavailable_track_falls_back_to_youtube_music():
+def test_soundcloud_unavailable_track_returns_matched_youtube_url(tmp_path):
     class FakeDownloader:
         def download_track(self, *_args):
             return False, track, None
@@ -229,14 +229,14 @@ def test_soundcloud_unavailable_track_falls_back_to_youtube_music():
     service.download_cover = True
     service.overwrite_existing = False
     service.generate_nfo = False
-    service.output_dir = "Music"
-    service_fallbacks = []
-
-    async def fallback(_url, _progress, _title, _tracks, track=None):
-        service_fallbacks.append(track)
-        return {"content_type": "track", "completed_tracks": 1}
-
-    service._download_track = fallback
+    service.output_dir = str(tmp_path)
+    service.cancellation_event = None
+    service._position = (1, 1)
+    youtube_url = "https://music.youtube.com/watch?v=matched123"
+    service._download_track_sync = lambda source_track, *_args: (
+        tmp_path / "Example Track.m4a",
+        source_track.with_youtube_url(youtube_url),
+    )
 
     result = asyncio.run(
         service._download_soundcloud_track(
@@ -249,7 +249,100 @@ def test_soundcloud_unavailable_track_falls_back_to_youtube_music():
     )
 
     assert result["completed_tracks"] == 1
-    assert service_fallbacks == [track]
+    assert result["download_url"] == youtube_url
+
+
+def test_direct_soundcloud_download_returns_source_url(tmp_path):
+    track = Track(
+        number=1,
+        total_tracks=1,
+        name="Example Track",
+        duration=180,
+        uri=SOUNDCLOUD_TRACK_URL,
+        artists=["Example Artist"],
+        album_artist=["Example Artist"],
+        release_date="2024-01-01",
+        album_name="Example Track",
+    )
+
+    class FakeDownloader:
+        def download_track(self, *_args):
+            return True, track, tmp_path / "Example Track.m4a"
+
+    service = object.__new__(DownloadService)
+    service.soundcloud_downloader = FakeDownloader()
+    service.output_format = AudioFormat.M4A
+    service.bit_rate = Bitrate.B128
+    service.download_lyrics = False
+    service.download_cover = True
+    service.overwrite_existing = False
+    service.generate_nfo = False
+    service.output_dir = str(tmp_path)
+
+    result = asyncio.run(
+        service._download_soundcloud_track(
+            SOUNDCLOUD_TRACK_URL,
+            progress_callback=None,
+            cancellation_event=None,
+            title_callback=None,
+            tracks_callback=None,
+        )
+    )
+
+    assert result["download_url"] == SOUNDCLOUD_TRACK_URL
+
+
+def test_spotify_track_download_returns_matched_youtube_url(tmp_path):
+    track = Track(
+        number=1,
+        total_tracks=1,
+        name="Example Track",
+        duration=180,
+        uri="spotify:track:example",
+        artists=["Example Artist"],
+        album_artist=["Example Artist"],
+        release_date="2024-01-01",
+        album_name="Example Track",
+    )
+    youtube_url = "https://music.youtube.com/watch?v=example123"
+    service = object.__new__(DownloadService)
+    service.cancellation_event = None
+    service._position = (1, 1)
+    service._download_track_sync = lambda *_args: (
+        tmp_path / "Example Track.m4a",
+        track.with_youtube_url(youtube_url),
+    )
+
+    result = asyncio.run(service._download_track("spotify:track:example", track=track))
+
+    assert result["download_url"] == youtube_url
+
+
+def test_direct_youtube_track_download_returns_source_url():
+    youtube_url = "https://www.youtube.com/watch?v=example123"
+    service = object.__new__(DownloadService)
+    service.downloader = type(
+        "FakeDownloader",
+        (),
+        {
+            "download_youtube_track_cli": lambda self, *_args: {
+                "completed_tracks": 1,
+                "failed_tracks": 0,
+                "failed_track_names": [],
+                "total_tracks": 1,
+                "output_directory": "Music",
+            }
+        },
+    )()
+    service.output_format = AudioFormat.M4A
+    service.bit_rate = Bitrate.B128
+    service.overwrite_existing = False
+    service.cancellation_event = None
+    service.generate_nfo = False
+
+    result = asyncio.run(service._download_youtube_track(youtube_url))
+
+    assert result["download_url"] == youtube_url
 
 
 def test_soundcloud_extraction_errors_do_not_trigger_youtube_fallback():

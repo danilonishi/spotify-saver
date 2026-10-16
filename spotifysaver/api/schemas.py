@@ -219,6 +219,7 @@ class DownloadStatus(BaseModel):
     failed_track_names: List[str] = Field(default_factory=list)
     warning_message: Optional[str] = None
     output_directory: Optional[str] = None
+    download_url: Optional[str] = None
     output_format: str = APIConfig.DEFAULT_FORMAT
     bit_rate: Optional[int] = None
     error_message: Optional[str] = None

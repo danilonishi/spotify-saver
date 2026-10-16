@@ -236,6 +236,27 @@ class UIManager {
                 outputDirectory.textContent = `Saved to: ${item.output_directory}`;
                 details.appendChild(outputDirectory);
             }
+            if (item.output_directory && item.download_url) {
+                try {
+                    const downloadUrl = new URL(item.download_url);
+                    if (['http:', 'https:'].includes(downloadUrl.protocol)) {
+                        const source = document.createElement('p');
+                        source.className = 'queue-track-empty';
+                        source.append('Download source: ');
+                        const link = document.createElement('a');
+                        link.href = downloadUrl.href;
+                        link.textContent = item.download_url;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        source.appendChild(link);
+                        details.appendChild(source);
+                    } else {
+                        console.warn('Ignoring non-HTTP download source URL', item.download_url);
+                    }
+                } catch (error) {
+                    console.warn('Ignoring invalid download source URL', item.download_url, error);
+                }
+            }
 
             entry.appendChild(details);
             list.appendChild(entry);

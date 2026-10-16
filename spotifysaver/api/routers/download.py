@@ -390,6 +390,7 @@ async def retry_download(task_id: str):
         task.failed_track_names = []
         task.warning_message = None
         task.output_directory = None
+        task.download_url = None
         task.error_message = None
         task.started_at = datetime.now().isoformat()
         task.completed_at = None
@@ -859,6 +860,7 @@ async def download_task(task_id: str, request: DownloadRequest):
         task.failed_tracks = failed_tracks
         task.failed_track_names = failed_track_names
         task.output_directory = result.get("output_directory")
+        task.download_url = result.get("download_url")
         if not task.title:
             # YouTube collections only expose their resolved name in the final result.
             task.title = result.get("collection_name")
