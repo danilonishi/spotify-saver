@@ -650,9 +650,9 @@ class DownloadManager {
         }
     }
 
-    async confirmYouTubeItem(taskId) {
+    async confirmYouTubeItem(taskId, trackNumber = null) {
         try {
-            await this.apiClient.confirmYouTubeDownload(taskId);
+            await this.apiClient.confirmYouTubeDownload(taskId, trackNumber);
             await this.pollOnce();
             this.ensurePolling();
         } catch (error) {

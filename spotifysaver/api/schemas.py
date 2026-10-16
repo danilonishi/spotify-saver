@@ -169,6 +169,7 @@ class TrackInfo(BaseModel):
     duration: int  # in seconds
     number: int
     uri: str
+    playlist_position: Optional[int] = None
     youtube_title: Optional[str] = None
     youtube_url: Optional[str] = None
     youtube_channel: Optional[str] = None

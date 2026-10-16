@@ -30,6 +30,7 @@ def _track_to_dict(track: Any, number: int) -> dict:
         "album_name": getattr(track, "album_name", None),
         "duration": track.duration,
         "number": number,
+        "playlist_position": getattr(track, "playlist_position", None),
         "uri": track.uri,
     }
 
@@ -72,6 +73,8 @@ class DownloadService:
         self.spotify = None
         self.searcher = None
         self.downloader = YouTubeDownloaderForCLI(base_dir=self.output_dir)
+        self.youtube_confirmation_callback = None
+        self.youtube_confirmation_metadata_callback = None
         self.soundcloud_downloader = SoundCloudDownloader(base_dir=self.output_dir)
         self.downloader.rate_limit_provider = (
             APIConfig.get_download_rate_limit_bytes_per_second
@@ -245,6 +248,9 @@ class DownloadService:
         self.downloader.youtube_confirmation_callback = getattr(
             self, "youtube_confirmation_callback", None
         )
+        self.downloader.youtube_confirmation_metadata_callback = getattr(
+            self, "youtube_confirmation_metadata_callback", None
+        )
         result = await loop.run_in_executor(
             None,
             self.downloader.download_youtube_playlist_cli,
@@ -413,6 +419,12 @@ class DownloadService:
 
         # Run download in thread pool
         loop = asyncio.get_event_loop()
+        self.downloader.youtube_confirmation_callback = getattr(
+            self, "youtube_confirmation_callback", None
+        )
+        self.downloader.youtube_confirmation_metadata_callback = getattr(
+            self, "youtube_confirmation_metadata_callback", None
+        )
         success, total, failed_track_names = await loop.run_in_executor(
             None,
             self.downloader.download_playlist_cli,

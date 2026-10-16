@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event
 from typing import Dict
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -113,6 +114,7 @@ discard_after_stop: set[str] = set()
 preserve_after_stop: set[str] = set()
 confirmation_resume_events: Dict[str, Event] = {}
 confirmation_approved: set[str] = set()
+track_confirmation_events: Dict[tuple[str, int], Event] = {}
 queue_lock = asyncio.Lock()
 jellyfin_library_scan_service: JellyfinLibraryScanService | None = None
 notification_hub: NotificationHub | None = None
@@ -179,6 +181,38 @@ def get_known_download_paths() -> list[dict[str, str]]:
             }
         )
     return known_paths
+
+
+async def _prepare_playlist_confirmation(
+    task_id: str,
+    track_number: int,
+    track_title: str,
+    video_url: str,
+    youtube_title: str,
+    channel_name: str,
+) -> None:
+    task = tasks.get(task_id)
+    if task is None or not 0 < track_number <= len(task.tracks):
+        return
+    track = task.tracks[track_number - 1]
+    track.youtube_title = youtube_title
+    track.youtube_url = video_url
+    track.youtube_channel = channel_name
+    track.confirmation_required = True
+    task.track_updates.append(
+        {
+            "track_number": track_number,
+            "track_name": track_title,
+            "status": "awaiting_confirmation",
+        }
+    )
+    if notification_hub is not None:
+        await notification_hub.publish(
+            "download_confirmation",
+            f"{youtube_title} is waiting for your approval to download from {channel_name}.",
+            title=youtube_title,
+            task_id=task_id,
+        )
 
 
 async def _publish_download_attention(task: DownloadStatus) -> None:
@@ -284,7 +318,9 @@ def _retain_finished_tracks(task: DownloadStatus) -> None:
     ]
     finished_numbers = {update.get("track_number") for update in finished_updates}
     task.tracks = [
-        track for track in task.tracks if track.number in finished_numbers
+        track
+        for track in task.tracks
+        if (track.playlist_position or track.number) in finished_numbers
     ]
     task.completed_tracks = sum(
         update.get("status") == "completed" for update in finished_updates
@@ -378,6 +414,10 @@ async def _run_task(task_id: str, request: DownloadRequest) -> None:
         await _try_start_next()
         confirmation_resume_events.pop(task_id, None)
         confirmation_approved.discard(task_id)
+        for confirmation_key in [
+            key for key in track_confirmation_events if key[0] == task_id
+        ]:
+            track_confirmation_events.pop(confirmation_key, None)
         if jellyfin_library_scan_service is not None:
             content_downloaded = bool(
                 task
@@ -556,11 +596,34 @@ async def cancel_download(task_id: str):
 
 
 @router.post("/download/{task_id}/confirm-youtube", status_code=202)
-async def confirm_youtube_download(task_id: str):
+async def confirm_youtube_download(
+    task_id: str,
+    track_number: int | None = None,
+):
     """Approve the matched YouTube video currently awaiting user confirmation."""
     task = tasks.get(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    if track_number is not None:
+        if track_number < 1:
+            raise HTTPException(status_code=422, detail="track_number must be at least 1")
+        if task.status != "processing" or track_number > len(task.tracks):
+            raise HTTPException(
+                status_code=409, detail="This playlist track is not awaiting confirmation"
+            )
+        track = task.tracks[track_number - 1]
+        approval_event = track_confirmation_events.get((task_id, track_number))
+        if not track.confirmation_required or approval_event is None:
+            raise HTTPException(
+                status_code=409, detail="This playlist track is not awaiting confirmation"
+            )
+        track.confirmation_required = False
+        approval_event.set()
+        return {
+            "task_id": task_id,
+            "track_number": track_number,
+            "status": task.status,
+        }
     if task.status != "awaiting_confirmation" or not task.confirmation_required:
         raise HTTPException(
             status_code=409, detail="This download is not awaiting confirmation"
@@ -943,9 +1006,57 @@ async def download_task(task_id: str, request: DownloadRequest):
                     return False
             return not cancellation_event.is_set()
 
+        def expose_playlist_match(
+            track_number: int,
+            track: object,
+            youtube_url: str,
+            video_info: dict,
+        ) -> None:
+            channel_name = str(
+                video_info.get("channel")
+                or video_info.get("uploader")
+                or "Unknown channel"
+            ).strip()
+            approval_event = Event()
+            track_confirmation_events[(task_id, track_number)] = approval_event
+            asyncio.run_coroutine_threadsafe(
+                _prepare_playlist_confirmation(
+                    task_id,
+                    track_number,
+                    str(getattr(track, "name", "Track")),
+                    youtube_url,
+                    str(video_info["title"]).strip(),
+                    channel_name,
+                ),
+                loop,
+            ).result()
+
+        def wait_for_playlist_approval(track: object, _youtube_url: str) -> bool:
+            track_number = int(
+                getattr(track, "playlist_position", None)
+                or getattr(track, "number", 0)
+                or 0
+            )
+            approval_event = track_confirmation_events.get((task_id, track_number))
+            if approval_event is None:
+                raise RuntimeError(
+                    f"No YouTube approval state exists for playlist track {track_number}"
+                )
+            while not approval_event.wait(0.2):
+                if cancellation_event.is_set():
+                    return False
+            return not cancellation_event.is_set()
+
         confirm_selected_youtube = (
             APIConfig.CONFIRM_MATCHED_YOUTUBE_DOWNLOADS
             and not YouTubeDownloader.is_youtube_track_url(str(request.spotify_url))
+        )
+        source_url = urlparse(str(request.spotify_url))
+        confirm_spotify_playlist = (
+            confirm_selected_youtube
+            and request.media_type == "audio"
+            and (source_url.hostname or "").lower().endswith("spotify.com")
+            and "/playlist/" in source_url.path
         )
         if cancellation_event.is_set():
             mark_interrupted(task)
@@ -1002,9 +1113,15 @@ async def download_task(task_id: str, request: DownloadRequest):
                 )
             if confirm_selected_youtube:
                 download_service.youtube_confirmation_callback = (
-                    confirm_youtube_item
+                    wait_for_playlist_approval
+                    if confirm_spotify_playlist
+                    else confirm_youtube_item
                 )
-                if downloader is not None:
+                if confirm_spotify_playlist:
+                    download_service.youtube_confirmation_metadata_callback = (
+                        expose_playlist_match
+                    )
+                if downloader is not None and not confirm_spotify_playlist:
                     downloader.youtube_confirmation_callback = (
                         lambda track, youtube_url: confirm_youtube_item(
                             int(

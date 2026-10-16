@@ -444,9 +444,16 @@ class ApiClient {
         return response.json();
     }
 
-    async confirmYouTubeDownload(taskId) {
-        const response = await fetch(
+    async confirmYouTubeDownload(taskId, trackNumber = null) {
+        const url = new URL(
             `${this.apiUrl}/download/${encodeURIComponent(taskId)}/confirm-youtube`,
+            window.location.origin
+        );
+        if (trackNumber !== null) {
+            url.searchParams.set('track_number', String(trackNumber));
+        }
+        const response = await fetch(
+            url,
             {
                 method: 'POST',
                 headers: { 'Accept': 'application/json' }

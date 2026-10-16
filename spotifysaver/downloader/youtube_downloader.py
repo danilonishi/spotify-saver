@@ -53,6 +53,9 @@ class YouTubeDownloader:
         self.youtube_confirmation_callback: Optional[
             Callable[[Track, str], bool]
         ] = None
+        self.youtube_confirmation_metadata_callback: Optional[
+            Callable[[int, Track, str, dict], None]
+        ] = None
         self.trim_silence = False
 
     @staticmethod

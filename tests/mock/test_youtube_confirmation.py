@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from threading import Event
+from pathlib import Path
+from threading import Event, Lock
 from types import SimpleNamespace
 
 import pytest
@@ -16,12 +17,14 @@ from spotifysaver.api.routers.user_preferences import (
     set_youtube_confirmation_preferences,
 )
 from spotifysaver.api.schemas import DownloadRequest, DownloadStatus, TrackInfo
+from spotifysaver.api.services.download_service import DownloadService
 from spotifysaver.api.services.youtube_confirmation_store import (
     YouTubeConfirmationStore,
 )
 from spotifysaver.api.services.notification_hub import NotificationHub
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
-from spotifysaver.models import Track
+from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
+from spotifysaver.models import Playlist, Track
 
 
 def _request(store):
@@ -214,6 +217,175 @@ def test_confirmation_endpoint_rejects_tasks_not_waiting_for_approval(monkeypatc
         asyncio.run(download_router.confirm_youtube_download(task_id))
 
     assert error.value.status_code == 409
+
+
+def test_confirmation_endpoint_approves_an_individual_playlist_track(monkeypatch):
+    task_id = "playlist-task"
+    approval_event = Event()
+    task = DownloadStatus(
+        task_id=task_id,
+        status="processing",
+        progress=0,
+        tracks=[
+            TrackInfo(
+                name="Playlist track",
+                artists=["Example artist"],
+                duration=180,
+                number=1,
+                uri="spotify:track:example",
+                youtube_title="Matched video",
+                youtube_url="https://music.youtube.com/watch?v=matched",
+                confirmation_required=True,
+            )
+        ],
+    )
+    monkeypatch.setattr(download_router, "tasks", {task_id: task})
+    monkeypatch.setattr(
+        download_router,
+        "track_confirmation_events",
+        {(task_id, 1): approval_event},
+    )
+
+    result = asyncio.run(download_router.confirm_youtube_download(task_id, track_number=1))
+
+    assert result == {
+        "task_id": task_id,
+        "track_number": 1,
+        "status": "processing",
+    }
+    assert task.tracks[0].confirmation_required is False
+    assert approval_event.is_set()
+
+
+def test_playlist_checks_continue_during_first_approval_and_download(tmp_path, monkeypatch):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    tracks = [
+        Track(
+            number=index,
+            total_tracks=3,
+            name=f"Track {index}",
+            duration=180,
+            uri=f"spotify:track:{index}",
+            artists=["Example artist"],
+            album_artist=["Example artist"],
+            release_date="2024-01-01",
+            source_type="playlist",
+            playlist_name="Example playlist",
+            playlist_position=index,
+            album_name="Example album",
+        )
+        for index in (1, 2, 3)
+    ]
+    playlist = Playlist(
+        name="Example playlist",
+        description="",
+        owner="owner",
+        uri="spotify:playlist:example",
+        cover_url="",
+        tracks=tracks,
+    )
+    metadata_checked = set()
+    metadata_lock = Lock()
+    first_two_checks_finished = Event()
+    all_checks_finished = Event()
+    first_download_started = Event()
+
+    class FakeYoutubeDL:
+        def __init__(self, _options):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, url, download):
+            assert download is False
+            video_id = url.rsplit("=", 1)[-1]
+            return {"id": video_id, "title": f"Title {video_id}", "channel": "Channel"}
+
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.yt_dlp.YoutubeDL",
+        FakeYoutubeDL,
+    )
+
+    def search_track(_searcher, track):
+        if track.playlist_position == 3:
+            assert first_download_started.wait(timeout=2)
+        return f"https://music.youtube.com/watch?v=video-{track.number}"
+
+    monkeypatch.setattr(type(downloader.searcher), "search_track", search_track)
+
+    def metadata_callback(track_number, _track, _url, _info):
+        with metadata_lock:
+            metadata_checked.add(track_number)
+            if {1, 2}.issubset(metadata_checked):
+                first_two_checks_finished.set()
+            if len(metadata_checked) == 3:
+                all_checks_finished.set()
+
+    downloader.youtube_confirmation_metadata_callback = metadata_callback
+    first_approval_waiting = Event()
+
+    def approve_track(track, _url):
+        if track.playlist_position == 1:
+            first_approval_waiting.set()
+            return first_two_checks_finished.wait(timeout=2)
+        return True
+
+    downloader.youtube_confirmation_callback = approve_track
+
+    def download_track(**kwargs):
+        assert downloader.youtube_confirmation_callback(kwargs["track"], kwargs["youtube_url"])
+        if kwargs["track"].playlist_position == 1:
+            first_download_started.set()
+            assert all_checks_finished.wait(
+                timeout=2
+            ), "Another video check was blocked by the first track download"
+        return (
+            Path(tmp_path / f"{kwargs['track'].number}.m4a"),
+            kwargs["track"].with_youtube_url(kwargs["youtube_url"]),
+        )
+
+    monkeypatch.setattr(downloader, "download_track", download_track)
+
+    result = downloader.download_playlist_cli(
+        playlist,
+        cover=False,
+    )
+
+    assert result == (3, 3, [])
+    assert metadata_checked == {1, 2, 3}
+    assert first_approval_waiting.is_set()
+
+
+def test_download_service_passes_playlist_approval_callbacks(tmp_path, monkeypatch):
+    service = DownloadService(output_dir=str(tmp_path))
+    playlist = Playlist(
+        name="Example playlist",
+        description="",
+        owner="owner",
+        uri="spotify:playlist:example",
+        cover_url="",
+        tracks=[],
+    )
+    service.spotify = SimpleNamespace(get_playlist=lambda _url: playlist)
+    approval_callback = lambda _track, _url: True
+    metadata_callback = lambda *_args: None
+    service.youtube_confirmation_callback = approval_callback
+    service.youtube_confirmation_metadata_callback = metadata_callback
+
+    def download_playlist(*_args):
+        assert service.downloader.youtube_confirmation_callback is approval_callback
+        assert service.downloader.youtube_confirmation_metadata_callback is metadata_callback
+        return 0, 0, []
+
+    monkeypatch.setattr(service.downloader, "download_playlist_cli", download_playlist)
+
+    result = asyncio.run(service._download_playlist("spotify:playlist:example"))
+
+    assert result["content_type"] == "playlist"
 
 
 def test_scheduler_resumes_approved_worker_without_starting_a_duplicate(monkeypatch):

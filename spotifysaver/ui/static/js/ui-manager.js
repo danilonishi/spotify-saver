@@ -154,6 +154,7 @@ class UIManager {
             ) {
                 heading.appendChild(this.createDownloadApproval(
                     item.id,
+                    null,
                     item.confirmation_title || item.title,
                     item.confirmation_url,
                     item.confirmation_channel
@@ -195,7 +196,7 @@ class UIManager {
                 trackList.className = 'queue-track-list';
 
                 tracks.forEach((track, index) => {
-                    const trackNumber = track.number || index + 1;
+                    const trackNumber = track.playlist_position || track.number || index + 1;
                     const trackState = item.trackStates?.get(trackNumber) || 'waiting';
                     const trackEntry = document.createElement('li');
                     trackEntry.className = `track-state-${trackState}`;
@@ -223,6 +224,7 @@ class UIManager {
                     if (track.confirmation_required) {
                         trackContent.appendChild(this.createDownloadApproval(
                             item.id,
+                            index + 1,
                             track.youtube_title || track.name,
                             track.youtube_url,
                             track.youtube_channel
@@ -304,7 +306,7 @@ class UIManager {
         );
     }
 
-    createDownloadApproval(taskId, title, videoUrl, channelName) {
+    createDownloadApproval(taskId, trackNumber, title, videoUrl, channelName) {
         const approval = document.createElement('span');
         approval.className = 'queue-item-approval';
 
@@ -317,7 +319,7 @@ class UIManager {
         button.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
-            this.onConfirmQueueItem?.(taskId);
+            this.onConfirmQueueItem?.(taskId, trackNumber);
         });
         approval.appendChild(button);
 
