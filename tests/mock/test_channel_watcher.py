@@ -277,6 +277,45 @@ def test_pending_shorts_and_livestreams_are_filtered_using_video_metadata(tmp_pa
     assert store.pending_videos(channel["id"]) == []
 
 
+def test_confirmation_waiting_video_is_retried_after_watcher_restart(tmp_path):
+    store = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
+    output_dir = tmp_path / "videos"
+    output_dir.mkdir()
+    channel = _add_channel(store, output_dir)
+    entry = {
+        "id": "approval-upload",
+        "title": "Approval upload",
+        "upload_date": datetime.now(UTC).strftime("%Y%m%d"),
+    }
+    store.save_discovery_scan(channel["id"], [entry], datetime.now(UTC))
+    queued_urls = []
+
+    async def enqueue(_channel, video_url):
+        queued_urls.append(video_url)
+        return "awaiting_confirmation"
+
+    service = ChannelWatcherService(
+        store=store,
+        enqueue_video=enqueue,
+        providers={"youtube": FakeChannelProvider()},
+        archive_dir=str(tmp_path / "archives"),
+    )
+
+    assert asyncio.run(
+        service._queue_pending_videos(channel, FakeChannelProvider())
+    ) == 1
+    assert queued_urls == [
+        "https://www.youtube.com/watch?v=approval-upload"
+    ]
+    pending = store.pending_videos(channel["id"])
+    assert pending[0]["status"] == "awaiting_confirmation"
+
+    restarted_store = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
+    restarted_store.reset_queued_video_statuses()
+    recovered = restarted_store.pending_videos(channel["id"])
+    assert recovered[0]["status"] == "discovered"
+
+
 def test_duration_filter_enriches_metadata_before_enqueue(tmp_path):
     store = ChannelWatcherStore(str(tmp_path / "watcher.sqlite3"))
     channel = _add_channel(store, tmp_path / "videos", {"min_duration_seconds": 60})

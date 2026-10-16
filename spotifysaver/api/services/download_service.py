@@ -242,6 +242,9 @@ class DownloadService:
     ) -> Dict[str, Any]:
         """Download a YouTube playlist or YouTube Music album collection."""
         loop = asyncio.get_event_loop()
+        self.downloader.youtube_confirmation_callback = getattr(
+            self, "youtube_confirmation_callback", None
+        )
         result = await loop.run_in_executor(
             None,
             self.downloader.download_youtube_playlist_cli,

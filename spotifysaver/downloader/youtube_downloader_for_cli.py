@@ -278,10 +278,47 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 if track_result_callback:
                     ydl.add_postprocessor_hook(report_postprocessing)
 
-                ydl.params["playlist_items"] = ",".join(
-                    str(index) for index in missing_indexes
+                confirmation_callback = getattr(
+                    self, "youtube_confirmation_callback", None
                 )
-                ydl.download([url])
+                if confirmation_callback is None:
+                    ydl.params["playlist_items"] = ",".join(
+                        str(index) for index in missing_indexes
+                    )
+                    ydl.download([url])
+                else:
+                    for index in missing_indexes:
+                        if cancellation_event and cancellation_event.is_set():
+                            break
+                        entry = entries[index - 1] or {}
+                        entry_url = (
+                            entry.get("webpage_url")
+                            or entry.get("original_url")
+                            or (
+                                f"https://www.youtube.com/watch?v={entry['id']}"
+                                if entry.get("id")
+                                else None
+                            )
+                        )
+                        if not entry_url:
+                            failed_track_names.append(expected_paths[index][0])
+                            if track_result_callback:
+                                track_result_callback(
+                                    index, expected_paths[index][0], "error"
+                                )
+                                reported_results.add(index)
+                            continue
+                        if not confirmation_callback(
+                            index, expected_paths[index][0], entry_url
+                        ):
+                            if cancellation_event and cancellation_event.is_set():
+                                break
+                            continue
+                        playlist_index = int(
+                            entry.get("playlist_index") or index
+                        )
+                        ydl.params["playlist_items"] = str(playlist_index)
+                        ydl.download([url])
 
                 if cancellation_event and cancellation_event.is_set():
                     completed_tracks = sum(

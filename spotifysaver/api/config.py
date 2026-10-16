@@ -24,6 +24,8 @@ class APIConfig:
     MAX_CONCURRENT_DOWNLOADS: int = DEFAULT_MAX_CONCURRENT_DOWNLOADS
     BANDWIDTH_LIMIT_MIB_PER_SECOND: float = DEFAULT_BANDWIDTH_LIMIT_MIB_PER_SECOND
     ACTIVE_DOWNLOADS: int = 0
+    CONFIRM_MATCHED_YOUTUBE_DOWNLOADS: bool = False
+    CONFIRM_CHANNEL_WATCHER_DOWNLOADS: bool = False
 
     @classmethod
     def set_download_limits(
@@ -37,6 +39,16 @@ class APIConfig:
     def set_active_downloads(cls, active_downloads: int) -> None:
         """Track active jobs so bandwidth remains capped after lowering concurrency."""
         cls.ACTIVE_DOWNLOADS = active_downloads
+
+    @classmethod
+    def set_youtube_confirmation_preferences(
+        cls,
+        confirm_matched_downloads: bool,
+        confirm_channel_watcher_downloads: bool,
+    ) -> None:
+        """Apply the persisted YouTube download confirmation preferences."""
+        cls.CONFIRM_MATCHED_YOUTUBE_DOWNLOADS = confirm_matched_downloads
+        cls.CONFIRM_CHANNEL_WATCHER_DOWNLOADS = confirm_channel_watcher_downloads
 
     @classmethod
     def get_download_rate_limit_bytes_per_second(cls) -> int | None:

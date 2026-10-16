@@ -28,6 +28,7 @@ from .services import (
     NotificationHub,
     StorageProtectionService,
     StorageProtectionStore,
+    YouTubeConfirmationStore,
 )
 from .services.security_store import SecurityStore
 from ..config import Config
@@ -81,6 +82,14 @@ def create_app() -> FastAPI:
             download_limits["max_concurrent_downloads"],
             download_limits["bandwidth_limit_mib_per_second"],
         )
+        youtube_confirmation_store = YouTubeConfirmationStore(
+            APIConfig.get_channel_watcher_db_path()
+        )
+        youtube_confirmation_store.initialize()
+        app.state.youtube_confirmation_store = youtube_confirmation_store
+        APIConfig.set_youtube_confirmation_preferences(
+            **youtube_confirmation_store.get_preferences()
+        )
         jellyfin_scan = JellyfinLibraryScanService(
             JellyfinLibraryScanStore(),
             is_queue_idle=download.is_queue_idle,
@@ -92,6 +101,7 @@ def create_app() -> FastAPI:
             publish_notification=notification_hub.publish,
         )
         app.state.channel_watcher = watcher
+        download.set_channel_watcher_store(watcher.store)
         storage_store = StorageProtectionStore(
             APIConfig.get_channel_watcher_db_path()
         )
@@ -142,6 +152,7 @@ def create_app() -> FastAPI:
                 await storage_protection.stop()
                 download.set_storage_protection_service(None)
                 await watcher.stop()
+                download.set_channel_watcher_store(None)
             finally:
                 await jellyfin_scan.stop()
                 download.set_jellyfin_library_scan_service(None)

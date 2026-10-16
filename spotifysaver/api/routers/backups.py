@@ -19,6 +19,7 @@ from ..services.channel_watcher import (
 from ..services.jellyfin_library_scan import _validate_server_url
 from ..services.security_store import SecurityStore
 from ..services.storage_protection import GB
+from ..services.youtube_confirmation_store import YouTubeConfirmationStore
 from .jellyfin import _service as _jellyfin_service
 from .spotify_settings import (
     CALLBACK_PATH,
@@ -80,6 +81,13 @@ class DownloadLimitsBackup(BaseModel):
     bandwidth_limit_mib_per_second: float = Field(default=0, ge=0, le=10000)
 
 
+class YouTubeConfirmationBackup(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    confirm_matched_downloads: bool = False
+    confirm_channel_watcher_downloads: bool = False
+
+
 class JellyfinBackup(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -101,6 +109,9 @@ class ServerConfigurationBackup(BaseModel):
     download_directories: DownloadDirectoriesBackup
     download_limits: DownloadLimitsBackup = Field(
         default_factory=DownloadLimitsBackup
+    )
+    youtube_confirmation: YouTubeConfirmationBackup = Field(
+        default_factory=YouTubeConfirmationBackup
     )
     jellyfin: JellyfinBackup
     spotify: SpotifyBackup
@@ -133,6 +144,9 @@ def _configuration(request: Request) -> ServerConfigurationBackup:
     watcher = request.app.state.channel_watcher
     directory_store = request.app.state.download_directory_store
     download_limits_store = request.app.state.download_limits_store
+    youtube_confirmation_store: YouTubeConfirmationStore = (
+        request.app.state.youtube_confirmation_store
+    )
     storage_protection = request.app.state.storage_protection
     jellyfin = _jellyfin_service(request).get_status()
     stored_spotify = _security_store(request).get_spotify_settings()
@@ -164,6 +178,7 @@ def _configuration(request: Request) -> ServerConfigurationBackup:
         watched_channels=channels,
         download_directories=directory_store.get_download_directories(),
         download_limits=download_limits_store.get_limits(),
+        youtube_confirmation=youtube_confirmation_store.get_preferences(),
         jellyfin={
             "server_url": jellyfin["server_url"],
             "scan_interval_minutes": jellyfin["scan_interval_minutes"],
@@ -227,6 +242,9 @@ async def restore_configuration_backup(
     jellyfin_service = _jellyfin_service(request)
     directory_store = request.app.state.download_directory_store
     download_limits_store = request.app.state.download_limits_store
+    youtube_confirmation_store: YouTubeConfirmationStore = (
+        request.app.state.youtube_confirmation_store
+    )
     storage_protection = request.app.state.storage_protection
 
     current_spotify = security_store.get_spotify_settings()
@@ -263,6 +281,14 @@ async def restore_configuration_backup(
         APIConfig.set_download_limits(
             limits["max_concurrent_downloads"],
             limits["bandwidth_limit_mib_per_second"],
+        )
+        confirmation_preferences = youtube_confirmation_store.set_preferences(
+            backup.server.youtube_confirmation.confirm_matched_downloads,
+            backup.server.youtube_confirmation.confirm_channel_watcher_downloads,
+        )
+        APIConfig.set_youtube_confirmation_preferences(
+            confirmation_preferences["confirm_matched_downloads"],
+            confirmation_preferences["confirm_channel_watcher_downloads"],
         )
         storage_protection.store.set_minimum_free_bytes(
             round(backup.server.minimum_free_space_gb * GB)

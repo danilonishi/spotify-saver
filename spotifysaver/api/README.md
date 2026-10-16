@@ -132,6 +132,12 @@ Get the status of a download task.
 ### POST `/api/v1/download/{task_id}/cancel`
 Request cancellation of an active task. The status changes to `cancelling` while the current download is stopping, then changes to `cancelled` once the worker has stopped. GET is retained for compatibility.
 
+### POST `/api/v1/download/{task_id}/confirm-youtube`
+Approve the current YouTube match for a download task that is waiting for confirmation. A task exposes one awaiting match at a time; confirming it resumes the server-owned queue.
+
+### GET/PUT `/api/v1/preferences/youtube-confirmation`
+Read or update persistent server-wide YouTube confirmation preferences. The PUT body accepts `confirm_matched_downloads` and `confirm_channel_watcher_downloads` booleans. Spotify matches, SoundCloud-to-YouTube fallbacks, and items from YouTube collections are controlled independently from Channel Watcher downloads. User-submitted single-video YouTube URLs do not require approval. Waiting tasks report `status: "awaiting_confirmation"` and include their current title and URL.
+
 ### GET `/api/v1/downloads`
 List all download tasks.
 

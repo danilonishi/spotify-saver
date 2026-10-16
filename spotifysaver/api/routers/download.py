@@ -11,6 +11,7 @@ from typing import Dict
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+import yt_dlp
 
 from ..schemas import (
     DownloadRequest,
@@ -26,6 +27,7 @@ from ...downloader import SoundCloudDownloader, YouTubeDownloader
 from ...services import SpotifyAPI
 from ...spotlog import get_logger
 from ..config import APIConfig
+from ...config import Config
 from ..services.channel_watcher import ChannelWatcherStore, utc_now
 from ..services.jellyfin_library_scan import JellyfinLibraryScanService
 from ..services.notification_hub import NotificationHub
@@ -51,6 +53,40 @@ def _report_yt_dlp_error(task: DownloadStatus, message: str) -> None:
         task.warning_message = YOUTUBE_RATE_LIMIT_WARNING
 
 
+async def _park_for_youtube_confirmation(
+    task_id: str,
+    track_number: int,
+    title: str,
+    video_url: str,
+    channel_name: str,
+) -> None:
+    task = tasks[task_id]
+    task.status = "awaiting_confirmation"
+    task.confirmation_required = True
+    task.confirmation_title = title
+    task.confirmation_url = video_url
+    task.confirmation_channel = channel_name
+    task.confirmation_track_number = track_number
+    task.confirmation_source = "matched"
+    if 0 < track_number <= len(task.tracks):
+        track = task.tracks[track_number - 1]
+        track.youtube_title = title
+        track.youtube_url = video_url
+        track.youtube_channel = channel_name
+        track.confirmation_required = True
+        task.track_updates.append(
+            {
+                "track_number": track_number,
+                "track_name": track.name,
+                "status": "awaiting_confirmation",
+            }
+        )
+    async with queue_lock:
+        active.discard(task_id)
+        APIConfig.set_active_downloads(len(active))
+    await _try_start_next()
+
+
 # In-memory task storage (in production, use Redis or database)
 tasks: Dict[str, DownloadStatus] = {}
 requests_by_task: Dict[str, DownloadRequest] = {}
@@ -74,10 +110,13 @@ paused_task_ids: set[str] = set()
 discard_after_stop: set[str] = set()
 # Partially completed paused tasks remain in history after their worker exits.
 preserve_after_stop: set[str] = set()
+confirmation_resume_events: Dict[str, Event] = {}
+confirmation_approved: set[str] = set()
 queue_lock = asyncio.Lock()
 jellyfin_library_scan_service: JellyfinLibraryScanService | None = None
 notification_hub: NotificationHub | None = None
 storage_protection_service: StorageProtectionService | None = None
+channel_watcher_store: ChannelWatcherStore | None = None
 
 
 def set_notification_hub(hub: NotificationHub | None) -> None:
@@ -94,6 +133,27 @@ def set_storage_protection_service(
     storage_protection_service = service
 
 
+def set_channel_watcher_store(store: ChannelWatcherStore | None) -> None:
+    """Attach the persistent video-state store used by Channel Watcher tasks."""
+    global channel_watcher_store
+    channel_watcher_store = store
+
+
+def _reset_watched_video_status(task: DownloadStatus) -> None:
+    if (
+        channel_watcher_store is not None
+        and task.channel_id
+        and task.channel_video_id
+        and task.confirmation_source == "channel_watcher"
+    ):
+        channel_watcher_store.update_video_status(
+            task.channel_id,
+            task.channel_video_id,
+            "discovered",
+            utc_now(),
+        )
+
+
 def get_known_download_paths() -> list[dict[str, str]]:
     """Return paths used by queued and active work for storage reporting."""
     known_paths = []
@@ -103,7 +163,12 @@ def get_known_download_paths() -> list[dict[str, str]]:
         if (
             task is None
             or request is None
-            or task.status not in {"queued", "processing", "cancelling"}
+            or task.status not in {
+                "queued",
+                "processing",
+                "cancelling",
+                "awaiting_confirmation",
+            }
         ):
             continue
         known_paths.append(
@@ -143,7 +208,11 @@ def set_jellyfin_library_scan_service(
 
 def is_queue_idle() -> bool:
     """Return whether all queued and active downloads have finished."""
-    return not active and not pending
+    return (
+        not active
+        and not pending
+        and not any(task.status == "awaiting_confirmation" for task in tasks.values())
+    )
 
 
 def _content_type_for_url(spotify_url: str) -> str:
@@ -253,6 +322,15 @@ async def _try_start_next() -> None:
                 break
             active.add(task_id)
             APIConfig.set_active_downloads(len(active))
+            if task_id in confirmation_resume_events:
+                if task_id not in confirmation_approved:
+                    active.discard(task_id)
+                    APIConfig.set_active_downloads(len(active))
+                    continue
+                confirmation_approved.discard(task_id)
+                tasks[task_id].status = "processing"
+                confirmation_resume_events[task_id].set()
+                continue
             cancellation_events[task_id] = Event()
             asyncio.create_task(_run_task(task_id, request))
 
@@ -264,6 +342,8 @@ async def _run_task(task_id: str, request: DownloadRequest) -> None:
         active.discard(task_id)
         APIConfig.set_active_downloads(len(active))
         task = tasks.get(task_id)
+        if task is not None and task.status == "cancelled":
+            _reset_watched_video_status(task)
         if task_id in discard_after_stop:
             discard_after_stop.discard(task_id)
             paused_task_ids.discard(task_id)
@@ -282,6 +362,8 @@ async def _run_task(task_id: str, request: DownloadRequest) -> None:
                 if task_id not in pending:
                     pending.insert(0, task_id)
         await _try_start_next()
+        confirmation_resume_events.pop(task_id, None)
+        confirmation_approved.discard(task_id)
         if jellyfin_library_scan_service is not None:
             content_downloaded = bool(
                 task
@@ -391,6 +473,11 @@ async def retry_download(task_id: str):
         task.warning_message = None
         task.output_directory = None
         task.download_url = None
+        task.confirmation_required = False
+        task.confirmation_title = None
+        task.confirmation_url = None
+        task.confirmation_track_number = None
+        task.confirmation_source = None
         task.error_message = None
         task.started_at = datetime.now().isoformat()
         task.completed_at = None
@@ -423,6 +510,14 @@ async def cancel_download(task_id: str):
             status_code=400, detail=f"Cannot cancel task with status: {task.status}"
         )
 
+    if task.status == "awaiting_confirmation" and task_id not in confirmation_resume_events:
+        task.status = "cancelled"
+        task.confirmation_required = False
+        task.error_message = "Cancelled by user before it started"
+        task.completed_at = datetime.now().isoformat()
+        _reset_watched_video_status(task)
+        return {"message": "Queued download removed"}
+
     if task_id in pending and task_id not in active:
         async with queue_lock:
             if task_id in pending:
@@ -430,6 +525,7 @@ async def cancel_download(task_id: str):
         task.status = "cancelled"
         task.error_message = "Cancelled by user before it started"
         task.completed_at = datetime.now().isoformat()
+        _reset_watched_video_status(task)
         download_archives.pop(task_id, None)
         return {"message": "Queued download removed"}
 
@@ -443,6 +539,44 @@ async def cancel_download(task_id: str):
     task.error_message = "Cancellation requested by user"
 
     return {"message": "Download cancellation requested"}
+
+
+@router.post("/download/{task_id}/confirm-youtube", status_code=202)
+async def confirm_youtube_download(task_id: str):
+    """Approve the matched YouTube video currently awaiting user confirmation."""
+    task = tasks.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status != "awaiting_confirmation" or not task.confirmation_required:
+        raise HTTPException(
+            status_code=409, detail="This download is not awaiting confirmation"
+        )
+
+    task.confirmation_required = False
+    if (
+        task.confirmation_source == "matched"
+        and task.confirmation_track_number
+        and task.confirmation_track_number <= len(task.tracks)
+    ):
+        task.tracks[task.confirmation_track_number - 1].confirmation_required = False
+
+    task.status = "queued"
+    if (
+        task.confirmation_source == "channel_watcher"
+        and channel_watcher_store is not None
+        and task.channel_id
+        and task.channel_video_id
+    ):
+        channel_watcher_store.update_video_status(
+            task.channel_id, task.channel_video_id, "queued", utc_now()
+        )
+    if task_id in confirmation_resume_events:
+        confirmation_approved.add(task_id)
+    async with queue_lock:
+        if task_id not in pending:
+            pending.append(task_id)
+    await _try_start_next()
+    return {"task_id": task_id, "status": task.status}
 
 
 @router.delete("/download/{task_id}")
@@ -481,7 +615,11 @@ async def list_downloads():
         task for task in tasks.values()
         if task.status in ["completed", "completed_with_errors", "failed", "cancelled"]
     ]
-    tasks_pending = [task for task in tasks.values() if task.status == "queued"]
+    tasks_pending = [
+        task
+        for task in tasks.values()
+        if task.status in {"queued", "awaiting_confirmation"}
+    ]
     tasks_processing = [
         task for task in tasks.values() if task.status in ["processing", "cancelling"]
     ]
@@ -595,6 +733,8 @@ async def clear_queue():
                 continue
 
             tasks.pop(task_id, None)
+            if task is not None:
+                _reset_watched_video_status(task)
             requests_by_task.pop(task_id, None)
             cancellation_events.pop(task_id, None)
             download_archives.pop(task_id, None)
@@ -602,6 +742,24 @@ async def clear_queue():
                 order.remove(task_id)
             if task is not None:
                 removed += 1
+        for task_id, task in list(tasks.items()):
+            if task.status != "awaiting_confirmation":
+                continue
+            if task_id in confirmation_resume_events:
+                cancellation_event = cancellation_events.get(task_id)
+                if cancellation_event is not None:
+                    cancellation_event.set()
+                task.status = "cancelling"
+                task.error_message = "Cancellation requested by user"
+                continue
+            tasks.pop(task_id, None)
+            _reset_watched_video_status(task)
+            requests_by_task.pop(task_id, None)
+            cancellation_events.pop(task_id, None)
+            download_archives.pop(task_id, None)
+            if task_id in order:
+                order.remove(task_id)
+            removed += 1
         for task_id in list(active - paused_task_ids):
             task = tasks.get(task_id)
             if task is None or task.status != "processing":
@@ -729,6 +887,52 @@ async def download_task(task_id: str, request: DownloadRequest):
 
     try:
         task = tasks[task_id]
+        loop = asyncio.get_running_loop()
+
+        def confirm_youtube_item(track_number: int, _source_title: str, youtube_url: str) -> bool:
+            metadata_options = {
+                "quiet": True,
+                "skip_download": True,
+                "cookiefile": (
+                    str(Config.YTDLP_COOKIES_PATH)
+                    if Config.YTDLP_COOKIES_PATH
+                    else None
+                ),
+            }
+            with yt_dlp.YoutubeDL(metadata_options) as ydl:
+                video_info = ydl.extract_info(youtube_url, download=False)
+            youtube_title = str(video_info.get("title") or "").strip()
+            if not youtube_title:
+                raise ValueError(
+                    f"YouTube did not provide a title for {youtube_url}"
+                )
+            channel_name = str(
+                video_info.get("channel")
+                or video_info.get("uploader")
+                or "Unknown channel"
+            ).strip()
+
+            resumed = Event()
+            confirmation_resume_events[task_id] = resumed
+            asyncio.run_coroutine_threadsafe(
+                _park_for_youtube_confirmation(
+                    task_id,
+                    track_number,
+                    youtube_title,
+                    youtube_url,
+                    channel_name,
+                ),
+                loop,
+            ).result()
+            while not resumed.wait(0.2):
+                if cancellation_event.is_set():
+                    return False
+            return not cancellation_event.is_set()
+
+        confirm_selected_youtube = (
+            APIConfig.CONFIRM_MATCHED_YOUTUBE_DOWNLOADS
+            and not YouTubeDownloader.is_youtube_track_url(str(request.spotify_url))
+        )
         if cancellation_event.is_set():
             mark_interrupted(task)
             return
@@ -752,6 +956,10 @@ async def download_task(task_id: str, request: DownloadRequest):
                 overwrite_existing=request.overwrite_existing,
                 download_archive=download_archives.get(task_id),
             )
+            if confirm_selected_youtube:
+                download_service.youtube_confirmation_callback = (
+                    confirm_youtube_item
+                )
             download_service.ydl_error_callback = (
                 lambda message: _report_yt_dlp_error(task, message)
             )
@@ -778,6 +986,22 @@ async def download_task(task_id: str, request: DownloadRequest):
                 soundcloud_downloader.ydl_error_callback = (
                     lambda message: _report_yt_dlp_error(task, message)
                 )
+            if confirm_selected_youtube:
+                download_service.youtube_confirmation_callback = (
+                    confirm_youtube_item
+                )
+                if downloader is not None:
+                    downloader.youtube_confirmation_callback = (
+                        lambda track, youtube_url: confirm_youtube_item(
+                            int(
+                                task.current_track_number
+                                or getattr(track, "number", 0)
+                                or 1
+                            ),
+                            track.name,
+                            youtube_url,
+                        )
+                    )
 
         # Progress callback
         started_track_numbers = set()
@@ -935,7 +1159,7 @@ async def download_task(task_id: str, request: DownloadRequest):
             await _publish_download_attention(task)
 
 
-async def enqueue_watched_video(channel: dict, video_url: str) -> None:
+async def enqueue_watched_video(channel: dict, video_url: str) -> str:
     """Place a watched upload into the same server-owned queue as manual downloads."""
     video_id = video_url.rsplit("=", 1)[-1].split("&", 1)[0]
     for task_id, request in requests_by_task.items():
@@ -944,9 +1168,14 @@ async def enqueue_watched_video(channel: dict, video_url: str) -> None:
             and str(request.spotify_url).endswith(video_id)
             and download_archives.get(task_id) == channel["download_archive"]
             and tasks.get(task_id)
-            and tasks[task_id].status in {"queued", "processing", "cancelling"}
+            and tasks[task_id].status
+            in {"queued", "processing", "cancelling", "awaiting_confirmation"}
         ):
-            return
+            return (
+                "awaiting_confirmation"
+                if tasks[task_id].status == "awaiting_confirmation"
+                else "queued"
+            )
 
     request = DownloadRequest(
         spotify_url=video_url,
@@ -959,9 +1188,10 @@ async def enqueue_watched_video(channel: dict, video_url: str) -> None:
     )
     task_id = str(uuid.uuid4())
     content_type = "track"
+    require_confirmation = APIConfig.CONFIRM_CHANNEL_WATCHER_DOWNLOADS
     tasks[task_id] = DownloadStatus(
         task_id=task_id,
-        status="queued",
+        status="awaiting_confirmation" if require_confirmation else "queued",
         progress=0,
         total_tracks=0,
         completed_tracks=0,
@@ -974,13 +1204,30 @@ async def enqueue_watched_video(channel: dict, video_url: str) -> None:
         content_type=content_type,
         media_type="video",
         title=str(channel.get("video_title") or "Watched channel upload"),
+        confirmation_required=require_confirmation,
+        confirmation_title=(
+            str(channel.get("video_title") or video_id)
+            if require_confirmation
+            else None
+        ),
+        confirmation_url=video_url if require_confirmation else None,
+        confirmation_channel=(
+            str(channel.get("title") or "Unknown channel")
+            if require_confirmation
+            else None
+        ),
+        confirmation_source="channel_watcher",
+        channel_id=str(channel["id"]),
+        channel_video_id=video_id,
     )
     requests_by_task[task_id] = request
     download_archives[task_id] = channel["download_archive"]
     order.append(task_id)
-    async with queue_lock:
-        pending.append(task_id)
-    asyncio.create_task(_try_start_next())
+    if not require_confirmation:
+        async with queue_lock:
+            pending.append(task_id)
+        asyncio.create_task(_try_start_next())
+    return "awaiting_confirmation" if require_confirmation else "queued"
 
 
 @router.get("/config/output_dir")

@@ -6,6 +6,7 @@ class SpotifySaverUI {
         this.downloadManager = new DownloadManager(this.apiClient, this.uiManager, () => this.saveState());
         this.uiManager.onRemoveQueueItem = (taskId, status) => this.downloadManager.cancelItem(taskId, status);
         this.uiManager.onRetryQueueItem = (taskId) => this.downloadManager.retryItem(taskId);
+        this.uiManager.onConfirmQueueItem = (taskId) => this.downloadManager.confirmYouTubeItem(taskId);
         this.uiManager.onOutputDirectorySelected = (kind, directory) => {
             this.persistOutputDirectoryPreference(kind, directory).catch((error) => {
                 this.uiManager.updateStatus(error.message, 'error');
@@ -315,6 +316,7 @@ class SpotifySaverUI {
                 await this.loadSpotifySettings();
                 await this.loadStorageStatus();
                 await this.loadDownloadLimits();
+                await this.loadYouTubeConfirmationPreferences();
                 window.setInterval(() => this.refreshJellyfinLibraryScanStatus(), 30000);
                 window.setInterval(() => this.refreshStorageStatus(), 30000);
             } else {
@@ -524,6 +526,10 @@ class SpotifySaverUI {
         document.getElementById('download-limits-form').addEventListener('submit', (event) => {
             event.preventDefault();
             this.saveDownloadLimits();
+        });
+        document.getElementById('youtube-confirmation-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            this.saveYouTubeConfirmationPreferences();
         });
         
         // Allow starting a download with Enter
@@ -761,6 +767,7 @@ class SpotifySaverUI {
         await this.loadJellyfinLibraryScanSettings();
         await this.loadSpotifySettings();
         await this.loadDownloadLimits();
+        await this.loadYouTubeConfirmationPreferences();
         this.setConfigurationBackupMessage(
             'Configuration restored. Re-enter any required secrets and reconnect Spotify if needed.',
             'watcher-help'
@@ -1083,6 +1090,57 @@ class SpotifySaverUI {
         status.className = className;
     }
 
+    async loadYouTubeConfirmationPreferences() {
+        try {
+            const preferences = await this.apiClient.getYouTubeConfirmationPreferences();
+            document.getElementById('confirm-matched-youtube-downloads').checked =
+                preferences.confirm_matched_downloads;
+            document.getElementById('confirm-channel-watcher-downloads').checked =
+                preferences.confirm_channel_watcher_downloads;
+            this.setYouTubeConfirmationMessage(
+                'YouTube confirmation settings loaded.',
+                'watcher-help'
+            );
+        } catch (error) {
+            this.setYouTubeConfirmationMessage(error.message, 'status-error');
+        }
+    }
+
+    async saveYouTubeConfirmationPreferences() {
+        const saveButton = document.getElementById('youtube-confirmation-save');
+        saveButton.disabled = true;
+        this.setYouTubeConfirmationMessage(
+            'Saving YouTube confirmation settings...',
+            'watcher-help'
+        );
+        try {
+            const preferences = await this.apiClient.saveYouTubeConfirmationPreferences({
+                confirm_matched_downloads:
+                    document.getElementById('confirm-matched-youtube-downloads').checked,
+                confirm_channel_watcher_downloads:
+                    document.getElementById('confirm-channel-watcher-downloads').checked
+            });
+            document.getElementById('confirm-matched-youtube-downloads').checked =
+                preferences.confirm_matched_downloads;
+            document.getElementById('confirm-channel-watcher-downloads').checked =
+                preferences.confirm_channel_watcher_downloads;
+            this.setYouTubeConfirmationMessage(
+                'YouTube confirmation settings saved.',
+                'watcher-help'
+            );
+        } catch (error) {
+            this.setYouTubeConfirmationMessage(error.message, 'status-error');
+        } finally {
+            saveButton.disabled = false;
+        }
+    }
+
+    setYouTubeConfirmationMessage(message, className) {
+        const status = document.getElementById('youtube-confirmation-status');
+        status.textContent = message;
+        status.className = className;
+    }
+
     async refreshStorageStatus() {
         try {
             const status = await this.apiClient.getStorageStatus();
@@ -1318,6 +1376,7 @@ class SpotifySaverUI {
         document.getElementById('download-settings-panel').classList.toggle('hidden', visible);
         document.getElementById('storage-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('download-limits-panel').classList.toggle('hidden', !visible);
+        document.getElementById('youtube-confirmation-panel').classList.toggle('hidden', !visible);
         document.getElementById('jellyfin-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('spotify-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('password-settings-panel').classList.toggle('hidden', !visible);

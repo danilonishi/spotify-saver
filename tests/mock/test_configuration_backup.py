@@ -15,6 +15,9 @@ from spotifysaver.api.routers.backups import (
 from spotifysaver.api.services.channel_watcher import ChannelWatcherStore
 from spotifysaver.api.services.download_directory_store import DownloadDirectoryStore
 from spotifysaver.api.services.download_limits_store import DownloadLimitsStore
+from spotifysaver.api.services.youtube_confirmation_store import (
+    YouTubeConfirmationStore,
+)
 from spotifysaver.api.services.jellyfin_library_scan import (
     JellyfinLibraryScanService,
     JellyfinLibraryScanStore,
@@ -96,6 +99,8 @@ def _state(tmp_path, label):
     )
     storage_store = StorageProtectionStore(database_path)
     storage_store.initialize()
+    youtube_confirmation_store = YouTubeConfirmationStore(database_path)
+    youtube_confirmation_store.initialize()
 
     async def queue_kick():
         return None
@@ -113,6 +118,7 @@ def _state(tmp_path, label):
             channel_watcher=watcher,
             download_directory_store=directory_store,
             download_limits_store=download_limits_store,
+            youtube_confirmation_store=youtube_confirmation_store,
             jellyfin_library_scan=jellyfin,
             security_store=security_store,
             storage_protection=storage_protection,
@@ -181,6 +187,7 @@ def _http_app(tmp_path, label):
     app.state.channel_watcher = state.channel_watcher
     app.state.download_directory_store = directory_store
     app.state.download_limits_store = state.download_limits_store
+    app.state.youtube_confirmation_store = state.youtube_confirmation_store
     app.state.jellyfin_library_scan = state.jellyfin_library_scan
     app.state.security_store = security_store
     app.state.storage_protection = state.storage_protection
@@ -294,6 +301,7 @@ def test_restore_replaces_configuration_and_preserves_destination_secrets(
         clear_api_key=False,
         scan_interval_minutes=20,
     )
+    source.youtube_confirmation_store.set_preferences(True, True)
     source_backup = asyncio.run(download_configuration_backup(_request(source)))
     cache_path = tmp_path / ".spotify-cache"
     cache_path.write_text("temporary authorization cache")
@@ -338,6 +346,10 @@ def test_restore_replaces_configuration_and_preserves_destination_secrets(
     assert target.download_limits_store.get_limits() == {
         "max_concurrent_downloads": 5,
         "bandwidth_limit_mib_per_second": 1.5,
+    }
+    assert target.youtube_confirmation_store.get_preferences() == {
+        "confirm_matched_downloads": True,
+        "confirm_channel_watcher_downloads": True,
     }
     assert (
         target_jellyfin.get_settings()["server_url"]
@@ -408,6 +420,7 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
         }
     )
     source_app.state.download_limits_store.set_limits(5, 1.5)
+    source_app.state.youtube_confirmation_store.set_preferences(True, True)
     source_app.state.storage_protection.store.set_minimum_free_bytes(
         round(2.5 * GB)
     )

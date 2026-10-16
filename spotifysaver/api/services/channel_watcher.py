@@ -863,7 +863,8 @@ class ChannelWatcherStore:
                 """
                 SELECT video_id, video_url, title, entry_json, status
                 FROM watched_channel_videos
-                WHERE channel_id = ? AND status IN ('discovered', 'failed')
+                WHERE channel_id = ?
+                  AND status IN ('discovered', 'failed', 'awaiting_confirmation')
                 ORDER BY rowid
                 LIMIT ?
                 """,
@@ -886,7 +887,7 @@ class ChannelWatcherStore:
                 """
                 UPDATE watched_channel_videos
                 SET status = 'discovered', updated_at = ?
-                WHERE status = 'queued'
+                WHERE status IN ('queued', 'awaiting_confirmation')
                 """,
                 (_iso(utc_now()),),
             )
@@ -1036,7 +1037,9 @@ class ChannelWatcherService:
     def __init__(
         self,
         store: Optional[ChannelWatcherStore] = None,
-        enqueue_video: Optional[Callable[[dict[str, Any], str], Awaitable[None]]] = None,
+        enqueue_video: Optional[
+            Callable[[dict[str, Any], str], Awaitable[Optional[str]]]
+        ] = None,
         providers: Optional[dict[str, ChannelProvider]] = None,
         archive_dir: Optional[str] = None,
         channel_list_timeout_seconds: float = CHANNEL_LIST_TIMEOUT_SECONDS,
@@ -1397,7 +1400,7 @@ class ChannelWatcherService:
                     channel["id"], video_id, "discovered", utc_now(), expected_status="failed"
                 )
             try:
-                await self.enqueue_video(
+                queue_status = await self.enqueue_video(
                     {
                         **channel,
                         "download_archive": str(archive_path),
@@ -1412,7 +1415,11 @@ class ChannelWatcherService:
                 failures.append(f"Could not enqueue {video_url}: {error}")
                 continue
             self.store.update_video_status(
-                channel["id"], video_id, "queued", utc_now(), expected_status="discovered"
+                channel["id"],
+                video_id,
+                queue_status or "queued",
+                utc_now(),
+                expected_status="discovered",
             )
             queued_count += 1
 

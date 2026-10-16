@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-16-2">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-16-4">
 </head>
 <body>
     <!-- Header -->
@@ -580,9 +580,30 @@
                     </form>
                 </details>
 
+                <details id="youtube-confirmation-panel" class="form-section hidden panel-details" aria-labelledby="youtube-confirmation-heading">
+                    <summary class="panel-summary"><h2 id="youtube-confirmation-heading">YouTube Download Confirmation</h2></summary>
+                    <p class="watcher-help">Allows confirmation of YouTube content when added from Spotify and SoundCloud. Approve each item from the Download Queue.</p>
+                    <form id="youtube-confirmation-form">
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input id="confirm-matched-youtube-downloads" type="checkbox">
+                                Confirm YouTube matches for Spotify, SoundCloud fallback downloads and YouTube playlist items
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input id="confirm-channel-watcher-downloads" type="checkbox">
+                                Confirm Channel Watcher downloads
+                            </label>
+                        </div>
+                        <p id="youtube-confirmation-status" class="watcher-help" role="status">Loading YouTube confirmation settings...</p>
+                        <button id="youtube-confirmation-save" class="download-btn" type="submit">Save confirmation settings</button>
+                    </form>
+                </details>
+
                 <details id="configuration-backup-panel" class="form-section hidden panel-details" aria-labelledby="configuration-backup-heading" open>
                     <summary class="panel-summary"><h2 id="configuration-backup-heading">Backup &amp; Restore</h2></summary>
-                    <p class="watcher-help">Download a configuration backup to move your watched channels and settings to another SpotifySaver instance. Backups include watched channel schedules and discovery cursors, download folders and limits, the storage reserve, dark mode, notification preferences, panel visibility/order/collapse preferences, Jellyfin URL and scan interval, and Spotify Client ID and redirect URL.</p>
+                    <p class="watcher-help">Download a configuration backup to move your watched channels and settings to another SpotifySaver instance. Backups include watched channel schedules and discovery cursors, download folders and limits, YouTube confirmation settings, the storage reserve, dark mode, notification preferences, panel visibility/order/collapse preferences, Jellyfin URL and scan interval, and Spotify Client ID and redirect URL.</p>
                     <p class="watcher-help">Backups do not contain passwords, API keys, Spotify client secrets or authorization tokens, browser notification permission, active downloads, per-video watcher history, or activity logs. Re-enter secrets, grant browser notification permission, and reconnect Spotify after restoring. Folder paths may need to be changed for the destination server.</p>
                     <div class="jellyfin-settings-actions">
                         <button id="download-configuration-backup" class="download-btn" type="button">Download Configuration Backup</button>
@@ -784,11 +805,11 @@
         </div>
     </footer>
     <!-- Load JavaScript modules in dependency order -->
-    <script src="/static/js/api-client.js?v=2026-10-16-1"></script>
+    <script src="/static/js/api-client.js?v=2026-10-16-2"></script>
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
-    <script src="/static/js/ui-manager.js?v=2026-10-16-2"></script>
-    <script src="/static/js/download-manager.js?v=2026-10-16-2"></script>
+    <script src="/static/js/ui-manager.js?v=2026-10-16-4"></script>
+    <script src="/static/js/download-manager.js?v=2026-10-16-3"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-13-1"></script>
-    <script src="/static/js/app.js?v=2026-10-16-2"></script>
+    <script src="/static/js/app.js?v=2026-10-16-3"></script>
 </body>
 </html>

@@ -169,6 +169,10 @@ class TrackInfo(BaseModel):
     duration: int  # in seconds
     number: int
     uri: str
+    youtube_title: Optional[str] = None
+    youtube_url: Optional[str] = None
+    youtube_channel: Optional[str] = None
+    confirmation_required: bool = False
 
 
 class AlbumInfo(BaseModel):
@@ -249,6 +253,14 @@ class DownloadStatus(BaseModel):
         default=False,
         description="Whether the task is queued until its destination has enough free space",
     )
+    confirmation_required: bool = False
+    confirmation_title: Optional[str] = None
+    confirmation_url: Optional[str] = None
+    confirmation_channel: Optional[str] = None
+    confirmation_track_number: Optional[int] = None
+    confirmation_source: Optional[str] = None
+    channel_id: Optional[str] = None
+    channel_video_id: Optional[str] = None
 
 
 class ErrorResponse(BaseModel):

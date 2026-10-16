@@ -416,6 +416,49 @@ class ApiClient {
         return response.json();
     }
 
+    async getYouTubeConfirmationPreferences() {
+        const response = await fetch(`${this.apiUrl}/preferences/youtube-confirmation`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-cache'
+        });
+        if (!response.ok) {
+            throw new Error('Could not fetch YouTube confirmation settings');
+        }
+        return response.json();
+    }
+
+    async saveYouTubeConfirmationPreferences(preferences) {
+        const response = await fetch(`${this.apiUrl}/preferences/youtube-confirmation`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(preferences)
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not save YouTube confirmation settings');
+        }
+        return response.json();
+    }
+
+    async confirmYouTubeDownload(taskId) {
+        const response = await fetch(
+            `${this.apiUrl}/download/${encodeURIComponent(taskId)}/confirm-youtube`,
+            {
+                method: 'POST',
+                headers: { 'Accept': 'application/json' }
+            }
+        );
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not approve YouTube download');
+        }
+        return response.json();
+    }
+
     async getAuthenticationStatus() {
         const response = await fetch(`${this.apiUrl}/auth/status`, {
             method: 'GET',

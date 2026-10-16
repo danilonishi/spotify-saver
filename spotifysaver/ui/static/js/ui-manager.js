@@ -107,10 +107,15 @@ class UIManager {
             name.textContent = item.title;
             name.title = item.title;
 
+            const heading = document.createElement('span');
+            heading.className = 'queue-item-heading';
+            heading.appendChild(name);
+
             const status = document.createElement('span');
             status.className = 'queue-item-status';
             const statusLabels = {
                 queued: 'Queued',
+                awaiting_confirmation: 'Awaiting approval',
                 downloading: 'Downloading',
                 paused: 'Paused',
                 completed: 'Completed',
@@ -119,6 +124,8 @@ class UIManager {
             };
             if (item.storage_blocked) {
                 status.textContent = 'Waiting for storage';
+            } else if (item.status === 'awaiting_confirmation') {
+                status.textContent = 'Awaiting approval';
             } else if (item.status === 'downloading' && item.progress != null) {
                 status.textContent = `Downloading ${Math.round(item.progress)}%`;
             } else if (item.status === 'completed_with_errors') {
@@ -141,6 +148,18 @@ class UIManager {
                 this.onRemoveQueueItem?.(item.id, item.status);
             });
 
+            if (
+                item.confirmation_required &&
+                item.confirmation_source === 'channel_watcher'
+            ) {
+                heading.appendChild(this.createDownloadApproval(
+                    item.id,
+                    item.confirmation_title || item.title,
+                    item.confirmation_url,
+                    item.confirmation_channel
+                ));
+            }
+
             if (['failed', 'completed_with_errors'].includes(item.status)) {
                 const retryBtn = document.createElement('button');
                 retryBtn.type = 'button';
@@ -153,9 +172,9 @@ class UIManager {
                     event.stopPropagation();
                     this.onRetryQueueItem?.(item.id);
                 });
-                summary.append(name, status, retryBtn, removeBtn);
+                summary.append(heading, status, retryBtn, removeBtn);
             } else {
-                summary.append(name, status, removeBtn);
+                summary.append(heading, status, removeBtn);
             }
             details.appendChild(summary);
 
@@ -195,10 +214,21 @@ class UIManager {
                     const artists = (track.artists || []).join(', ');
                     const artistsText = artists ? ` — ${artists}` : '';
                     const durationText = duration ? ` [${minutes}:${seconds}]` : '';
-                    info.textContent = `${trackNumber}. ${track.name}${artistsText}${durationText}`;
+                    info.textContent = `${trackNumber}. ${track.youtube_title || track.name}${artistsText}${durationText}`;
                     info.title = info.textContent;
 
-                    trackEntry.append(icon, info);
+                    const trackContent = document.createElement('div');
+                    trackContent.className = 'queue-track-content';
+                    trackContent.appendChild(info);
+                    if (track.confirmation_required) {
+                        trackContent.appendChild(this.createDownloadApproval(
+                            item.id,
+                            track.youtube_title || track.name,
+                            track.youtube_url,
+                            track.youtube_channel
+                        ));
+                    }
+                    trackEntry.append(icon, trackContent);
                     trackList.appendChild(trackEntry);
                 });
                 details.appendChild(trackList);
@@ -272,6 +302,58 @@ class UIManager {
         clearCompletedButton.disabled = !queue.some((item) =>
             ['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(item.status)
         );
+    }
+
+    createDownloadApproval(taskId, title, videoUrl, channelName) {
+        const approval = document.createElement('span');
+        approval.className = 'queue-item-approval';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'queue-item-confirm-btn clear-queue-btn';
+        button.textContent = 'Download';
+        button.title = `Download ${title}`;
+        button.setAttribute('aria-label', `Download ${title}`);
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.onConfirmQueueItem?.(taskId);
+        });
+        approval.appendChild(button);
+
+        const source = document.createElement('span');
+        source.append('Downloading from: ');
+        const channelLabel = channelName || 'Unknown channel';
+        let parsedVideoUrl;
+        if (videoUrl) {
+            try {
+                parsedVideoUrl = new URL(videoUrl);
+            } catch (error) {
+                console.warn('Ignoring invalid YouTube video URL', videoUrl, error);
+            }
+        }
+        if (
+            parsedVideoUrl?.protocol === 'https:' &&
+            [
+                'youtube.com',
+                'www.youtube.com',
+                'music.youtube.com',
+                'm.youtube.com',
+                'youtu.be'
+            ].includes(parsedVideoUrl.hostname)
+        ) {
+            const channelLink = document.createElement('a');
+            channelLink.textContent = channelLabel;
+            channelLink.href = parsedVideoUrl.href;
+            channelLink.target = '_blank';
+            channelLink.rel = 'noopener noreferrer';
+            channelLink.addEventListener('click', (event) => event.stopPropagation());
+            source.appendChild(channelLink);
+        } else {
+            source.append(channelLabel);
+        }
+        approval.appendChild(source);
+        return approval;
     }
 
     renderWatchedChannels(channels, status = {}) {

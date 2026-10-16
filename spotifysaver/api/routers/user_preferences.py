@@ -10,6 +10,7 @@ from ..config import APIConfig
 from ..schemas import DownloadDirectoryPreferenceUpdate
 from ..services.download_directory_store import DownloadDirectoryStore
 from ..services.download_limits_store import DownloadLimitsStore
+from ..services.youtube_confirmation_store import YouTubeConfirmationStore
 from . import download as download_router
 
 router = APIRouter()
@@ -18,6 +19,11 @@ router = APIRouter()
 class DownloadLimitsUpdate(BaseModel):
     max_concurrent_downloads: int = Field(ge=1, le=16)
     bandwidth_limit_mib_per_second: float = Field(ge=0, le=10000)
+
+
+class YouTubeConfirmationUpdate(BaseModel):
+    confirm_matched_downloads: bool
+    confirm_channel_watcher_downloads: bool
 
 
 def _store(request: Request) -> DownloadDirectoryStore:
@@ -38,6 +44,17 @@ def _download_limits_store(request: Request) -> DownloadLimitsStore:
     if store is None:
         raise HTTPException(
             status_code=503, detail="Download limits are unavailable"
+        )
+    return store
+
+
+def _youtube_confirmation_store(request: Request) -> YouTubeConfirmationStore:
+    store: Optional[YouTubeConfirmationStore] = getattr(
+        request.app.state, "youtube_confirmation_store", None
+    )
+    if store is None:
+        raise HTTPException(
+            status_code=503, detail="YouTube confirmation preferences are unavailable"
         )
     return store
 
@@ -88,3 +105,25 @@ async def set_download_limits(settings: DownloadLimitsUpdate, request: Request):
     )
     await download_router._try_start_next()
     return limits
+
+
+@router.get("/preferences/youtube-confirmation")
+async def get_youtube_confirmation_preferences(request: Request):
+    """Return whether automatically matched YouTube downloads need approval."""
+    return _youtube_confirmation_store(request).get_preferences()
+
+
+@router.put("/preferences/youtube-confirmation")
+async def set_youtube_confirmation_preferences(
+    settings: YouTubeConfirmationUpdate, request: Request
+):
+    """Persist YouTube confirmation settings and apply them to new downloads."""
+    preferences = _youtube_confirmation_store(request).set_preferences(
+        settings.confirm_matched_downloads,
+        settings.confirm_channel_watcher_downloads,
+    )
+    APIConfig.set_youtube_confirmation_preferences(
+        preferences["confirm_matched_downloads"],
+        preferences["confirm_channel_watcher_downloads"],
+    )
+    return preferences

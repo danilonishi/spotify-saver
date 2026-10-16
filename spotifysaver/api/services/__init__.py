@@ -12,6 +12,7 @@ from .jellyfin_library_scan import (
 from .notification_hub import NotificationHub
 from .security_store import SecurityStore
 from .storage_protection import StorageProtectionService, StorageProtectionStore
+from .youtube_confirmation_store import YouTubeConfirmationStore
 
 __all__ = [
     "DownloadService",
@@ -26,4 +27,5 @@ __all__ = [
     "SecurityStore",
     "StorageProtectionService",
     "StorageProtectionStore",
+    "YouTubeConfirmationStore",
 ]

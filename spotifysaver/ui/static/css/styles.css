@@ -926,9 +926,16 @@ body.dark-mode .notification-toast {
 }
 
 .queue-item-name {
-    flex: 1;
+    display: block;
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.queue-item-heading {
+    flex: 1;
+    display: grid;
+    gap: 6px;
+    min-width: 0;
 }
 
 .queue-item-status {
@@ -1000,6 +1007,36 @@ body.dark-mode .notification-toast {
     opacity: 1;
 }
 
+.queue-item-confirm-btn {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 5px 10px;
+    font-size: 13px;
+}
+
+.queue-item-approval {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+body.dark-mode .queue-item-confirm-btn {
+    border-color: #4b5868;
+    background: #1b222c;
+    color: #b8c0cc;
+}
+
+body.dark-mode .queue-item-confirm-btn:hover {
+    background: #2b3541;
+}
+
+.queue-track-content {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
 .queue-item-remove-btn:hover {
     opacity: 1;
 }
@@ -1029,6 +1066,10 @@ body.dark-mode .notification-toast {
 
 .queue-track-info {
     min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.queue-item-approval a {
     overflow-wrap: anywhere;
 }
 

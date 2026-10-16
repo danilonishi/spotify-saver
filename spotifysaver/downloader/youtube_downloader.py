@@ -50,6 +50,9 @@ class YouTubeDownloader:
         self.image_downloader = ImageDownloader()
         self.ydl_error_callback: Optional[Callable[[str], None]] = None
         self.rate_limit_provider: Optional[Callable[[], Optional[int]]] = None
+        self.youtube_confirmation_callback: Optional[
+            Callable[[Track, str], bool]
+        ] = None
         self.trim_silence = False
 
     @staticmethod
@@ -507,6 +510,12 @@ class YouTubeDownloader:
 
         if not yt_url:
             self.logger.error(f"No match found for: {track.name}")
+            return None, None
+        if (
+            (confirmation_callback := getattr(self, "youtube_confirmation_callback", None))
+            is not None
+            and not confirmation_callback(track, yt_url)
+        ):
             return None, None
 
         try:

@@ -235,7 +235,7 @@ class DownloadManager {
         const queueKey = this.getQueueKey(formData.spotify_url) +
             (formData.media_type === 'video' ? ':video' : '');
         const duplicate = this.queue.find((item) => item.key === queueKey &&
-            ['queued', 'downloading', 'paused'].includes(item.status));
+            ['queued', 'downloading', 'paused', 'awaiting_confirmation'].includes(item.status));
         if (duplicate) {
             this.uiManager.updateStatus(`${duplicate.title} is already in the queue.`, 'info');
             return false;
@@ -309,6 +309,8 @@ class DownloadManager {
                 return 'downloading';
             case 'queued':
                 return this.queuePaused && task.error_message === 'Paused by user' ? 'paused' : 'queued';
+            case 'awaiting_confirmation':
+                return 'awaiting_confirmation';
             case 'cancelled':
                 return 'cancelled';
             default:
@@ -368,6 +370,11 @@ class DownloadManager {
         item.output_directory = task.output_directory;
         item.download_url = task.download_url;
         item.queue_position = task.queue_position;
+        item.confirmation_required = task.confirmation_required === true;
+        item.confirmation_title = task.confirmation_title || null;
+        item.confirmation_url = task.confirmation_url || null;
+        item.confirmation_track_number = task.confirmation_track_number || null;
+        item.confirmation_source = task.confirmation_source || null;
         item.playlistVerification = task.playlist_verification;
         item.formData = { ...item.formData, content_type: task.content_type };
         if (task.spotify_url) item.url = task.spotify_url;
@@ -396,6 +403,8 @@ class DownloadManager {
         trackUpdates.slice(item.trackUpdateCursor).forEach((update) => {
             const resultState = update.status === 'downloading'
                 ? 'downloading'
+                : update.status === 'awaiting_confirmation'
+                    ? 'waiting'
                 : update.status === 'error'
                 ? 'error'
                 : update.status === 'completed'
@@ -483,7 +492,9 @@ class DownloadManager {
 
     updateGlobalStatus() {
         const active = this.queue.find((item) => item.status === 'downloading');
-        const hasQueuedWork = this.queue.some((item) => ['queued', 'paused'].includes(item.status));
+        const hasQueuedWork = this.queue.some((item) =>
+            ['queued', 'paused', 'awaiting_confirmation'].includes(item.status)
+        );
         const hasWork = Boolean(active) || hasQueuedWork;
 
         // The "downloading" flag only stays true while something is actually
@@ -504,6 +515,12 @@ class DownloadManager {
             );
         } else if (this.queuePaused && hasWork) {
             this.uiManager.updateStatus('Queue paused. Resume to continue.', 'info');
+        } else if (this.queue.some((item) => item.status === 'awaiting_confirmation')) {
+            const awaiting = this.queue.find((item) => item.status === 'awaiting_confirmation');
+            this.uiManager.updateStatus(
+                `Awaiting your approval: ${awaiting.confirmation_title || awaiting.title}`,
+                'info'
+            );
         } else if (hasWork) {
             this.uiManager.updateStatus('Waiting for a free download slot...', 'info');
         } else if (!this.queue.length) {
@@ -620,6 +637,7 @@ class DownloadManager {
                 if (item.status === 'failed') {
                     throw new Error(item.error_message || 'Could not retry download');
                 }
+
             } else {
                 await this.apiClient.retryDownload(taskId);
                 await this.pollOnce();
@@ -629,6 +647,17 @@ class DownloadManager {
         } catch (error) {
             this.uiManager.updateStatus(`Could not retry download: ${error.message}`, 'error');
             this.uiManager.addLogEntry(`Could not retry download: ${error.message}`, 'error');
+        }
+    }
+
+    async confirmYouTubeItem(taskId) {
+        try {
+            await this.apiClient.confirmYouTubeDownload(taskId);
+            await this.pollOnce();
+            this.ensurePolling();
+        } catch (error) {
+            this.uiManager.updateStatus(`Could not approve YouTube download: ${error.message}`, 'error');
+            this.uiManager.addLogEntry(`Could not approve YouTube download: ${error.message}`, 'error');
         }
     }
 

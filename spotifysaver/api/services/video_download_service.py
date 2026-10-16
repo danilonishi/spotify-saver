@@ -45,6 +45,9 @@ class VideoDownloadService:
         self.download_archive = download_archive
         self.cancellation_event: Optional[Event] = None
         self.ydl_error_callback: Optional[Callable[[str], None]] = None
+        self.youtube_confirmation_callback: Optional[
+            Callable[[int, str, str], bool]
+        ] = None
         self.image_downloader = ImageDownloader()
         # Called as (current, total, fraction 0-1 of the current video)
         self.progress_fraction_callback: Optional[Callable[[int, int, float], None]] = None
@@ -305,6 +308,15 @@ class VideoDownloadService:
                 channel = video_info.get("channel") or video_info.get("uploader")
                 title = video_info.get("title") or title
             video_info.setdefault("webpage_url", entry_url)
+            if self.youtube_confirmation_callback is not None and not (
+                self.youtube_confirmation_callback(index, title, entry_url)
+            ):
+                if self.cancellation_event and self.cancellation_event.is_set():
+                    break
+                failed_names.append(title)
+                if track_result_callback:
+                    track_result_callback(index, title, "error")
+                continue
             channel_dir = self.output_dir / _sanitize(channel or "Unknown Channel")
             channel_dir.mkdir(parents=True, exist_ok=True)
             channel_dirs.add(channel_dir)
