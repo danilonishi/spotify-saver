@@ -88,6 +88,8 @@ class YoutubeMusicSearcher:
             self._search_fuzzy_match,
             self._search_title_match,
         ]
+        if track.source_type == "soundcloud":
+            search_strategies.append(self._search_video_match)
 
         for strategy in search_strategies:
             if url := strategy(track):
@@ -200,6 +202,17 @@ class YoutubeMusicSearcher:
         return self._process_results(
             results, track, strict=False, allow_title_only=True
         )
+
+    def _search_video_match(self, track: Track) -> Optional[str]:
+        """Search regular YouTube videos when a SoundCloud track is not on YT Music."""
+        query = self._normalize(f"{track.artists[0]} {track.name}")
+        results = self.ytmusic.search(
+            query=query,
+            filter="videos",
+            limit=10,
+            ignore_spelling=False,
+        )
+        return self._process_results(results, track, strict=False)
 
     def _process_results(
         self,

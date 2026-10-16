@@ -123,7 +123,7 @@ class SoundCloudDownloader:
             artists=artists,
             album_artist=artists,
             release_date=self._release_date(info),
-            source_type="track",
+            source_type="soundcloud",
             genres=info.get("genres") or [],
             album_name=str(info.get("album") or title),
             cover_url=info.get("thumbnail") or "",

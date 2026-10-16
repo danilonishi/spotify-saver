@@ -167,3 +167,55 @@ def test_fuzzy_search_does_not_include_album_title():
     assert query == "turisas the march of the varangian guard"
     assert filter_name == "songs"
     assert limit == 10
+
+
+def test_soundcloud_fallback_searches_regular_youtube_videos():
+    searcher = object.__new__(YoutubeMusicSearcher)
+    searcher.logger = logging.getLogger(__name__)
+    searcher.scorer = ScoreMatchCalculator()
+    searcher.ytmusic = FakeYoutubeMusic()
+    target_result = {
+        "title": "Chapolin Colorado vs. Racionais MC's - Voz da Astúcia (Bertazi Mashup)",
+        "videoId": "4zHVVxVoIkI",
+        "duration_seconds": 171,
+        "artists": [{"name": "Raphael Bertazi"}],
+        "resultType": "video",
+    }
+    searcher.ytmusic.search = lambda query, filter, limit, **kwargs: (
+        searcher.ytmusic.search_calls.append((query, filter, limit))
+        or ([target_result] if filter == "videos" else [])
+    )
+    track = replace(
+        _make_track(),
+        name="Chapolin Colorado vs. Racionais MC's - Voz da Astúcia (Bertazi Mashup)",
+        duration=170,
+        uri="https://soundcloud.com/bertazi/chapolin-colorado-vs-racionais",
+        artists=["Raphael Bertazi"],
+        album_artist=["Raphael Bertazi"],
+        album_name="Chapolin Colorado vs. Racionais MC's - Voz da Astúcia (Bertazi Mashup)",
+        source_type="soundcloud",
+    )
+
+    result = searcher._search_with_fallback(track)
+
+    assert result == "https://music.youtube.com/watch?v=4zHVVxVoIkI"
+    assert searcher.ytmusic.search_calls[-1] == (
+        searcher._normalize(f"{track.artists[0]} {track.name}"),
+        "videos",
+        10,
+    )
+
+
+def test_spotify_track_search_does_not_search_regular_youtube_videos():
+    searcher = object.__new__(YoutubeMusicSearcher)
+    searcher.logger = logging.getLogger(__name__)
+    searcher.ytmusic = FakeYoutubeMusic()
+    searcher._search_exact_match = lambda _track: None
+    searcher._search_fuzzy_match = lambda _track: None
+    searcher._search_title_match = lambda _track: None
+
+    assert searcher._search_with_fallback(_make_track()) is None
+    assert all(
+        filter_name != "videos"
+        for _, filter_name, _ in searcher.ytmusic.search_calls
+    )
