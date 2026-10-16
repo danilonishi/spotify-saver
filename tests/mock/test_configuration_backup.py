@@ -524,6 +524,7 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
                 "new_content": False,
                 "check_failed": True,
                 "download_attention": False,
+                "download_confirmation": True,
                 "low_storage": False,
             },
             "panel_visibility": {},
@@ -542,6 +543,7 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
         "new_content": False,
         "check_failed": True,
         "download_attention": False,
+        "download_confirmation": True,
         "low_storage": False,
     }
     assert target_app.state.storage_protection.store.get_minimum_free_bytes() == (

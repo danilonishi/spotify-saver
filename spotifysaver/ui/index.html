@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-16-4">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-16-5">
 </head>
 <body>
     <!-- Header -->
@@ -90,7 +90,7 @@
 
                 <details id="notification-preferences-panel" class="form-section hidden panel-details" aria-labelledby="notification-preferences-heading" open>
                     <summary class="panel-summary"><h2 id="notification-preferences-heading">Notifications</h2></summary>
-                    <p class="watcher-help">Choose which notifications are displayed. Category preferences are saved in this browser. Browser notifications require permission and work while this page is open.</p>
+                    <p class="watcher-help">Choose which notifications are displayed. Category preferences are saved in this browser. Browser notifications require permission and can appear while this page is hidden.</p>
                     <div class="browser-notification-controls">
                         <button id="enable-browser-notifications" class="output-dir-button" type="button">Enable browser notifications</button>
                         <span id="browser-notification-status" class="watcher-help" role="status"></span>
@@ -104,6 +104,9 @@
                         </div>
                         <div class="panel-visibility-option notification-preference-option">
                             <label><input type="checkbox" data-notification-preference="download_attention" checked><span>Download needs attention</span></label>
+                        </div>
+                        <div class="panel-visibility-option notification-preference-option">
+                            <label><input type="checkbox" data-notification-preference="download_confirmation" checked><span>Download needs confirmation</span></label>
                         </div>
                         <div class="panel-visibility-option notification-preference-option">
                             <label><input type="checkbox" data-notification-preference="low_storage" checked><span>Low storage space</span></label>
@@ -810,6 +813,6 @@
     <script src="/static/js/ui-manager.js?v=2026-10-16-4"></script>
     <script src="/static/js/download-manager.js?v=2026-10-16-3"></script>
     <script src="/static/js/channel-watcher-manager.js?v=2026-10-13-1"></script>
-    <script src="/static/js/app.js?v=2026-10-16-3"></script>
+    <script src="/static/js/app.js?v=2026-10-16-4"></script>
 </body>
 </html>

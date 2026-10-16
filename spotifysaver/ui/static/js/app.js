@@ -1559,8 +1559,12 @@ class SpotifySaverUI {
     }
 
     showNotification(notification) {
+        const browserNotificationEligible =
+            notification.category !== 'download_confirmation' ||
+            document.visibilityState === 'hidden';
         if (
             this.browserNotificationsEnabled &&
+            browserNotificationEligible &&
             'Notification' in window &&
             Notification.permission === 'granted'
         ) {

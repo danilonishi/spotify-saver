@@ -85,6 +85,7 @@ async def _park_for_youtube_confirmation(
         active.discard(task_id)
         APIConfig.set_active_downloads(len(active))
     await _try_start_next()
+    await _publish_download_confirmation(task)
 
 
 # In-memory task storage (in production, use Redis or database)
@@ -193,6 +194,19 @@ async def _publish_download_attention(task: DownloadStatus) -> None:
     await notification_hub.publish(
         "download_attention",
         f"{title}: {message}",
+        title=title,
+        task_id=task.task_id,
+    )
+
+
+async def _publish_download_confirmation(task: DownloadStatus) -> None:
+    if notification_hub is None or not task.confirmation_required:
+        return
+    title = task.confirmation_title or task.title or task.current_track or "Download"
+    channel = task.confirmation_channel or "YouTube"
+    await notification_hub.publish(
+        "download_confirmation",
+        f"{title} is waiting for your approval to download from {channel}.",
         title=title,
         task_id=task.task_id,
     )
@@ -1227,6 +1241,8 @@ async def enqueue_watched_video(channel: dict, video_url: str) -> str:
         async with queue_lock:
             pending.append(task_id)
         asyncio.create_task(_try_start_next())
+    else:
+        await _publish_download_confirmation(tasks[task_id])
     return "awaiting_confirmation" if require_confirmation else "queued"
 
 

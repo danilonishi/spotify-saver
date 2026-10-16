@@ -832,7 +832,8 @@ body.dark-mode .panel-visibility-drag-handle {
 }
 
 .notification-check_failed,
-.notification-download_attention {
+.notification-download_attention,
+.notification-download_confirmation {
     border-left-color: #e53e3e;
 }
 

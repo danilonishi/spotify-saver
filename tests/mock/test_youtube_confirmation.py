@@ -19,6 +19,7 @@ from spotifysaver.api.schemas import DownloadRequest, DownloadStatus, TrackInfo
 from spotifysaver.api.services.youtube_confirmation_store import (
     YouTubeConfirmationStore,
 )
+from spotifysaver.api.services.notification_hub import NotificationHub
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
 from spotifysaver.models import Track
 
@@ -135,6 +136,8 @@ def test_parked_youtube_match_exposes_title_and_track_approval(tmp_path, monkeyp
     monkeypatch.setattr(download_router, "queue_lock", asyncio.Lock())
     monkeypatch.setattr(download_router, "_try_start_next", _no_op)
     monkeypatch.setattr(APIConfig, "set_active_downloads", lambda _count: None)
+    hub = NotificationHub()
+    monkeypatch.setattr(download_router, "notification_hub", hub)
 
     asyncio.run(
         download_router._park_for_youtube_confirmation(
@@ -154,6 +157,9 @@ def test_parked_youtube_match_exposes_title_and_track_approval(tmp_path, monkeyp
     assert task.tracks[0].youtube_url == "https://music.youtube.com/watch?v=matched"
     assert task.tracks[0].youtube_channel == "YouTube channel"
     assert task_id not in download_router.active
+    assert hub._history[-1]["category"] == "download_confirmation"
+    assert hub._history[-1]["task_id"] == task_id
+    assert "YouTube channel" in hub._history[-1]["message"]
 
 
 async def _no_op():
@@ -262,6 +268,8 @@ def test_channel_watcher_enqueue_waits_for_confirmation_when_enabled(tmp_path, m
     monkeypatch.setattr(download_router, "order", [])
     monkeypatch.setattr(download_router, "pending", [])
     monkeypatch.setattr(download_router, "queue_lock", asyncio.Lock())
+    hub = NotificationHub()
+    monkeypatch.setattr(download_router, "notification_hub", hub)
     monkeypatch.setattr(
         download_router.asyncio,
         "create_task",
@@ -292,3 +300,5 @@ def test_channel_watcher_enqueue_waits_for_confirmation_when_enabled(tmp_path, m
     assert task.confirmation_title == "New upload"
     assert task.confirmation_channel == "Watched YouTube Channel"
     assert download_router.pending == []
+    assert hub._history[-1]["category"] == "download_confirmation"
+    assert hub._history[-1]["task_id"] == task.task_id
