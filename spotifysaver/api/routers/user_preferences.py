@@ -4,11 +4,20 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field
 
+from ..config import APIConfig
 from ..schemas import DownloadDirectoryPreferenceUpdate
 from ..services.download_directory_store import DownloadDirectoryStore
+from ..services.download_limits_store import DownloadLimitsStore
+from . import download as download_router
 
 router = APIRouter()
+
+
+class DownloadLimitsUpdate(BaseModel):
+    max_concurrent_downloads: int = Field(ge=1, le=16)
+    bandwidth_limit_mib_per_second: float = Field(ge=0, le=10000)
 
 
 def _store(request: Request) -> DownloadDirectoryStore:
@@ -18,6 +27,17 @@ def _store(request: Request) -> DownloadDirectoryStore:
     if store is None:
         raise HTTPException(
             status_code=503, detail="Download-folder preferences are unavailable"
+        )
+    return store
+
+
+def _download_limits_store(request: Request) -> DownloadLimitsStore:
+    store: Optional[DownloadLimitsStore] = getattr(
+        request.app.state, "download_limits_store", None
+    )
+    if store is None:
+        raise HTTPException(
+            status_code=503, detail="Download limits are unavailable"
         )
     return store
 
@@ -47,3 +67,24 @@ async def set_download_directory_preference(
             detail="The preferred download folder must be an existing directory",
         )
     return _store(request).set_download_directory(kind, str(directory))
+
+
+@router.get("/preferences/download-limits")
+async def get_download_limits(request: Request):
+    """Return server-wide download concurrency and bandwidth limits."""
+    return _download_limits_store(request).get_limits()
+
+
+@router.put("/preferences/download-limits")
+async def set_download_limits(settings: DownloadLimitsUpdate, request: Request):
+    """Persist download limits and apply them to the running server queue."""
+    limits = _download_limits_store(request).set_limits(
+        settings.max_concurrent_downloads,
+        settings.bandwidth_limit_mib_per_second,
+    )
+    APIConfig.set_download_limits(
+        limits["max_concurrent_downloads"],
+        limits["bandwidth_limit_mib_per_second"],
+    )
+    await download_router._try_start_next()
+    return limits

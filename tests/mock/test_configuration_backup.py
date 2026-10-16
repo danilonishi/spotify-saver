@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from starlette.requests import Request
 
 from spotifysaver.api.app import create_app
+from spotifysaver.api.config import APIConfig
 from spotifysaver.api.routers.backups import (
     ConfigurationBackup,
     download_configuration_backup,
@@ -13,6 +14,7 @@ from spotifysaver.api.routers.backups import (
 )
 from spotifysaver.api.services.channel_watcher import ChannelWatcherStore
 from spotifysaver.api.services.download_directory_store import DownloadDirectoryStore
+from spotifysaver.api.services.download_limits_store import DownloadLimitsStore
 from spotifysaver.api.services.jellyfin_library_scan import (
     JellyfinLibraryScanService,
     JellyfinLibraryScanStore,
@@ -66,16 +68,30 @@ def _stores(tmp_path, label):
     channel_store.initialize()
     directory_store = DownloadDirectoryStore(database_path)
     directory_store.initialize()
+    download_limits_store = DownloadLimitsStore(database_path)
+    download_limits_store.initialize()
     jellyfin_store = JellyfinLibraryScanStore(database_path)
     jellyfin_store.initialize()
     security_store = SecurityStore(str(tmp_path / f"{label}-security.sqlite3"))
     security_store.initialize()
-    return channel_store, directory_store, jellyfin_store, security_store
+    return (
+        channel_store,
+        directory_store,
+        download_limits_store,
+        jellyfin_store,
+        security_store,
+    )
 
 
 def _state(tmp_path, label):
     database_path = str(tmp_path / f"{label}.sqlite3")
-    channel_store, directory_store, jellyfin_store, security_store = _stores(
+    (
+        channel_store,
+        directory_store,
+        download_limits_store,
+        jellyfin_store,
+        security_store,
+    ) = _stores(
         tmp_path, label
     )
     storage_store = StorageProtectionStore(database_path)
@@ -96,6 +112,7 @@ def _state(tmp_path, label):
         SimpleNamespace(
             channel_watcher=watcher,
             download_directory_store=directory_store,
+            download_limits_store=download_limits_store,
             jellyfin_library_scan=jellyfin,
             security_store=security_store,
             storage_protection=storage_protection,
@@ -163,6 +180,7 @@ def _http_app(tmp_path, label):
     )
     app.state.channel_watcher = state.channel_watcher
     app.state.download_directory_store = directory_store
+    app.state.download_limits_store = state.download_limits_store
     app.state.jellyfin_library_scan = state.jellyfin_library_scan
     app.state.security_store = security_store
     app.state.storage_protection = state.storage_protection
@@ -209,6 +227,9 @@ def test_configuration_backup_excludes_all_credentials(tmp_path):
 def test_restore_replaces_configuration_and_preserves_destination_secrets(
     tmp_path, monkeypatch
 ):
+    monkeypatch.setattr(APIConfig, "MAX_CONCURRENT_DOWNLOADS", 3)
+    monkeypatch.setattr(APIConfig, "BANDWIDTH_LIMIT_MIB_PER_SECOND", 0)
+    monkeypatch.setattr(APIConfig, "ACTIVE_DOWNLOADS", 0)
     source, source_channels, source_dirs, _, source_security = _state(
         tmp_path, "source"
     )
@@ -264,6 +285,7 @@ def test_restore_replaces_configuration_and_preserves_destination_secrets(
             "watcher": str(tmp_path / "watcher"),
         }
     )
+    source.download_limits_store.set_limits(5, 1.5)
     for directory in ("audio", "video", "watcher"):
         (tmp_path / directory).mkdir()
     source.jellyfin_library_scan.save_settings(
@@ -313,6 +335,10 @@ def test_restore_replaces_configuration_and_preserves_destination_secrets(
         "video": str(tmp_path / "video"),
         "watcher": str(tmp_path / "watcher"),
     }
+    assert target.download_limits_store.get_limits() == {
+        "max_concurrent_downloads": 5,
+        "bandwidth_limit_mib_per_second": 1.5,
+    }
     assert (
         target_jellyfin.get_settings()["server_url"]
         == "https://source-jellyfin.example"
@@ -332,6 +358,9 @@ def test_restore_replaces_configuration_and_preserves_destination_secrets(
 def test_configuration_backup_http_round_trip_restores_changed_settings(
     tmp_path, monkeypatch
 ):
+    monkeypatch.setattr(APIConfig, "MAX_CONCURRENT_DOWNLOADS", 3)
+    monkeypatch.setattr(APIConfig, "BANDWIDTH_LIMIT_MIB_PER_SECOND", 0)
+    monkeypatch.setattr(APIConfig, "ACTIVE_DOWNLOADS", 0)
     source_app, source_channels, source_dirs, _, source_security, source_cookie = (
         _http_app(tmp_path, "http-source")
     )
@@ -378,6 +407,7 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
             "watcher": str(tmp_path / "source-watcher"),
         }
     )
+    source_app.state.download_limits_store.set_limits(5, 1.5)
     source_app.state.storage_protection.store.set_minimum_free_bytes(
         round(2.5 * GB)
     )

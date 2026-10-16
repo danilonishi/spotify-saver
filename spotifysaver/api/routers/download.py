@@ -246,6 +246,7 @@ async def _try_start_next() -> None:
             if task_id is None or request is None:
                 break
             active.add(task_id)
+            APIConfig.set_active_downloads(len(active))
             cancellation_events[task_id] = Event()
             asyncio.create_task(_run_task(task_id, request))
 
@@ -255,6 +256,7 @@ async def _run_task(task_id: str, request: DownloadRequest) -> None:
         await download_task(task_id, request)
     finally:
         active.discard(task_id)
+        APIConfig.set_active_downloads(len(active))
         task = tasks.get(task_id)
         if task_id in discard_after_stop:
             discard_after_stop.discard(task_id)

@@ -19,7 +19,37 @@ class APIConfig:
     DEFAULT_VIDEO_DIR: str = "Videos"
     # Number of downloads the server queue runs at the same time; the rest
     # wait in the queue and are started automatically as slots free up.
-    MAX_CONCURRENT_DOWNLOADS: int = 1
+    DEFAULT_MAX_CONCURRENT_DOWNLOADS: int = 3
+    DEFAULT_BANDWIDTH_LIMIT_MIB_PER_SECOND: float = 0
+    MAX_CONCURRENT_DOWNLOADS: int = DEFAULT_MAX_CONCURRENT_DOWNLOADS
+    BANDWIDTH_LIMIT_MIB_PER_SECOND: float = DEFAULT_BANDWIDTH_LIMIT_MIB_PER_SECOND
+    ACTIVE_DOWNLOADS: int = 0
+
+    @classmethod
+    def set_download_limits(
+        cls, max_concurrent_downloads: int, bandwidth_limit_mib_per_second: float
+    ) -> None:
+        """Update the server-wide download limits used by the queue and yt-dlp."""
+        cls.MAX_CONCURRENT_DOWNLOADS = max_concurrent_downloads
+        cls.BANDWIDTH_LIMIT_MIB_PER_SECOND = bandwidth_limit_mib_per_second
+
+    @classmethod
+    def set_active_downloads(cls, active_downloads: int) -> None:
+        """Track active jobs so bandwidth remains capped after lowering concurrency."""
+        cls.ACTIVE_DOWNLOADS = active_downloads
+
+    @classmethod
+    def get_download_rate_limit_bytes_per_second(cls) -> int | None:
+        """Return a per-job yt-dlp rate limit derived from queue concurrency."""
+        if cls.BANDWIDTH_LIMIT_MIB_PER_SECOND <= 0:
+            return None
+        total_bytes_per_second = int(
+            cls.BANDWIDTH_LIMIT_MIB_PER_SECOND * 1024 * 1024
+        )
+        concurrent_downloads = max(
+            cls.MAX_CONCURRENT_DOWNLOADS, cls.ACTIVE_DOWNLOADS
+        )
+        return max(1, total_bytes_per_second // concurrent_downloads)
 
     # File settings
     ALLOWED_FORMATS: List[str] = ["m4a", "mp3", "opus"]

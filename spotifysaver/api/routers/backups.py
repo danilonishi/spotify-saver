@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...config import Config
+from ..config import APIConfig
 from ..services.channel_watcher import (
     _content_filter_settings,
     _get_timezone,
@@ -74,6 +75,11 @@ class DownloadDirectoriesBackup(BaseModel):
     watcher: Optional[str] = Field(default=None, max_length=4096)
 
 
+class DownloadLimitsBackup(BaseModel):
+    max_concurrent_downloads: int = Field(default=3, ge=1, le=16)
+    bandwidth_limit_mib_per_second: float = Field(default=0, ge=0, le=10000)
+
+
 class JellyfinBackup(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -93,6 +99,9 @@ class ServerConfigurationBackup(BaseModel):
 
     watched_channels: list[BackupChannel] = Field(max_length=1000)
     download_directories: DownloadDirectoriesBackup
+    download_limits: DownloadLimitsBackup = Field(
+        default_factory=DownloadLimitsBackup
+    )
     jellyfin: JellyfinBackup
     spotify: SpotifyBackup
     minimum_free_space_gb: float = Field(default=0, ge=0, le=100000)
@@ -123,6 +132,7 @@ class ConfigurationBackup(BaseModel):
 def _configuration(request: Request) -> ServerConfigurationBackup:
     watcher = request.app.state.channel_watcher
     directory_store = request.app.state.download_directory_store
+    download_limits_store = request.app.state.download_limits_store
     storage_protection = request.app.state.storage_protection
     jellyfin = _jellyfin_service(request).get_status()
     stored_spotify = _security_store(request).get_spotify_settings()
@@ -153,6 +163,7 @@ def _configuration(request: Request) -> ServerConfigurationBackup:
     return ServerConfigurationBackup(
         watched_channels=channels,
         download_directories=directory_store.get_download_directories(),
+        download_limits=download_limits_store.get_limits(),
         jellyfin={
             "server_url": jellyfin["server_url"],
             "scan_interval_minutes": jellyfin["scan_interval_minutes"],
@@ -215,6 +226,7 @@ async def restore_configuration_backup(
     security_store: SecurityStore = _security_store(request)
     jellyfin_service = _jellyfin_service(request)
     directory_store = request.app.state.download_directory_store
+    download_limits_store = request.app.state.download_limits_store
     storage_protection = request.app.state.storage_protection
 
     current_spotify = security_store.get_spotify_settings()
@@ -243,6 +255,14 @@ async def restore_configuration_backup(
         )
         directory_store.restore_download_directories(
             backup.server.download_directories.model_dump()
+        )
+        limits = download_limits_store.set_limits(
+            backup.server.download_limits.max_concurrent_downloads,
+            backup.server.download_limits.bandwidth_limit_mib_per_second,
+        )
+        APIConfig.set_download_limits(
+            limits["max_concurrent_downloads"],
+            limits["bandwidth_limit_mib_per_second"],
         )
         storage_protection.store.set_minimum_free_bytes(
             round(backup.server.minimum_free_space_gb * GB)

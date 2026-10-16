@@ -68,6 +68,9 @@ class DownloadService:
         self.spotify = None
         self.searcher = None
         self.downloader = YouTubeDownloaderForCLI(base_dir=self.output_dir)
+        self.downloader.rate_limit_provider = (
+            APIConfig.get_download_rate_limit_bytes_per_second
+        )
         self.downloader.trim_silence = trim_silence
         # Called as (current, total, fraction 0-1 of the current item)
         self.progress_fraction_callback: Optional[Callable[[int, int, float], None]] = None

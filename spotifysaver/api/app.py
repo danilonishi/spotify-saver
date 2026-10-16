@@ -22,6 +22,7 @@ from .config import APIConfig
 from .services import (
     ChannelWatcherService,
     DownloadDirectoryStore,
+    DownloadLimitsStore,
     JellyfinLibraryScanService,
     JellyfinLibraryScanStore,
     NotificationHub,
@@ -70,6 +71,16 @@ def create_app() -> FastAPI:
         download_directory_store = DownloadDirectoryStore()
         download_directory_store.initialize()
         app.state.download_directory_store = download_directory_store
+        download_limits_store = DownloadLimitsStore(
+            APIConfig.get_channel_watcher_db_path()
+        )
+        download_limits_store.initialize()
+        app.state.download_limits_store = download_limits_store
+        download_limits = download_limits_store.get_limits()
+        APIConfig.set_download_limits(
+            download_limits["max_concurrent_downloads"],
+            download_limits["bandwidth_limit_mib_per_second"],
+        )
         jellyfin_scan = JellyfinLibraryScanService(
             JellyfinLibraryScanStore(),
             is_queue_idle=download.is_queue_idle,

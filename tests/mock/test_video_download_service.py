@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from spotifysaver.config.setting_environment import Config
+from spotifysaver.api.config import APIConfig
 from spotifysaver.api.services.video_download_service import VideoDownloadService
 from yt_dlp.utils import DownloadCancelled
 
@@ -28,6 +29,15 @@ def test_video_download_does_not_resume_stale_partial_files():
     service = VideoDownloadService()
 
     assert service._ydl_opts("video.%(ext)s")["continuedl"] is False
+
+
+def test_video_download_options_use_the_shared_bandwidth_cap(monkeypatch):
+    monkeypatch.setattr(APIConfig, "MAX_CONCURRENT_DOWNLOADS", 3)
+    monkeypatch.setattr(APIConfig, "BANDWIDTH_LIMIT_MIB_PER_SECOND", 6)
+
+    options = VideoDownloadService()._ydl_opts("video.%(ext)s")
+
+    assert options["ratelimit"] == 2 * 1024 * 1024
 
 
 def test_video_download_uses_cookies_only_when_configured(monkeypatch):

@@ -39,6 +39,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         self.searcher = YoutubeMusicSearcher()
         self.lrc_client = LrclibAPI()
         self.image_downloader = ImageDownloader()
+        self.rate_limit_provider = None
 
     @staticmethod
     def _youtube_artist_names(info: dict) -> list[str]:

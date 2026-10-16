@@ -26,10 +26,11 @@ The app allows you to download content for your media server. It can connect to 
 
 Compared with the upstream baseline, this branch adds:
 
-- **A server-managed download queue:** Downloads continue if you refresh or close the browser.
+- **Server-managed download queue:** Downloads continue if you refresh or close the browser.
 - **Access control:** Password protected UI and API to avoid unwanted agents observing and taking over your downloads.
 - **Video support:** Downloads YouTube videos as MP4, MKV or WebM with configurable resolution and quality and generates metadata for Jellyfin.
 - **Playlist support:** Download playlists from Spotify and YouTube.
+- **Multiple parallel Downloads:** Useful when downloading large playlists.
 - **Channel Watcher:** Schedule channel checks and automatically download new uploads.
 - **Jellyfin library scans:** Automatically triggers Jellyfin media scan after downloads are completed.
 - **Browser extension support:** Quickly trigger downloads from spotify and youtube pages, or watch channels.
@@ -219,7 +220,8 @@ This will start the API server with an integrated web interface that you can acc
 - **Channel Watcher**: Add YouTube channels, configure each channel's schedule and video download settings, and view last-check or rate-limit cooldown status
 - **Jellyfin library scans**: Configure the Jellyfin server URL, API key, and minimum interval between refresh requests; manually request a scan to bypass the cooldown. The API key is stored server-side and is not returned to the UI.
 - **Storage safeguards**: View free space for each filesystem used by audio, video, and watched-channel folders. Set a minimum free-space reserve in Settings; `0` disables blocking. Queued downloads resume automatically when space recovers. A low-space warning is sent once per filesystem until space recovers, and active downloads are allowed to finish.
-- **Configuration backup and restore**: Export watched channels, download-folder preferences, storage reserve, dark mode, notification preferences, dashboard layout and panel states, Jellyfin URL/scan interval, and Spotify Client ID/redirect URL as JSON. Restore replaces those settings while retaining destination passwords, API keys, Spotify secrets, and authorization tokens. Browser notification permission remains browser-controlled and must be granted on the destination. Backups do not include active downloads or activity logs; folder paths may need adapting after migration.
+- **Download limits**: Set the maximum number of active queued jobs (3 by default, up to 16) and an optional media bandwidth cap in Settings. A bandwidth value of `0` leaves speed unlimited; otherwise the per-job cap is divided evenly across the configured maximum, so a single job may not use the full cap when fewer jobs are active. Existing yt-dlp instances keep their current cap when settings change; this per-job rate limiting approximates an aggregate cap. The limits also apply to automatic Channel Watcher downloads.
+- **Configuration backup and restore**: Export watched channels, download-folder preferences and limits, storage reserve, dark mode, notification preferences, dashboard layout and panel states, Jellyfin URL/scan interval, and Spotify Client ID/redirect URL as JSON. Restore replaces those settings while retaining destination passwords, API keys, Spotify secrets, and authorization tokens. Browser notification permission remains browser-controlled and must be granted on the destination. Backups do not include active downloads or activity logs; folder paths may need adapting after migration.
 - **Responsive design**: Works on desktop and mobile devices
 - **Automatic browser opening**: Opens your default browser automatically
 

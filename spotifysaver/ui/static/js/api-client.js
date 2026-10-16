@@ -388,6 +388,34 @@ class ApiClient {
         return response.json();
     }
 
+    async getDownloadLimits() {
+        const response = await fetch(`${this.apiUrl}/preferences/download-limits`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-cache'
+        });
+        if (!response.ok) {
+            throw new Error('Could not fetch download limits');
+        }
+        return response.json();
+    }
+
+    async saveDownloadLimits(limits) {
+        const response = await fetch(`${this.apiUrl}/preferences/download-limits`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(limits)
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not save download limits');
+        }
+        return response.json();
+    }
+
     async getAuthenticationStatus() {
         const response = await fetch(`${this.apiUrl}/auth/status`, {
             method: 'GET',

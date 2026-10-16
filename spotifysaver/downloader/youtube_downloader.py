@@ -49,6 +49,7 @@ class YouTubeDownloader:
         self.lrc_client = LrclibAPI()
         self.image_downloader = ImageDownloader()
         self.ydl_error_callback: Optional[Callable[[str], None]] = None
+        self.rate_limit_provider: Optional[Callable[[], Optional[int]]] = None
         self.trim_silence = False
 
     @staticmethod
@@ -205,6 +206,12 @@ class YouTubeDownloader:
             "skip_unavailable_fragments": True,
             "force_keyframes_at_cuts": True,
         }
+
+        rate_limit_provider = getattr(self, "rate_limit_provider", None)
+        if rate_limit_provider is not None:
+            rate_limit = rate_limit_provider()
+            if rate_limit is not None:
+                opts["ratelimit"] = rate_limit
 
         self._add_progress_split_hooks(opts)
         return opts

@@ -314,6 +314,7 @@ class SpotifySaverUI {
                 await this.loadJellyfinLibraryScanSettings();
                 await this.loadSpotifySettings();
                 await this.loadStorageStatus();
+                await this.loadDownloadLimits();
                 window.setInterval(() => this.refreshJellyfinLibraryScanStatus(), 30000);
                 window.setInterval(() => this.refreshStorageStatus(), 30000);
             } else {
@@ -519,6 +520,10 @@ class SpotifySaverUI {
         document.getElementById('storage-reserve-form').addEventListener('submit', (event) => {
             event.preventDefault();
             this.saveStorageSettings();
+        });
+        document.getElementById('download-limits-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            this.saveDownloadLimits();
         });
         
         // Allow starting a download with Enter
@@ -755,6 +760,7 @@ class SpotifySaverUI {
         await this.channelWatcherManager.load();
         await this.loadJellyfinLibraryScanSettings();
         await this.loadSpotifySettings();
+        await this.loadDownloadLimits();
         this.setConfigurationBackupMessage(
             'Configuration restored. Re-enter any required secrets and reconnect Spotify if needed.',
             'watcher-help'
@@ -1030,6 +1036,53 @@ class SpotifySaverUI {
         }
     }
 
+    async loadDownloadLimits() {
+        try {
+            const limits = await this.apiClient.getDownloadLimits();
+            document.getElementById('max-concurrent-downloads').value =
+                limits.max_concurrent_downloads;
+            document.getElementById('bandwidth-limit-mib').value =
+                limits.bandwidth_limit_mib_per_second;
+            this.setDownloadLimitsMessage('Download limits loaded.', 'watcher-help');
+        } catch (error) {
+            this.setDownloadLimitsMessage(error.message, 'status-error');
+        }
+    }
+
+    async saveDownloadLimits() {
+        const saveButton = document.getElementById('download-limits-save');
+        saveButton.disabled = true;
+        this.setDownloadLimitsMessage('Saving download limits...', 'watcher-help');
+        try {
+            const limits = await this.apiClient.saveDownloadLimits({
+                max_concurrent_downloads: Number(
+                    document.getElementById('max-concurrent-downloads').value
+                ),
+                bandwidth_limit_mib_per_second: Number(
+                    document.getElementById('bandwidth-limit-mib').value
+                )
+            });
+            document.getElementById('max-concurrent-downloads').value =
+                limits.max_concurrent_downloads;
+            document.getElementById('bandwidth-limit-mib').value =
+                limits.bandwidth_limit_mib_per_second;
+            this.setDownloadLimitsMessage(
+                'Download limits saved. Concurrency changes apply immediately; bandwidth changes apply to yt-dlp instances started afterward.',
+                'watcher-help'
+            );
+        } catch (error) {
+            this.setDownloadLimitsMessage(error.message, 'status-error');
+        } finally {
+            saveButton.disabled = false;
+        }
+    }
+
+    setDownloadLimitsMessage(message, className) {
+        const status = document.getElementById('download-limits-status');
+        status.textContent = message;
+        status.className = className;
+    }
+
     async refreshStorageStatus() {
         try {
             const status = await this.apiClient.getStorageStatus();
@@ -1264,6 +1317,7 @@ class SpotifySaverUI {
         dashboard.classList.toggle('settings-mode', visible);
         document.getElementById('download-settings-panel').classList.toggle('hidden', visible);
         document.getElementById('storage-settings-panel').classList.toggle('hidden', !visible);
+        document.getElementById('download-limits-panel').classList.toggle('hidden', !visible);
         document.getElementById('jellyfin-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('spotify-settings-panel').classList.toggle('hidden', !visible);
         document.getElementById('password-settings-panel').classList.toggle('hidden', !visible);

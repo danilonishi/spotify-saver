@@ -80,6 +80,9 @@ class VideoDownloadService:
             "retries": 5,
             "fragment_retries": 5,
         }
+        rate_limit = APIConfig.get_download_rate_limit_bytes_per_second()
+        if rate_limit is not None:
+            opts["ratelimit"] = rate_limit
         if self.download_archive:
             opts["download_archive"] = self.download_archive
         if self.include_subtitles:
