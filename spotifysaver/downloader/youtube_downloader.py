@@ -264,8 +264,8 @@ class YouTubeDownloader:
         Returns:
             YDLLogger: Custom logger for yt-dlp integration
         """
-        from spotifysaver.spotlog import YDLLogger
-        return YDLLogger(getattr(self, "ydl_error_callback", None))
+        from spotifysaver.spotlog import SDLogger
+        return SDLogger(getattr(self, "ydl_error_callback", None))
 
     def _add_cancellation_hook(self, ydl_opts: dict, cancellation_event: Optional[Event]):
         if cancellation_event is None:

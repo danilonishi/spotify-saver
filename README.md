@@ -29,6 +29,7 @@ Compared with the upstream baseline, this branch adds:
 - **Server-managed download queue:** Downloads continue if you refresh or close the browser.
 - **Access control:** Password protected UI and API to avoid unwanted agents observing and taking over your downloads.
 - **Video support:** Downloads YouTube videos as MP4, MKV or WebM with configurable resolution and quality and generates metadata for Jellyfin.
+- **SoundCloud audio support:** Downloads tracks directly when the artist allows downloads; otherwise searches YouTube Music for the track.
 - **Playlist support:** Download playlists from Spotify and YouTube.
 - **Multiple parallel Downloads:** Useful when downloading large playlists.
 - **Channel Watcher:** Schedule channel checks and automatically download new uploads.
@@ -48,6 +49,7 @@ Compared with the upstream baseline, this branch adds:
 
 ## 🌟 Features
 - ✅ Download audio from YouTube Music with Spotify metadata
+- ✅ Download SoundCloud tracks directly when artist downloads are enabled, with YouTube Music fallback otherwise
 - ✅ Download YouTube videos, playlists, and album collections with YouTube metadata through the API and web UI
 - ✅ Schedule automatic checks for watched YouTube channels from the web interface
 - ✅ Download YouTube playlists and album collections from the CLI

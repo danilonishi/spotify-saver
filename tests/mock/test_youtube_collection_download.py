@@ -45,7 +45,7 @@ from spotifysaver.api.schemas import DownloadRequest, DownloadStatus, TrackInfo
 from spotifysaver.api.services.download_service import DownloadService
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
 from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
-from spotifysaver.spotlog.ydd_logger import YDLLogger
+from spotifysaver.spotlog.ydd_logger import SDLogger
 from spotifysaver.enums import AudioFormat
 import spotifysaver.downloader.youtube_downloader_for_cli as cli_downloader_module
 
@@ -64,7 +64,7 @@ TRACK_URL = "https://music.youtube.com/watch?v=YPnMd26jwrU"
 
 def test_yt_dlp_rate_limit_error_is_reported_without_flagging_other_errors():
     task = DownloadStatus(task_id="rate-limit-test", status="processing", progress=0)
-    ydl_logger = YDLLogger(lambda message: _report_yt_dlp_error(task, message))
+    ydl_logger = SDLogger(lambda message: _report_yt_dlp_error(task, message))
 
     ydl_logger.error(
         "The current session has been rate-limited by YouTube for up to an hour."

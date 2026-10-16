@@ -12,7 +12,7 @@ import yt_dlp
 from ...config import Config
 from ...downloader import YouTubeDownloader
 from ...downloader.image_downloader import ImageDownloader
-from ...spotlog.ydd_logger import YDLLogger
+from ...spotlog.ydd_logger import SDLogger
 from ...spotlog import get_logger
 from ..config import APIConfig
 
@@ -73,7 +73,7 @@ class VideoDownloadService:
             "continuedl": False,
             "noplaylist": True,
             "quiet": True,
-            "logger": YDLLogger(self.ydl_error_callback),
+            "logger": SDLogger(self.ydl_error_callback),
             "cookiefile": (
                 str(Config.YTDLP_COOKIES_PATH) if Config.YTDLP_COOKIES_PATH else None
             ),

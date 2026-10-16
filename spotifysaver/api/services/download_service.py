@@ -8,7 +8,11 @@ from typing import Dict, Optional, Callable, Any
 from yt_dlp.utils import DownloadCancelled
 
 from ...services import SpotifyAPI, YoutubeMusicSearcher
-from ...downloader import YouTubeDownloader, YouTubeDownloaderForCLI
+from ...downloader import (
+    SoundCloudDownloader,
+    YouTubeDownloader,
+    YouTubeDownloaderForCLI,
+)
 from ...enums import AudioFormat, Bitrate
 from ...metadata import NFOGenerator
 from ...models.album import Album
@@ -68,7 +72,11 @@ class DownloadService:
         self.spotify = None
         self.searcher = None
         self.downloader = YouTubeDownloaderForCLI(base_dir=self.output_dir)
+        self.soundcloud_downloader = SoundCloudDownloader(base_dir=self.output_dir)
         self.downloader.rate_limit_provider = (
+            APIConfig.get_download_rate_limit_bytes_per_second
+        )
+        self.soundcloud_downloader.rate_limit_provider = (
             APIConfig.get_download_rate_limit_bytes_per_second
         )
         self.downloader.trim_silence = trim_silence
@@ -76,6 +84,7 @@ class DownloadService:
         self.progress_fraction_callback: Optional[Callable[[int, int, float], None]] = None
         self._position = (1, 1)
         self.downloader.progress_fraction_callback = self._report_fraction
+        self.soundcloud_downloader.progress_fraction_callback = self._report_fraction
 
     def _report_fraction(self, fraction: float, info: dict) -> None:
         if not self.progress_fraction_callback:
@@ -128,6 +137,14 @@ class DownloadService:
                 return await self._download_youtube_track(
                     spotify_url, progress_callback, title_callback
                 )
+            if SoundCloudDownloader.is_track_url(spotify_url):
+                return await self._download_soundcloud_track(
+                    spotify_url,
+                    progress_callback,
+                    cancellation_event,
+                    title_callback,
+                    tracks_callback,
+                )
 
             self.spotify = SpotifyAPI()
             self.searcher = YoutubeMusicSearcher()
@@ -153,6 +170,66 @@ class DownloadService:
         except Exception as e:
             logger.error(f"Error downloading from {spotify_url}: {str(e)}", exc_info=True)
             raise
+
+    async def _download_soundcloud_track(
+        self,
+        track_url: str,
+        progress_callback: Optional[Callable[[int, int, str], None]],
+        cancellation_event: Optional[Event],
+        title_callback: Optional[Callable[[str], None]],
+        tracks_callback: Optional[Callable[[list], None]],
+    ) -> Dict[str, Any]:
+        loop = asyncio.get_event_loop()
+        available, track, output_path = await loop.run_in_executor(
+            None,
+            self.soundcloud_downloader.download_track,
+            track_url,
+            self.output_format,
+            self.bit_rate,
+            self.download_lyrics,
+            self.download_cover,
+            self.overwrite_existing,
+            cancellation_event,
+            progress_callback,
+            title_callback,
+            tracks_callback,
+            self.generate_nfo,
+        )
+        if cancellation_event and cancellation_event.is_set():
+            return {
+                "content_type": "track",
+                "completed_tracks": 0,
+                "failed_tracks": 0,
+                "failed_track_names": [],
+                "total_tracks": 1,
+                "output_directory": str(self.output_dir),
+            }
+        if track is None:
+            raise ValueError("Could not read SoundCloud track metadata")
+
+        if available:
+            if output_path is None:
+                raise RuntimeError("SoundCloud download was interrupted")
+            return {
+                "content_type": "track",
+                "completed_tracks": 1,
+                "failed_tracks": 0,
+                "failed_track_names": [],
+                "total_tracks": 1,
+                "output_directory": str(output_path.parent),
+            }
+
+        logger.info(
+            "SoundCloud track is not available for direct download; falling back to YouTube Music: %s",
+            track.name,
+        )
+        return await self._download_track(
+            track_url,
+            progress_callback,
+            title_callback,
+            tracks_callback,
+            track=track,
+        )
 
     async def _download_youtube_playlist(
         self,
@@ -216,9 +293,10 @@ class DownloadService:
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         title_callback: Optional[Callable[[str], None]] = None,
         tracks_callback: Optional[Callable[[list], None]] = None,
+        track: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Download a single track."""
-        track = self.spotify.get_track(track_url)
+        track = track or self.spotify.get_track(track_url)
         if title_callback:
             title_callback(track.name)
         if tracks_callback:

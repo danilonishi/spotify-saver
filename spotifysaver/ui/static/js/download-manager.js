@@ -70,9 +70,10 @@ class DownloadManager {
 
         if (!formData.spotify_url.includes('spotify.com') &&
             !this.isYouTubeCollectionUrl(formData.spotify_url) &&
-            !this.isYouTubeTrackUrl(formData.spotify_url)) {
+            !this.isYouTubeTrackUrl(formData.spotify_url) &&
+            !this.isSoundCloudTrackUrl(formData.spotify_url)) {
             this.uiManager.updateStatus(
-                'Enter a Spotify link or a YouTube track, album, or playlist link.',
+                'Enter a Spotify link, a YouTube track or playlist link, or a SoundCloud track link.',
                 'error'
             );
             return false;
@@ -93,6 +94,32 @@ class DownloadManager {
             return hosts.has(parsedUrl.hostname.toLowerCase()) &&
                 ['/playlist', '/watch'].includes(parsedUrl.pathname.replace(/\/$/, '')) &&
                 Boolean(parsedUrl.searchParams.get('list'));
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    isSoundCloudTrackUrl(url) {
+        try {
+            const parsedUrl = new URL(url);
+            if (!['http:', 'https:'].includes(parsedUrl.protocol) ||
+                parsedUrl.username ||
+                parsedUrl.password ||
+                !['soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com']
+                .includes(parsedUrl.hostname.toLowerCase())) {
+                return false;
+            }
+            const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+            if (pathParts.length === 3 && pathParts[2].startsWith('s-')) {
+                pathParts.pop();
+            }
+            const reservedPaths = new Set([
+                'albums', 'comments', 'discover', 'likes', 'playlists',
+                'reposts', 'sets', 'spotlight', 'stations', 'tracks'
+            ]);
+            return pathParts.length === 2 &&
+                !reservedPaths.has(pathParts[0].toLowerCase()) &&
+                !reservedPaths.has(pathParts[1].toLowerCase());
         } catch (_error) {
             return false;
         }
@@ -162,6 +189,11 @@ class DownloadManager {
             if (spotifyMatch) {
                 return `${spotifyMatch[1][0].toUpperCase()}${spotifyMatch[1].slice(1)} ${spotifyMatch[2]}`;
             }
+            if (this.isSoundCloudTrackUrl(url)) {
+                const title = parsedUrl.pathname.split('/').filter(Boolean)[1]
+                    .replace(/[-_]+/g, ' ');
+                return `SoundCloud: ${title}`;
+            }
             const playlistId = parsedUrl.searchParams.get('list');
             if (playlistId) {
                 return `YouTube collection ${playlistId}`;
@@ -173,7 +205,11 @@ class DownloadManager {
     }
 
     loadQueueItemDetails(queueItem) {
-        if (this.isYouTubeCollectionUrl(queueItem.url) || this.isYouTubeTrackUrl(queueItem.url)) {
+        if (
+            this.isYouTubeCollectionUrl(queueItem.url) ||
+            this.isYouTubeTrackUrl(queueItem.url) ||
+            this.isSoundCloudTrackUrl(queueItem.url)
+        ) {
             return;
         }
 

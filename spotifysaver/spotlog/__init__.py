@@ -2,6 +2,6 @@
 
 from spotifysaver.spotlog.logger import get_logger
 from spotifysaver.spotlog.log_config import LoggerConfig
-from spotifysaver.spotlog.ydd_logger import YDLLogger
+from spotifysaver.spotlog.ydd_logger import SDLogger
 
-__all__ = ["get_logger", "LoggerConfig", "YDLLogger"]
+__all__ = ["get_logger", "LoggerConfig", "SDLogger"]

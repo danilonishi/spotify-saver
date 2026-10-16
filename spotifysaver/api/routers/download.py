@@ -22,7 +22,7 @@ from ..schemas import (
     TrackInfo,
 )
 from ..services import DownloadService, VideoDownloadService
-from ...downloader import YouTubeDownloader
+from ...downloader import SoundCloudDownloader, YouTubeDownloader
 from ...services import SpotifyAPI
 from ...spotlog import get_logger
 from ..config import APIConfig
@@ -149,7 +149,10 @@ def is_queue_idle() -> bool:
 def _content_type_for_url(spotify_url: str) -> str:
     if YouTubeDownloader.is_youtube_collection_url(spotify_url):
         return "playlist"
-    if YouTubeDownloader.is_youtube_track_url(spotify_url):
+    if (
+        YouTubeDownloader.is_youtube_track_url(spotify_url)
+        or SoundCloudDownloader.is_track_url(spotify_url)
+    ):
         return "track"
     if "track" in spotify_url:
         return "track"
@@ -159,7 +162,10 @@ def _content_type_for_url(spotify_url: str) -> str:
         return "playlist"
     raise HTTPException(
         status_code=400,
-        detail="URL must be a Spotify track, album, or playlist, or a YouTube track, album, or playlist.",
+        detail=(
+            "URL must be a Spotify track, album, or playlist; a YouTube track, "
+            "album, or playlist; or a SoundCloud track."
+        ),
     )
 
 
@@ -287,7 +293,7 @@ async def _run_task(task_id: str, request: DownloadRequest) -> None:
 
 @router.post("/download", response_model=DownloadResponse)
 async def start_download(request: DownloadRequest, background_tasks: BackgroundTasks):
-    """Enqueue a download task for a Spotify URL or YouTube video/collection URL.
+    """Enqueue a download task for supported Spotify, YouTube, or SoundCloud URLs.
 
     The task is handed off to the server-owned download queue and starts
     automatically as soon as a slot is free. The download continues on the
@@ -762,6 +768,13 @@ async def download_task(task_id: str, request: DownloadRequest):
             downloader = getattr(download_service, "downloader", None)
             if downloader is not None:
                 downloader.ydl_error_callback = (
+                    lambda message: _report_yt_dlp_error(task, message)
+                )
+            soundcloud_downloader = getattr(
+                download_service, "soundcloud_downloader", None
+            )
+            if soundcloud_downloader is not None:
+                soundcloud_downloader.ydl_error_callback = (
                     lambda message: _report_yt_dlp_error(task, message)
                 )
 
