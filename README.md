@@ -18,7 +18,7 @@
 
 All-in-one tool for downloading content for Jellyfin or similar media servers.
 
-The app allows you to download content for your media server. It can connect to Spotify and YouTube Music APIs, retrieve information, locate the media on Youtube, download and extract the audio and/or video data and generate a Jellyfin-compatible .nfo file for Jellyfin music libraries.
+The app allows you to download content for your media server. It can connect to Spotify, Soundcloud and YouTube Music APIs, retrieve information, locate the media, download and extract the audio and/or video data and generate a Jellyfin-compatible .nfo file for libraries.
 
 ## Changes in this Fork
 
@@ -26,69 +26,218 @@ The app allows you to download content for your media server. It can connect to 
     <img src="screenshot.jpg" alt="SpotifySaver web interface" />
 </p>
 
-Compared with the upstream baseline, this branch adds:
+This fork packs many more features compared to the baseline:
 
 - **Server-managed download queue:** Downloads continue if you refresh or close the browser.
-- **Access control:** Password protected UI and API to avoid unwanted agents observing and taking over your downloads.
-- **Video support:** Downloads YouTube videos as MP4, MKV or WebM with configurable resolution and quality and generates metadata for Jellyfin.
-- **SoundCloud audio support:** Downloads tracks directly when the artist allows downloads; otherwise searches YouTube Music for the track.
+- **Access control:** Protected UI and API to avoid unauthorized access.
+- **Video support:** Downloads videos with configurable format, resolution and quality and generates NFO metadata.
+- **SoundCloud support:** Direct downloads when download option is available.
+- **Silence Trimming:** Option to automatically trim silence at the start and end of downloaded audio files.
 - **Playlist support:** Download playlists from Spotify and YouTube.
-- **Multiple parallel Downloads:** Useful when downloading large playlists.
+- **Multiple parallel Downloads:** Useful when downloading large playlists or albums.
 - **Channel Watcher:** Schedule channel checks and automatically download new uploads.
 - **Jellyfin library scans:** Automatically triggers Jellyfin media scan after downloads are completed.
-- **Browser extension support:** Quickly trigger downloads from Spotify, YouTube, and SoundCloud pages, or watch channels.
+- **[Browser extension support](https://github.com/danilonishi/spotifyu-saver-browser-extension):** Trigger downloads from Spotify, YouTube, and SoundCloud pages, or watch channels.
 - **Simplified download folders:** Browse and select download folders in the web interface.
-- **Web interface improvements:** Dark mode and customizable interface.
+- **UI improvements:** Dark mode and customizable interface.
 - **Backup and restore:** Easier to migrate the server or share configurations.
 - **Storage safeguards:** Set a minimum free space to avoid completely filling the storage.
 - **Improved visibility:** Downloads are reported by the server to all connected clients.
-- **Support for large Spotify playlists:** Downloading large playlists were capped at 50 tracks due to Spotify list being paginated. This is fixed here.
-- **Overwrite control:** Keep existing files by default (skipping download), or choose to overwrite them.
+- **Large Spotify playlists:** Large playlists were capped due to Spotify list being paginated. This is fixed here.
+- **Overwrite control:** Keep existing files by default (skipping download), or choose to redownload and overwrite.
 - **Notifications:** Browser and toaster notifications for events are available.
 - **Download queue controls:** Pause/resume the queue and retry failed downloads.
-- **Channel Watcher controls and filters:** Pause checks, check a channel on demand, and filter uploads by keywords, duration, date, Shorts, and livestreams.
+- **Channel Watcher controls and filters:** Filter out uploads by keywords, duration, date, Shorts, and livestreams.
 
 
 ## 🌟 Features
-- ✅ Download audio from YouTube Music with Spotify metadata
-- ✅ Download SoundCloud tracks directly when artist downloads are enabled, with YouTube Music fallback otherwise
-- ✅ Download YouTube videos, playlists, and album collections with YouTube metadata through the API and web UI
-- ✅ Schedule automatic checks for watched YouTube channels from the web interface
-- ✅ Download YouTube playlists and album collections from the CLI
-- ✅ Synchronized lyrics (.lrc) from LRC Lib
-- ✅ Generate Jellyfin-compatible `.nfo` metadata files
-- ✅ Automatic folder structure (Artist/Album)
-- ✅ Command-line interface (CLI)
-- ✅ Web interface (UI) with real-time progress
-- ✅ Stop an active download from the web interface or API
-- ✅ RESTful API for integrations
-- ✅ [Docker support with auto-builds](https://github.com/danilonishi/spotify-saver#-docker-support)
-- ✅ Playlist support
-- ✅ M4A, MP3, and Opus audio output
-- ✅ Support for 96, 128, 192, and 256 kbps bitrates
+
+|  | Feature                  | Description                                |
+|--------|--------------------------|--------------------------------------------|
+||**General**||
+| ✅ | Organization | Automatic folder structure: Artist/Album/Track or Channel/Video|
+| ✅ | Metadata | Generate Jellyfin-compatible `.nfo` metadata for audio and video|
+| ✅ | Audio Formats | M4A, MP3 and OPUS|
+| ✅ | Audio Bitrates | 96, 128, 192 and 256 kbps|
+| ✅ | Video Formats | MP4, MKV and WebM|
+| ✅ | Video Resolution | 360p, 480p, 720p, 1080p, 1440p and 2460p (4K)|
+||**Youtube/Youtube Music**||
+| ✅ | Download | Download audio or video|
+| ✅ | Playlists / Album Collections | Download and generate playlist file |
+| ✅ | Channel Watcher | Watch channel and automatically downloads new content |
+| ✅ | video with chapter markers | Not supported|
+| ❌ | Lyrics | Not supported|
+| ❌ | Captions | Planned|
+||**Spotify**||
+| ✅ | Tracks | Fetch metadata from Spotify and audio track from Youtube Music|
+| ✅ | Playlists | Download tracks and saves playlist file|
+| ✅ | Lyrics | Synchronized lyrics (.lrc) from LRC Lib|
+| ❌ | Artist Watcher | Planned |
+||**Soundcloud**||
+| ✅ | Tracks | Direct download when available, Youtube Music as fallback|
+| ❌ | Playlists | Planned |
+| ❌ | Lyrics | Not supported|
+| ❌ | Artist Watcher | Planned |
+||**Browser Extension**||
+| ✅ | API | Adapts interface when download is requested by browser extension|
+||**Settings**||
+| ✅ | UI | Control panel visibility|
+| ✅ | Notifications | Enable browser and toaster notifications for events|
+| ✅ | Storage | Define minimum free space for downloads|
+| ✅ | Download limiter | Set number of simultaneous downloads and bandwidth|
+| ✅ | Confirmation | Option to confirm queued downloads before they start downloading|
+| ✅ | Backup & Restore | Generates `.json` file with server and client settings|
+| ✅ | Jellyfin | Option to trigger library scan after all downloads are finished|
+| ✅ | Spotify | Set up credentials to access the Spotify API|
+| ✅ | Security | Password management|
+
+
+# Installation
 
 ### Requirements
 - Python 3.10+
 - FFmpeg
 - [Spotify Developer Account](https://developer.spotify.com/dashboard/) (only for Spotify URL downloads)
 
+##
+
+You can install using one of the three methods listed below.
+
+### Method 1: Docker  (recommended)
+See [Docker support with auto-builds](#-docker-support)
+
+### Method 2: Poetry (through Git)
 ```bash
-# Installation with Poetry (recommended)
 git clone https://github.com/danilonishi/spotify-saver.git
 cd spotify-saver
 poetry install
+```
+Then proceed to [First-time sign-in](#first-time-sign-in)
 
-# Or with pip
+### Method 3: Pip (through Git)
+```bash
 pip install git+https://github.com/danilonishi/spotify-saver.git
 ```
+Then proceed to [First-time sign-in](#first-time-sign-in)
 
-Spotify URLs require a Spotify developer app and a Spotify account connection.
-Configure these in **Settings → Spotify Account** in the web interface. Direct
-YouTube downloads do not require Spotify credentials.
+## 🐳 Docker Support
 
-## ⚙️ Configuration
+Docker images are published to
+[GitHub Container Registry](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
+from pushes to `main` and version tags (`v*`). `latest` tracks `main`; version
+tags are also available for pinned deployments. The first successful workflow
+run creates the package. Set its visibility to **Public** in GitHub Packages
+if servers should be able to pull images without authenticating. Until the
+first publish workflow has succeeded, use the local-build override below.
 
-Run this command to save configuration to `~/.spotify-saver/.env`:
+### Install with Docker Compose
+
+Requirements: Docker Engine/Desktop with the Compose plugin. Clone this
+repository, then create the host folders and environment file:
+
+In **Windows PowerShell**, run:
+
+```powershell
+New-Item -ItemType Directory -Force data\music, data\videos, data\config
+Copy-Item .env.docker.example .env
+```
+
+On **Linux/macOS**, run the equivalent commands in a terminal using Bash:
+
+```sh
+mkdir -p data/music data/videos data/config
+cp .env.docker.example .env
+```
+
+The container runs as user ID `1000` and needs write access to its config
+folder. If you created the repository or its data folders with `sudo`, fix
+ownership before starting the container:
+
+```sh
+sudo chown -R 1000:1000 data/config
+```
+
+If you set `CONFIG_DIR` in `.env` to a different host folder, use that folder
+instead of `data/config`.
+
+Before starting SpotifySaver, edit `.env` and set `MUSIC_DIR` and `VIDEO_DIR`
+to the existing media folders on your server. For example, if your media
+folders are `/media/Music` and `/media/Videos`, set:
+
+```dotenv
+MUSIC_DIR=/media/Music
+VIDEO_DIR=/media/Videos
+```
+
+These are host paths, not the `/music` and `/videos` paths used inside the
+container. Leave `CONFIG_DIR=./data/config` unless you want to store the app's
+configuration elsewhere. On Linux, you can edit the file with `nano .env` from
+the repository folder.
+
+Direct YouTube downloads and the Channel Watcher do not need Spotify
+credentials. Spotify URL-based downloads can be configured from **Settings →
+Spotify Account** after signing in. The app asks Spotify to authorize in your
+browser and receives the callback on the server; this works with a headless
+Docker deployment.
+
+Start the published image:
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+## First-time sign-in
+
+On first launch, SpotifySaver writes a one-time administrator setup token to
+the server logs. From the directory containing the Compose files, run:
+
+```sh
+docker compose logs --tail=100 spotifysaver
+```
+
+Find the line beginning `First-run administrator setup token` and enter its
+token in the setup page. If the container is restarting, use this same command
+to inspect the startup error in the logs.
+
+Open SpotifySaver in your browser, enter that token, and create an administrator
+password of at least 12 characters. The token is generated again after a server
+restart until the initial password has been set, and becomes invalid once it is
+used. Do not share the logs while they contain the token. After setup, sign in
+with the password you created. Login attempts are rate-limited.
+
+The admin password, sessions, and Spotify app credentials are persisted in
+`CONFIG_DIR` (the `data/config` folder by default); the database is readable
+only by the container account on Linux. The Spotify OAuth token cache is stored
+in the same config directory with restricted file permissions. Back up this
+directory and protect access to it.
+
+
+## Configure Spotify
+
+1. Create an app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/).
+2. In SpotifySaver, open **Settings → Spotify Account**. Copy the displayed
+   OAuth redirect URL into the app's allowed Redirect URIs in the Spotify
+   Developer Dashboard. It must match exactly; for a Caddy deployment it uses
+   the public HTTPS hostname.
+3. Enter the app's Client ID and Client Secret and save them.
+4. Select **Connect to Spotify** and approve access in Spotify.
+
+The Client Secret is stored on the server and is never returned to the browser
+after saving. The server-side security database is protected by filesystem
+permissions, not encrypted; anyone with access to the server's config files or
+Docker administrator access can read it. Keep those host files private.
+
+To build and run the checked-out source instead of pulling GHCR, add the build
+override:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+### CLI
+
+If you're unable to browse to the settings view, run this command to save configuration to `~/.spotify-saver/.env`:
 
 ```bash
 spotifysaver init
@@ -112,8 +261,100 @@ The `init` wizard also writes `API_PORT` and `API_HOST`, but the standalone
 server currently uses port `8000` and host `0.0.0.0`. For an example
 configuration file, see [`.env.example`](.env.example).
 
-Cookies are disabled by default. Only configure `YTDLP_COOKIES_PATH` if a video
-requires authentication, and use a fresh export: stale or incompatible YouTube
+# Updating
+
+## Git/Poetry
+
+For a source checkout installed with Poetry, update the checkout and reinstall:
+
+```sh
+git pull
+poetry install
+```
+
+## Git/Pip
+
+If installed from Git with pip, upgrade from the repository:
+
+```sh
+python -m pip install --upgrade "git+https://github.com/danilonishi/spotify-saver.git"
+```
+
+Restart the SpotifySaver server after updating.
+
+## Docker
+
+For Docker, update to the latest published `main` image by running `git pull`
+for the Compose files, then pull and start the service.
+
+If Caddy runs in Docker, include the Caddy override on **both** commands so the container stays attached to Caddy's shared network:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml pull
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+```
+
+If you do **not** use the Docker Caddy override (for example, Caddy runs on the
+host), use the base Compose file:
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+Docker images are published as latest when changes are pushed to main. To publish a versioned release image, push a new Git tag using the vX.Y.Z format (for example, v0.7.6). The workflow publishes versioned and major/minor tags. To pin your deployment to that release, set IMAGE_TAG=0.7.6 in .env instead of using latest.
+
+Open `http://127.0.0.1:8000`. The API is also available at
+`http://127.0.0.1:8000/docs`. The port is bound to loopback only; for access
+over HTTPS or from other devices, configure a reverse proxy rather than
+exposing the application port directly. See the optional
+[Caddy reverse proxy guide](CADDY.md).
+
+The UI's folder selectors operate on container paths. Audio downloads are
+stored under `/music`, video and watched-channel downloads under `/videos`,
+and both paths map to `data/music` and `data/videos` on the host by default.
+You can set `MUSIC_DIR`, `VIDEO_DIR`, and `CONFIG_DIR` in `.env` to change the
+host-side folders. Keep the config directory: it stores the watched-channel
+database, channel download archives, cookies, and other home-directory app
+state. Back up these folders before migrating or reinstalling:
+
+```text
+data/music/
+data/videos/
+data/config/
+```
+
+On Linux, make sure the mounted directories are writable by the container's
+non-root user (UID 1000). For example, if these are dedicated directories:
+
+```sh
+sudo chown -R 1000:1000 data/music data/videos data/config
+```
+
+Useful maintenance commands for a deployment without the Docker Caddy override:
+
+```sh
+docker compose logs -f spotifysaver
+git pull
+docker compose pull
+docker compose up -d
+docker compose down
+```
+
+For a Docker Caddy deployment, add
+`-f docker-compose.yml -f docker-compose.caddy.yml` to each `docker compose`
+command instead. Omitting the override can detach SpotifySaver from Caddy's
+network when Compose recreates the container.
+
+`docker compose down` stops and removes the container but leaves the bind
+mounted data folders and named log volume intact. Do not use
+`docker compose down -v` unless you intend to remove the named log volume as
+well.
+
+## Cookies
+
+Cookies are disabled by default. **Only configure `YTDLP_COOKIES_PATH` if a video
+requires authentication**, and use a fresh export: stale or incompatible YouTube
 cookies can cause downloads to fail with HTTP 403. For Docker Compose, save the
 cookies file under the configured `CONFIG_DIR` on the host (by default,
 `./data/config/cookies.txt`) and set this in `.env`:
@@ -133,7 +374,7 @@ cp ./data/config/cookies.txt ./data/config/cookies.txt.backup
 Do not share the cookie file; it contains session credentials. If the cookie
 file is not present in your configured `CONFIG_DIR`, leave the setting disabled.
 
-## 📚 Documentation
+# 📚 Documentation
 
 The **documentation for using the API**, on the other hand, can be found in this same repository here: [API Documentation](API_IMPLEMENTATION_SUMMARY.md)
 
@@ -203,50 +444,23 @@ The server will run at `http://127.0.0.1:8000` by default. The API accepts Spoti
 
 ## 🖥️ Web Interface (UI)
 
-SpotifySaver now includes a modern web interface that makes it easy to download music without using the command line:
-
+Start the API server with web interface
 ```bash
-# Start the API server with web interface
 spotifysaver-api
 ```
 
-This will start the API server with an integrated web interface that you can access at `http://127.0.0.1:8000`. The web interface provides:
+This will start the API server with an integrated web interface.
+You can access at `http://127.0.0.1:8000` from the same machine or replace by your target ip or reverse-proxy address.
 
-- **Easy URL input**: Paste a Spotify track, album, or playlist link, a YouTube video, or a YouTube album/playlist link
-- **Full configuration**: All download options available through an intuitive interface
-- **Real-time progress**: Monitor download progress and see detailed logs
-- **Download cancellation**: Stop an active download
-- **Overwrite control**: Keep existing files by default or replace them on request
-- **Channel Watcher**: Add YouTube channels, configure each channel's schedule and video download settings, and view last-check or rate-limit cooldown status
-- **Jellyfin library scans**: Configure the Jellyfin server URL, API key, and minimum interval between refresh requests; manually request a scan to bypass the cooldown. The API key is stored server-side and is not returned to the UI.
-- **Storage safeguards**: View free space for each filesystem used by audio, video, and watched-channel folders. Set a minimum free-space reserve in Settings; `0` disables blocking. Queued downloads resume automatically when space recovers. A low-space warning is sent once per filesystem until space recovers, and active downloads are allowed to finish.
-- **Download limits**: Set the maximum number of active queued jobs (3 by default, up to 16) and an optional media bandwidth cap in Settings. A bandwidth value of `0` leaves speed unlimited; otherwise the per-job cap is divided evenly across the configured maximum, so a single job may not use the full cap when fewer jobs are active. Existing yt-dlp instances keep their current cap when settings change; this per-job rate limiting approximates an aggregate cap. The limits also apply to automatic Channel Watcher downloads.
-- **Configuration backup and restore**: Export watched channels, download-folder preferences and limits, storage reserve, dark mode, notification preferences, dashboard layout and panel states, Jellyfin URL/scan interval, and Spotify Client ID/redirect URL as JSON. Restore replaces those settings while retaining destination passwords, API keys, Spotify secrets, and authorization tokens. Browser notification permission remains browser-controlled and must be granted on the destination. Backups do not include active downloads or activity logs; folder paths may need adapting after migration.
-- **Responsive design**: Works on desktop and mobile devices
-- **Automatic browser opening**: Opens your default browser automatically
+**Default Access:** (replace by your)
+- Web Interface & API: `http://{address}:8000`
+- API Documentation: `http://{address}:8000/docs`
 
-### Web Interface Features:
-- ✅ URL validation for Spotify and supported YouTube links
-- ✅ Configurable audio format (M4A by default, or MP3) and bitrate (256 kbps by default)
-- ✅ Toggle lyrics and NFO file generation
-- ✅ Optionally trim silence from the beginning and end of audio tracks (off by default; re-encodes audio)
-- ✅ Stop active downloads and choose whether to overwrite existing files
-- ✅ Custom output directory
-- ✅ Real-time download progress
-- ✅ Scheduled YouTube channel checks with per-channel download settings
-- ✅ Channel check status and YouTube rate-limit cooldown visibility
-- ✅ Activity log with timestamps
-- ✅ Error handling and user feedback
-
-**Default Access:**
-- Web Interface & API: `http://127.0.0.1:8000`
-- API Documentation: `http://127.0.0.1:8000/docs`
-
-The web interface and API require an administrator password. On first startup,
+The web interface and API **require an administrator password**. On first startup,
 the server logs a one-time setup token; enter it in the browser to create the
 password. Store and protect the server's configuration directory because it
 contains the password hash, Spotify credentials, and authorization tokens.
-Use HTTPS for remote access.
+Use **HTTPS** for remote access.
 
 In **Settings → Backup & Restore**, download a JSON configuration backup before
 migrating or reinstalling. The file includes watched channel URLs and server
@@ -256,210 +470,6 @@ Spotify authorization tokens, active downloads, per-video watcher history, and
 activity logs are not transferred; re-enter secrets and reconnect Spotify on
 the destination if needed. Review media folder paths after restoring because
 host and container paths can differ.
-
-## 🐳 Docker Support
-
-Docker images are published to
-[GitHub Container Registry](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
-from pushes to `main` and version tags (`v*`). `latest` tracks `main`; version
-tags are also available for pinned deployments. The first successful workflow
-run creates the package. Set its visibility to **Public** in GitHub Packages
-if servers should be able to pull images without authenticating. Until the
-first publish workflow has succeeded, use the local-build override below.
-
-### Install with Docker Compose
-
-Requirements: Docker Engine/Desktop with the Compose plugin. Clone this
-repository, then create the host folders and environment file:
-
-In **Windows PowerShell**, run:
-
-```powershell
-New-Item -ItemType Directory -Force data\music, data\videos, data\config
-Copy-Item .env.docker.example .env
-```
-
-On **Linux/macOS**, run the equivalent commands in a terminal using Bash:
-
-```sh
-mkdir -p data/music data/videos data/config
-cp .env.docker.example .env
-```
-
-The container runs as user ID `1000` and needs write access to its config
-folder. If you created the repository or its data folders with `sudo`, fix
-ownership before starting the container:
-
-```sh
-sudo chown -R 1000:1000 data/config
-```
-
-If you set `CONFIG_DIR` in `.env` to a different host folder, use that folder
-instead of `data/config`.
-
-Before starting SpotifySaver, edit `.env` and set `MUSIC_DIR` and `VIDEO_DIR`
-to the existing media folders on your server. For example, if your media
-folders are `/media/Music` and `/media/Videos`, set:
-
-```dotenv
-MUSIC_DIR=/media/Music
-VIDEO_DIR=/media/Videos
-```
-
-These are host paths, not the `/music` and `/videos` paths used inside the
-container. Leave `CONFIG_DIR=./data/config` unless you want to store the app's
-configuration elsewhere. On Linux, you can edit the file with `nano .env` from
-the repository folder.
-
-Direct YouTube downloads and the Channel Watcher do not need Spotify
-credentials. Spotify URL-based downloads can be configured from **Settings →
-Spotify Account** after signing in. The app asks Spotify to authorize in your
-browser and receives the callback on the server; this works with a headless
-Docker deployment.
-
-Start the published image:
-
-```sh
-docker compose pull
-docker compose up -d
-```
-
-### First-time sign-in
-
-On first launch, SpotifySaver writes a one-time administrator setup token to
-the server logs. From the directory containing the Compose files, run:
-
-```sh
-docker compose logs --tail=100 spotifysaver
-```
-
-Find the line beginning `First-run administrator setup token` and enter its
-token in the setup page. If the container is restarting, use this same command
-to inspect the startup error in the logs.
-
-Open SpotifySaver in your browser, enter that token, and create an administrator
-password of at least 12 characters. The token is generated again after a server
-restart until the initial password has been set, and becomes invalid once it is
-used. Do not share the logs while they contain the token. After setup, sign in
-with the password you created. Login attempts are rate-limited.
-
-The admin password, sessions, and Spotify app credentials are persisted in
-`CONFIG_DIR` (the `data/config` folder by default); the database is readable
-only by the container account on Linux. The Spotify OAuth token cache is stored
-in the same config directory with restricted file permissions. Back up this
-directory and protect access to it.
-
-### Configure Spotify
-
-1. Create an app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/).
-2. In SpotifySaver, open **Settings → Spotify Account**. Copy the displayed
-   OAuth redirect URL into the app's allowed Redirect URIs in the Spotify
-   Developer Dashboard. It must match exactly; for a Caddy deployment it uses
-   the public HTTPS hostname.
-3. Enter the app's Client ID and Client Secret and save them.
-4. Select **Connect to Spotify** and approve access in Spotify.
-
-The Client Secret is stored on the server and is never returned to the browser
-after saving. The server-side security database is protected by filesystem
-permissions, not encrypted; anyone with access to the server's config files or
-Docker administrator access can read it. Keep those host files private.
-
-To build and run the checked-out source instead of pulling GHCR, add the build
-override:
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
-```
-
-## Update
-
-### Git/Poetry
-
-For a source checkout installed with Poetry, update the checkout and reinstall:
-
-```sh
-git pull
-poetry install
-```
-
-### Git/Pip
-
-If installed from Git with pip, upgrade from the repository:
-
-```sh
-python -m pip install --upgrade "git+https://github.com/danilonishi/spotify-saver.git"
-```
-
-Restart the SpotifySaver server after updating.
-
-### Docker
-
-For Docker, update to the latest published `main` image by running `git pull`
-for the Compose files, then pull and start the service.
-
-If Caddy runs in Docker, include the Caddy override on **both** commands so the container stays attached to Caddy's shared network:
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.caddy.yml pull
-docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
-```
-
-If you do **not** use the Docker Caddy override (for example, Caddy runs on the
-host), use the base Compose file:
-
-```sh
-docker compose pull
-docker compose up -d
-```
-
-Docker images are published as latest when changes are pushed to main. To publish a versioned release image, push a new Git tag using the vX.Y.Z format (for example, v0.7.6). The workflow publishes versioned and major/minor tags. To pin your deployment to that release, set IMAGE_TAG=0.7.6 in .env instead of using latest.
-
-Open `http://127.0.0.1:8000`. The API is also available at
-`http://127.0.0.1:8000/docs`. The port is bound to loopback only; for access
-over HTTPS or from other devices, configure a reverse proxy rather than
-exposing the application port directly. See the optional
-[Caddy reverse proxy guide](CADDY.md).
-
-The UI's folder selectors operate on container paths. Audio downloads are
-stored under `/music`, video and watched-channel downloads under `/videos`,
-and both paths map to `data/music` and `data/videos` on the host by default.
-You can set `MUSIC_DIR`, `VIDEO_DIR`, and `CONFIG_DIR` in `.env` to change the
-host-side folders. Keep the config directory: it stores the watched-channel
-database, channel download archives, cookies, and other home-directory app
-state. Back up these folders before migrating or reinstalling:
-
-```text
-data/music/
-data/videos/
-data/config/
-```
-
-On Linux, make sure the mounted directories are writable by the container's
-non-root user (UID 1000). For example, if these are dedicated directories:
-
-```sh
-sudo chown -R 1000:1000 data/music data/videos data/config
-```
-
-Useful maintenance commands for a deployment without the Docker Caddy override:
-
-```sh
-docker compose logs -f spotifysaver
-git pull
-docker compose pull
-docker compose up -d
-docker compose down
-```
-
-For a Docker Caddy deployment, add
-`-f docker-compose.yml -f docker-compose.caddy.yml` to each `docker compose`
-command instead. Omitting the override can detach SpotifySaver from Caddy's
-network when Compose recreates the container.
-
-`docker compose down` stops and removes the container but leaves the bind
-mounted data folders and named log volume intact. Do not use
-`docker compose down -v` unless you intend to remove the named log volume as
-well.
 
 ## 📂 Output Structure
 ```
