@@ -24,7 +24,7 @@ from spotifysaver.api.services.youtube_confirmation_store import (
 from spotifysaver.api.services.notification_hub import NotificationHub
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
 from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
-from spotifysaver.models import Playlist, Track
+from spotifysaver.models import Album, Playlist, Track
 
 
 def _request(store):
@@ -81,6 +81,25 @@ def test_youtube_confirmation_preferences_reject_non_boolean_values():
             confirm_matched_downloads="maybe",
             confirm_channel_watcher_downloads=False,
         )
+
+
+@pytest.mark.parametrize(
+    ("url", "media_type", "expected"),
+    [
+        ("https://open.spotify.com/album/example", "audio", True),
+        ("https://open.spotify.com/playlist/example", "audio", True),
+        ("https://open.spotify.com/track/example", "audio", False),
+        ("https://open.spotify.com/album/example", "video", False),
+    ],
+)
+def test_spotify_collection_confirmation_includes_albums(url, media_type, expected):
+    request = DownloadRequest(
+        spotify_url=url,
+        media_type=media_type,
+        output_dir="Music",
+    )
+
+    assert download_router._uses_spotify_collection_confirmation(request) is expected
 
 
 def test_matched_youtube_download_is_not_started_until_callback_approves(tmp_path, monkeypatch):
@@ -360,6 +379,102 @@ def test_playlist_checks_continue_during_first_approval_and_download(tmp_path, m
     assert first_approval_waiting.is_set()
 
 
+def test_album_checks_matches_and_waits_for_approval_using_collection_positions(
+    tmp_path, monkeypatch
+):
+    downloader = object.__new__(YouTubeDownloaderForCLI)
+    downloader.logger = logging.getLogger("test-album-youtube-confirmation")
+    downloader.searcher = SimpleNamespace(
+        search_track=lambda track: (
+            f"https://music.youtube.com/watch?v=video-{track.playlist_position}"
+        )
+    )
+    tracks = [
+        Track(
+            number=1,
+            total_tracks=2,
+            name=f"Disc {disc_number} track",
+            duration=180,
+            uri=f"spotify:track:{disc_number}",
+            artists=["Example artist"],
+            album_artist=["Example artist"],
+            release_date="2024-01-01",
+            disc_number=disc_number,
+            playlist_position=disc_number,
+            album_name="Example album",
+        )
+        for disc_number in (1, 2)
+    ]
+    album = Album(
+        name="Example album",
+        artists=["Example artist"],
+        release_date="2024-01-01",
+        genres=[],
+        cover_url="",
+        tracks=tracks,
+        uri="spotify:album:example",
+    )
+    metadata_positions = []
+    approved_positions = []
+
+    class FakeYoutubeDL:
+        def __init__(self, _options):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, url, download):
+            assert download is False
+            return {
+                "id": url.rsplit("-", 1)[-1],
+                "title": "Matched video",
+                "channel": "Example channel",
+            }
+
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.yt_dlp.YoutubeDL",
+        FakeYoutubeDL,
+    )
+    monkeypatch.setattr(
+        downloader,
+        "_get_output_path",
+        lambda track, **_kwargs: tmp_path / f"{track.playlist_position}.m4a",
+    )
+    monkeypatch.setattr(downloader, "_get_album_dir", lambda _album: tmp_path)
+
+    def metadata_callback(track_number, track, _url, _info):
+        assert track_number == track.playlist_position
+        metadata_positions.append(track_number)
+
+    def approval_callback(track, _url):
+        approved_positions.append(track.playlist_position)
+        return True
+
+    downloader.youtube_confirmation_metadata_callback = metadata_callback
+    downloader.youtube_confirmation_callback = approval_callback
+
+    def download_track(**kwargs):
+        track = kwargs["track"]
+        youtube_url = kwargs["youtube_url"]
+        assert approval_callback(track, youtube_url)
+        return (
+            tmp_path / f"{track.playlist_position}.m4a",
+            track.with_youtube_url(youtube_url),
+        )
+
+    monkeypatch.setattr(downloader, "download_track", download_track)
+
+    result = downloader.download_album_cli(album, cover=False)
+
+    assert result == (2, 2, [])
+    assert metadata_positions == [1, 2]
+    assert approved_positions == [1, 2]
+
+
 def test_download_service_passes_playlist_approval_callbacks(tmp_path, monkeypatch):
     service = DownloadService(output_dir=str(tmp_path))
     playlist = Playlist(
@@ -386,6 +501,36 @@ def test_download_service_passes_playlist_approval_callbacks(tmp_path, monkeypat
     result = asyncio.run(service._download_playlist("spotify:playlist:example"))
 
     assert result["content_type"] == "playlist"
+
+
+def test_download_service_passes_album_approval_callbacks(tmp_path, monkeypatch):
+    service = DownloadService(output_dir=str(tmp_path))
+    album = Album(
+        name="Example album",
+        artists=["Example artist"],
+        release_date="2024-01-01",
+        genres=[],
+        cover_url="",
+        tracks=[],
+        uri="spotify:album:example",
+    )
+    service.spotify = SimpleNamespace(get_album=lambda _url: album)
+    approval_callback = lambda _track, _url: True
+    metadata_callback = lambda *_args: None
+    service.youtube_confirmation_callback = approval_callback
+    service.youtube_confirmation_metadata_callback = metadata_callback
+
+    def download_album(*_args):
+        assert service.downloader.youtube_confirmation_callback is approval_callback
+        assert service.downloader.youtube_confirmation_metadata_callback is metadata_callback
+        return 0, 0, []
+
+    monkeypatch.setattr(service.downloader, "download_album_cli", download_album)
+    monkeypatch.setattr(service.downloader, "_get_album_dir", lambda _album: tmp_path)
+
+    result = asyncio.run(service._download_album("spotify:album:example"))
+
+    assert result["content_type"] == "album"
 
 
 def test_scheduler_resumes_approved_worker_without_starting_a_duplicate(monkeypatch):

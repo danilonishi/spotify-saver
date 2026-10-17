@@ -170,6 +170,7 @@ class TrackInfo(BaseModel):
     number: int
     uri: str
     playlist_position: Optional[int] = None
+    disc_number: Optional[int] = None
     youtube_title: Optional[str] = None
     youtube_url: Optional[str] = None
     youtube_channel: Optional[str] = None

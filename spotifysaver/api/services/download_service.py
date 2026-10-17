@@ -351,7 +351,15 @@ class DownloadService:
         if title_callback:
             title_callback(album.name)
         if tracks_callback:
-            tracks_callback([_track_to_dict(t, t.number) for t in album.tracks])
+            tracks_callback(
+                [
+                    {
+                        **_track_to_dict(track, track.number),
+                        "disc_number": track.disc_number,
+                    }
+                    for track in album.tracks
+                ]
+            )
 
         # Create a wrapper for the progress callback
         def sync_progress_callback(idx: int, total: int, name: str):
@@ -365,6 +373,12 @@ class DownloadService:
 
         # Run download in thread pool
         loop = asyncio.get_event_loop()
+        self.downloader.youtube_confirmation_callback = getattr(
+            self, "youtube_confirmation_callback", None
+        )
+        self.downloader.youtube_confirmation_metadata_callback = getattr(
+            self, "youtube_confirmation_metadata_callback", None
+        )
         success, total, failed_track_names = await loop.run_in_executor(
             None,
             self.downloader.download_album_cli,

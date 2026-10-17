@@ -54,6 +54,15 @@ def _report_yt_dlp_error(task: DownloadStatus, message: str) -> None:
         task.warning_message = YOUTUBE_RATE_LIMIT_WARNING
 
 
+def _uses_spotify_collection_confirmation(request: DownloadRequest) -> bool:
+    source_url = urlparse(str(request.spotify_url))
+    return (
+        request.media_type == "audio"
+        and (source_url.hostname or "").lower().endswith("spotify.com")
+        and bool({"album", "playlist"} & set(source_url.path.split("/")))
+    )
+
+
 async def _park_for_youtube_confirmation(
     task_id: str,
     track_number: int,
@@ -1051,12 +1060,9 @@ async def download_task(task_id: str, request: DownloadRequest):
             APIConfig.CONFIRM_MATCHED_YOUTUBE_DOWNLOADS
             and not YouTubeDownloader.is_youtube_track_url(str(request.spotify_url))
         )
-        source_url = urlparse(str(request.spotify_url))
-        confirm_spotify_playlist = (
+        confirm_spotify_collection = (
             confirm_selected_youtube
-            and request.media_type == "audio"
-            and (source_url.hostname or "").lower().endswith("spotify.com")
-            and "/playlist/" in source_url.path
+            and _uses_spotify_collection_confirmation(request)
         )
         if cancellation_event.is_set():
             mark_interrupted(task)
@@ -1114,14 +1120,14 @@ async def download_task(task_id: str, request: DownloadRequest):
             if confirm_selected_youtube:
                 download_service.youtube_confirmation_callback = (
                     wait_for_playlist_approval
-                    if confirm_spotify_playlist
+                    if confirm_spotify_collection
                     else confirm_youtube_item
                 )
-                if confirm_spotify_playlist:
+                if confirm_spotify_collection:
                     download_service.youtube_confirmation_metadata_callback = (
                         expose_playlist_match
                     )
-                if downloader is not None and not confirm_spotify_playlist:
+                if downloader is not None and not confirm_spotify_collection:
                     downloader.youtube_confirmation_callback = (
                         lambda track, youtube_url: confirm_youtube_item(
                             int(

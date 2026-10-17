@@ -84,6 +84,37 @@ def test_get_playlist_uses_album_track_number_and_preserves_playlist_position():
     assert playlist.tracks[0].playlist_position == 1
 
 
+def test_get_album_preserves_unique_collection_positions_for_multiple_discs():
+    api = object.__new__(SpotifyAPI)
+    api._fetch_album_data = lambda _: {
+        "name": "Multi-disc album",
+        "artists": [{"name": "Artist"}],
+        "release_date": "2024-01-01",
+        "genres": [],
+        "images": [],
+        "total_tracks": 2,
+        "uri": "spotify:album:multi-disc",
+        "tracks": {
+            "items": [
+                {
+                    "track_number": 1,
+                    "disc_number": disc_number,
+                    "name": f"Disc {disc_number} track",
+                    "duration_ms": 180000,
+                    "uri": f"spotify:track:{disc_number}",
+                    "artists": [{"name": "Artist"}],
+                }
+                for disc_number in (1, 2)
+            ]
+        },
+    }
+
+    album = api.get_album("spotify:album:multi-disc")
+
+    assert [track.number for track in album.tracks] == [1, 1]
+    assert [track.playlist_position for track in album.tracks] == [1, 2]
+
+
 def test_resolve_youtube_track_title_uses_spotify_album_and_duration(
     monkeypatch,
 ):

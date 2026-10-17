@@ -704,9 +704,64 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
 
         success = 0
         failed_tracks = []
+        confirmation_callback = getattr(
+            self, "youtube_confirmation_callback", None
+        )
+        metadata_callback = getattr(
+            self, "youtube_confirmation_metadata_callback", None
+        )
+        youtube_urls = {}
+        if confirmation_callback is not None and metadata_callback is not None:
+            for idx, track in enumerate(album.tracks, 1):
+                if cancellation_event and cancellation_event.is_set():
+                    break
+                try:
+                    expected_path = self._get_output_path(
+                        track,
+                        album_artist=album.artists[0],
+                        output_format=output_format,
+                    )
+                    if expected_path.exists() and not overwrite_existing:
+                        youtube_urls[idx] = None
+                        continue
+                    youtube_url = track.youtube_url or self.searcher.search_track(track)
+                    if not youtube_url:
+                        raise ValueError(f"Not found on YouTube Music: {track.name}")
+                    metadata_options = {
+                        "quiet": True,
+                        "skip_download": True,
+                        "cookiefile": (
+                            str(Config.YTDLP_COOKIES_PATH)
+                            if Config.YTDLP_COOKIES_PATH
+                            else None
+                        ),
+                    }
+                    with yt_dlp.YoutubeDL(metadata_options) as ydl:
+                        video_info = ydl.extract_info(youtube_url, download=False)
+                    if cancellation_event and cancellation_event.is_set():
+                        break
+                    if not isinstance(video_info, dict) or not video_info.get("title"):
+                        raise ValueError(
+                            f"YouTube did not provide a title for {youtube_url}"
+                        )
+                    metadata_callback(idx, track, youtube_url, video_info)
+                    youtube_urls[idx] = youtube_url
+                except Exception as e:
+                    if cancellation_event and cancellation_event.is_set():
+                        break
+                    self.logger.error(
+                        f"Could not check YouTube match for {track.name}: {e}"
+                    )
+                    failed_tracks.append(track.name)
+                    if track_result_callback:
+                        track_result_callback(idx, track.name, "error")
+
         for idx, track in enumerate(album.tracks, 1):
             if cancellation_event and cancellation_event.is_set():
                 break
+            if confirmation_callback is not None and metadata_callback is not None:
+                if idx not in youtube_urls:
+                    continue
             try:
                 if progress_callback:
                     progress_callback(idx, len(album.tracks), track.name)
@@ -722,6 +777,11 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     bitrate=bitrate,
                     overwrite_existing=overwrite_existing,
                     cancellation_event=cancellation_event,
+                    **(
+                        {"youtube_url": youtube_urls[idx]}
+                        if idx in youtube_urls
+                        else {}
+                    ),
                 )
                 if cancellation_event and cancellation_event.is_set():
                     break

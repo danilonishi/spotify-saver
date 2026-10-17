@@ -200,11 +200,14 @@ class UIManager {
                 trackList.className = 'queue-track-list';
 
                 tracks.forEach((track, index) => {
-                    const trackNumber = track.playlist_position || track.number || index + 1;
-                    const trackState = item.trackStates?.get(trackNumber) || 'waiting';
+                    const stateTrackNumber = track.playlist_position || index + 1;
+                    const trackState = item.trackStates?.get(stateTrackNumber) || 'waiting';
+                    const trackNumber = track.disc_number
+                        ? `Disc ${track.disc_number}, ${track.number || index + 1}`
+                        : track.playlist_position || track.number || index + 1;
                     const trackEntry = document.createElement('li');
                     trackEntry.className = `track-state-${trackState}`;
-                    trackEntry.dataset.trackNumber = String(trackNumber);
+                    trackEntry.dataset.trackNumber = String(stateTrackNumber);
                     trackEntry.dataset.trackState = trackState;
 
                     const icon = document.createElement('span');

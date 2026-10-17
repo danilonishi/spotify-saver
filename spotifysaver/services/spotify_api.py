@@ -386,6 +386,7 @@ class SpotifyAPI:
             Track(
                 source_type="album",
                 number=track["track_number"],
+                playlist_position=position,
                 total_tracks=raw_data["total_tracks"],
                 name=track["name"],
                 duration=track["duration_ms"] // 1000,
@@ -398,7 +399,7 @@ class SpotifyAPI:
                 disc_number=track.get("disc_number", 1),
                 cover_url=raw_data["images"][0]["url"] if raw_data["images"] else None,
             )
-            for track in raw_data["tracks"]["items"]
+            for position, track in enumerate(raw_data["tracks"]["items"], 1)
         ]
 
         # Construye objeto Album
