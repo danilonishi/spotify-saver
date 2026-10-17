@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event, Lock
 from types import SimpleNamespace
@@ -24,7 +25,30 @@ from spotifysaver.api.services.youtube_confirmation_store import (
 from spotifysaver.api.services.notification_hub import NotificationHub
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
 from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
+from spotifysaver.download_limiter import track_download_limiter
 from spotifysaver.models import Album, Playlist, Track
+
+
+@pytest.mark.parametrize(
+    ("completed", "failed", "total", "fraction", "expected"),
+    [
+        (0, 0, 21, 0, 0),
+        (1, 0, 21, 0, 4),
+        (0, 0, 21, 0.5, 2),
+        (1, 1, 21, 0, 9),
+        (21, 0, 21, 0, 100),
+        (0, 0, 0, 0, 0),
+    ],
+)
+def test_download_progress_tracks_finished_work_not_album_position(
+    completed, failed, total, fraction, expected
+):
+    assert download_router._download_progress_percent(
+        completed,
+        failed,
+        total,
+        fraction,
+    ) == expected
 
 
 def _request(store):
@@ -154,10 +178,8 @@ def test_parked_youtube_match_exposes_title_and_track_approval(tmp_path, monkeyp
     )
     monkeypatch.setattr(download_router, "tasks", {task_id: task})
     monkeypatch.setattr(download_router, "active", {task_id})
-    monkeypatch.setattr(download_router, "APIConfig", APIConfig)
     monkeypatch.setattr(download_router, "queue_lock", asyncio.Lock())
     monkeypatch.setattr(download_router, "_try_start_next", _no_op)
-    monkeypatch.setattr(APIConfig, "set_active_downloads", lambda _count: None)
     hub = NotificationHub()
     monkeypatch.setattr(download_router, "notification_hub", hub)
 
@@ -415,7 +437,9 @@ def test_album_checks_matches_and_waits_for_approval_using_collection_positions(
         uri="spotify:album:example",
     )
     metadata_positions = []
-    approved_positions = []
+    approved_positions = {2}
+    download_order = []
+    second_track_started = Event()
 
     class FakeYoutubeDL:
         def __init__(self, _options):
@@ -451,16 +475,19 @@ def test_album_checks_matches_and_waits_for_approval_using_collection_positions(
         metadata_positions.append(track_number)
 
     def approval_callback(track, _url):
-        approved_positions.append(track.playlist_position)
-        return True
+        return track.playlist_position in approved_positions
 
     downloader.youtube_confirmation_metadata_callback = metadata_callback
     downloader.youtube_confirmation_callback = approval_callback
+    downloader.youtube_confirmation_ready_callback = approval_callback
 
     def download_track(**kwargs):
         track = kwargs["track"]
         youtube_url = kwargs["youtube_url"]
         assert approval_callback(track, youtube_url)
+        if kwargs.get("progress_callback"):
+            kwargs["progress_callback"](1, 1, track.name)
+        download_order.append(track.playlist_position)
         return (
             tmp_path / f"{track.playlist_position}.m4a",
             track.with_youtube_url(youtube_url),
@@ -468,11 +495,156 @@ def test_album_checks_matches_and_waits_for_approval_using_collection_positions(
 
     monkeypatch.setattr(downloader, "download_track", download_track)
 
-    result = downloader.download_album_cli(album, cover=False)
+    def report_progress(index, _total, _name):
+        if index == 2:
+            second_track_started.set()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        result_future = executor.submit(
+            downloader.download_album_cli,
+            album,
+            cover=False,
+            progress_callback=report_progress,
+        )
+        assert second_track_started.wait(timeout=2)
+        approved_positions.add(1)
+        result = result_future.result(timeout=2)
 
     assert result == (2, 2, [])
     assert metadata_positions == [1, 2]
-    assert approved_positions == [1, 2]
+    assert download_order == [2, 1]
+
+
+def test_album_tracks_download_in_parallel_up_to_global_track_limit(
+    tmp_path, monkeypatch
+):
+    downloader = object.__new__(YouTubeDownloaderForCLI)
+    downloader.logger = logging.getLogger("test-album-track-concurrency")
+    tracks = [
+        Track(
+            number=index,
+            total_tracks=3,
+            name=f"Track {index}",
+            duration=180,
+            uri=f"spotify:track:{index}",
+            artists=["Example artist"],
+            album_artist=["Example artist"],
+            release_date="2024-01-01",
+            album_name="Example album",
+            youtube_url=f"https://music.youtube.com/watch?v={index}",
+        )
+        for index in range(1, 4)
+    ]
+    album = Album(
+        name="Example album",
+        artists=["Example artist"],
+        release_date="2024-01-01",
+        genres=[],
+        cover_url="",
+        tracks=tracks,
+        uri="spotify:album:example",
+    )
+    monkeypatch.setattr(
+        downloader,
+        "_get_output_path",
+        lambda track, **_kwargs: tmp_path / f"{track.number}.m4a",
+    )
+    monkeypatch.setattr(downloader, "_get_album_dir", lambda _album: tmp_path)
+    active = 0
+    maximum_active = 0
+    lock = Lock()
+
+    def fake_download_track(**kwargs):
+        nonlocal active, maximum_active
+        track = kwargs["track"]
+        with track_download_limiter.download_slot(
+            kwargs.get("cancellation_event")
+        ) as acquired:
+            assert acquired
+            with lock:
+                active += 1
+                maximum_active = max(maximum_active, active)
+            try:
+                Event().wait(0.05)
+                return tmp_path / f"{track.number}.m4a", track
+            finally:
+                with lock:
+                    active -= 1
+
+    monkeypatch.setattr(downloader, "download_track", fake_download_track)
+    APIConfig.set_download_limits(2, 0)
+    try:
+        result = downloader.download_album_cli(album, cover=False)
+        assert result == (3, 3, [])
+        assert maximum_active == 2
+    finally:
+        APIConfig.set_download_limits(3, 0)
+
+
+def test_playlist_tracks_download_in_parallel_up_to_global_track_limit(
+    tmp_path, monkeypatch
+):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    tracks = [
+        Track(
+            number=index,
+            total_tracks=3,
+            name=f"Track {index}",
+            duration=180,
+            uri=f"spotify:track:{index}",
+            artists=["Example artist"],
+            album_artist=["Example artist"],
+            release_date="2024-01-01",
+            source_type="playlist",
+            playlist_name="Example playlist",
+            playlist_position=index,
+            album_name="Example album",
+            youtube_url=f"https://music.youtube.com/watch?v={index}",
+        )
+        for index in range(1, 4)
+    ]
+    playlist = Playlist(
+        name="Example playlist",
+        description="",
+        owner="owner",
+        uri="spotify:playlist:example",
+        cover_url="",
+        tracks=tracks,
+    )
+    active = 0
+    maximum_active = 0
+    lock = Lock()
+
+    def fake_download_track(**kwargs):
+        nonlocal active, maximum_active
+        track = kwargs["track"]
+        with track_download_limiter.download_slot(
+            kwargs.get("cancellation_event")
+        ) as acquired:
+            assert acquired
+            with lock:
+                active += 1
+                maximum_active = max(maximum_active, active)
+            try:
+                Event().wait(0.05)
+                return (
+                    tmp_path / f"{track.number}.m4a",
+                    track.with_youtube_url(
+                        f"https://music.youtube.com/watch?v={track.number}"
+                    ),
+                )
+            finally:
+                with lock:
+                    active -= 1
+
+    monkeypatch.setattr(downloader, "download_track", fake_download_track)
+    APIConfig.set_download_limits(2, 0)
+    try:
+        result = downloader.download_playlist_cli(playlist, cover=False)
+        assert result == (3, 3, [])
+        assert maximum_active == 2
+    finally:
+        APIConfig.set_download_limits(3, 0)
 
 
 def test_download_service_passes_playlist_approval_callbacks(tmp_path, monkeypatch):
@@ -487,12 +659,18 @@ def test_download_service_passes_playlist_approval_callbacks(tmp_path, monkeypat
     )
     service.spotify = SimpleNamespace(get_playlist=lambda _url: playlist)
     approval_callback = lambda _track, _url: True
+    approval_ready_callback = lambda _track, _url: True
     metadata_callback = lambda *_args: None
     service.youtube_confirmation_callback = approval_callback
+    service.youtube_confirmation_ready_callback = approval_ready_callback
     service.youtube_confirmation_metadata_callback = metadata_callback
 
     def download_playlist(*_args):
         assert service.downloader.youtube_confirmation_callback is approval_callback
+        assert (
+            service.downloader.youtube_confirmation_ready_callback
+            is approval_ready_callback
+        )
         assert service.downloader.youtube_confirmation_metadata_callback is metadata_callback
         return 0, 0, []
 
@@ -516,12 +694,18 @@ def test_download_service_passes_album_approval_callbacks(tmp_path, monkeypatch)
     )
     service.spotify = SimpleNamespace(get_album=lambda _url: album)
     approval_callback = lambda _track, _url: True
+    approval_ready_callback = lambda _track, _url: True
     metadata_callback = lambda *_args: None
     service.youtube_confirmation_callback = approval_callback
+    service.youtube_confirmation_ready_callback = approval_ready_callback
     service.youtube_confirmation_metadata_callback = metadata_callback
 
     def download_album(*_args):
         assert service.downloader.youtube_confirmation_callback is approval_callback
+        assert (
+            service.downloader.youtube_confirmation_ready_callback
+            is approval_ready_callback
+        )
         assert service.downloader.youtube_confirmation_metadata_callback is metadata_callback
         return 0, 0, []
 
@@ -559,7 +743,6 @@ def test_scheduler_resumes_approved_worker_without_starting_a_duplicate(monkeypa
     monkeypatch.setattr(download_router, "storage_protection_service", None)
     monkeypatch.setattr(download_router, "paused", False)
     monkeypatch.setattr(APIConfig, "MAX_CONCURRENT_DOWNLOADS", 1)
-    monkeypatch.setattr(APIConfig, "set_active_downloads", lambda _count: None)
     created_tasks = []
     monkeypatch.setattr(
         download_router.asyncio,

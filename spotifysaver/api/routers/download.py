@@ -5,7 +5,7 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from typing import Dict
 from urllib.parse import urlparse
 
@@ -47,6 +47,21 @@ YOUTUBE_RATE_LIMIT_WARNING = (
 def _is_youtube_rate_limit(message: str) -> bool:
     normalized = message.lower()
     return "rate-limit" in normalized or "rate limit" in normalized
+
+
+def _download_progress_percent(
+    completed_tracks: int,
+    failed_tracks: int,
+    total_tracks: int,
+    active_track_fraction: float = 0,
+) -> int:
+    if total_tracks <= 0:
+        return 0
+    finished_tracks = completed_tracks + failed_tracks
+    return min(
+        100,
+        int(((finished_tracks + active_track_fraction) / total_tracks) * 100),
+    )
 
 
 def _report_yt_dlp_error(task: DownloadStatus, message: str) -> None:
@@ -93,7 +108,6 @@ async def _park_for_youtube_confirmation(
         )
     async with queue_lock:
         active.discard(task_id)
-        APIConfig.set_active_downloads(len(active))
     await _try_start_next()
     await _publish_download_confirmation(task)
 
@@ -349,7 +363,7 @@ async def _try_start_next() -> None:
     async with queue_lock:
         if paused:
             return
-        while pending and len(active) < APIConfig.MAX_CONCURRENT_DOWNLOADS:
+        while pending and len(active) < APIConfig.MAX_ACTIVE_DOWNLOAD_JOBS:
             task_id = None
             request = None
             for candidate_id in list(pending):
@@ -380,11 +394,9 @@ async def _try_start_next() -> None:
             if task_id is None or request is None:
                 break
             active.add(task_id)
-            APIConfig.set_active_downloads(len(active))
             if task_id in confirmation_resume_events:
                 if task_id not in confirmation_approved:
                     active.discard(task_id)
-                    APIConfig.set_active_downloads(len(active))
                     continue
                 confirmation_approved.discard(task_id)
                 tasks[task_id].status = "processing"
@@ -399,7 +411,6 @@ async def _run_task(task_id: str, request: DownloadRequest) -> None:
         await download_task(task_id, request)
     finally:
         active.discard(task_id)
-        APIConfig.set_active_downloads(len(active))
         task = tasks.get(task_id)
         if task is not None and task.status == "cancelled":
             _reset_watched_video_status(task)
@@ -1056,6 +1067,19 @@ async def download_task(task_id: str, request: DownloadRequest):
                     return False
             return not cancellation_event.is_set()
 
+        def playlist_approval_is_ready(track: object, _youtube_url: str) -> bool:
+            track_number = int(
+                getattr(track, "playlist_position", None)
+                or getattr(track, "number", 0)
+                or 0
+            )
+            approval_event = track_confirmation_events.get((task_id, track_number))
+            if approval_event is None:
+                raise RuntimeError(
+                    f"No YouTube approval state exists for playlist track {track_number}"
+                )
+            return approval_event.is_set()
+
         confirm_selected_youtube = (
             APIConfig.CONFIRM_MATCHED_YOUTUBE_DOWNLOADS
             and not YouTubeDownloader.is_youtube_track_url(str(request.spotify_url))
@@ -1124,6 +1148,9 @@ async def download_task(task_id: str, request: DownloadRequest):
                     else confirm_youtube_item
                 )
                 if confirm_spotify_collection:
+                    download_service.youtube_confirmation_ready_callback = (
+                        playlist_approval_is_ready
+                    )
                     download_service.youtube_confirmation_metadata_callback = (
                         expose_playlist_match
                     )
@@ -1142,47 +1169,71 @@ async def download_task(task_id: str, request: DownloadRequest):
 
         # Progress callback
         started_track_numbers = set()
+        track_progress_lock = Lock()
+        active_track_fractions: Dict[int, float] = {}
 
         def progress_callback(current: int, total: int, track_name: str):
-            task.playlist_verification = None
-            task.current_track = track_name
-            task.current_track_number = current
-            task.current_track_status = "downloading"
-            task.total_tracks = total
-            task.progress = int(((current - 1) / total) * 100) if total > 0 else 0
-            if current not in started_track_numbers:
-                started_track_numbers.add(current)
-                task.track_updates.append(
-                    {
-                        "track_number": current,
-                        "track_name": track_name,
-                        "status": "downloading",
-                    }
+            with track_progress_lock:
+                task.playlist_verification = None
+                task.current_track = track_name
+                task.current_track_number = current
+                task.current_track_status = "downloading"
+                task.total_tracks = total
+                active_track_fractions.setdefault(current, 0)
+                task.progress = _download_progress_percent(
+                    task.completed_tracks,
+                    task.failed_tracks,
+                    total,
+                    sum(active_track_fractions.values()),
                 )
+                if current not in started_track_numbers:
+                    started_track_numbers.add(current)
+                    task.track_updates.append(
+                        {
+                            "track_number": current,
+                            "track_name": track_name,
+                            "status": "downloading",
+                        }
+                    )
 
         # Each item's share of the bar: download is 50%, ffmpeg post-processing 50%
         def fraction_callback(current: int, total: int, fraction: float):
             if total > 0:
-                task.progress = max(task.progress, int(((current - 1 + fraction) / total) * 100))
+                with track_progress_lock:
+                    active_track_fractions[current] = fraction
+                    task.progress = _download_progress_percent(
+                        task.completed_tracks,
+                        task.failed_tracks,
+                        total,
+                        sum(active_track_fractions.values()),
+                    )
 
         download_service.progress_fraction_callback = fraction_callback
 
         def track_result_callback(current: int, track_name: str, result: str):
-            task.current_track = track_name
-            task.current_track_number = current
-            task.current_track_status = result
-            task.track_updates.append(
-                {
-                    "track_number": current,
-                    "track_name": track_name,
-                    "status": result,
-                }
-            )
-            if result == "error" and track_name not in task.failed_track_names:
-                task.failed_track_names.append(track_name)
-                task.failed_tracks += 1
-            elif result == "completed":
-                task.completed_tracks += 1
+            with track_progress_lock:
+                active_track_fractions.pop(current, None)
+                task.current_track = track_name
+                task.current_track_number = current
+                task.current_track_status = result
+                task.track_updates.append(
+                    {
+                        "track_number": current,
+                        "track_name": track_name,
+                        "status": result,
+                    }
+                )
+                if result == "error" and track_name not in task.failed_track_names:
+                    task.failed_track_names.append(track_name)
+                    task.failed_tracks += 1
+                elif result == "completed":
+                    task.completed_tracks += 1
+                task.progress = _download_progress_percent(
+                    task.completed_tracks,
+                    task.failed_tracks,
+                    task.total_tracks,
+                    sum(active_track_fractions.values()),
+                )
 
         def title_callback(title: str):
             task.title = title

@@ -1,8 +1,9 @@
 """Youtube Downloader Module"""
 
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
-from threading import Event, local
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from threading import Event, Lock, local
+from time import sleep
 from typing import Optional
 
 from mutagen.oggopus import OggOpus
@@ -12,6 +13,7 @@ from spotifysaver.metadata import NFOGenerator
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader, yt_dlp
 from spotifysaver.downloader.image_downloader import ImageDownloader
 from spotifysaver.config import Config
+from spotifysaver.download_limiter import track_download_limiter
 from spotifysaver.models import Track, Album, Playlist
 from spotifysaver.enums import AudioFormat, Bitrate
 from spotifysaver.spotlog import get_logger
@@ -287,7 +289,11 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     ydl.params["playlist_items"] = ",".join(
                         str(index) for index in missing_indexes
                     )
-                    ydl.download([url])
+                    with track_download_limiter.download_slot(
+                        cancellation_event
+                    ) as acquired:
+                        if acquired:
+                            ydl.download([url])
                 else:
                     for index in missing_indexes:
                         if cancellation_event and cancellation_event.is_set():
@@ -320,7 +326,12 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                             entry.get("playlist_index") or index
                         )
                         ydl.params["playlist_items"] = str(playlist_index)
-                        ydl.download([url])
+                        with track_download_limiter.download_slot(
+                            cancellation_event
+                        ) as acquired:
+                            if not acquired:
+                                break
+                            ydl.download([url])
 
                 if cancellation_event and cancellation_event.is_set():
                     completed_tracks = sum(
@@ -494,9 +505,14 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     progress_callback(1, 1, title)
                 return make_result(title, output_path, True)
 
-            if progress_callback:
-                progress_callback(1, 1, title)
-            ydl.download([url])
+            with track_download_limiter.download_slot(
+                cancellation_event
+            ) as acquired:
+                if not acquired:
+                    return make_result(title, output_path, False)
+                if progress_callback:
+                    progress_callback(1, 1, title)
+                ydl.download([url])
 
             if cancellation_event and cancellation_event.is_set():
                 if output_path.exists():
@@ -638,9 +654,6 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     self.logger.info(f"Skipping existing track: {existing_path}")
                     return existing_path, track
 
-            if progress_callback:
-                progress_callback(1, 1, track.name)
-
             yt_url = self.searcher.search_track(track)
             if cancellation_event and cancellation_event.is_set():
                 return None, None
@@ -655,10 +668,11 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 bitrate=bitrate,
                 overwrite_existing=overwrite_existing,
                 cancellation_event=cancellation_event,
+                progress_callback=progress_callback,
                 youtube_url=yt_url,
             )
 
-            if audio_path:
+            if audio_path or expected_path.exists():
                 self.logger.info(f"Track downloaded successfully: {track.name}")
                 return audio_path, (updated_track or track).with_youtube_url(yt_url)
             else:
@@ -707,9 +721,19 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         confirmation_callback = getattr(
             self, "youtube_confirmation_callback", None
         )
+        approval_ready_callback = getattr(
+            self, "youtube_confirmation_ready_callback", None
+        )
         metadata_callback = getattr(
             self, "youtube_confirmation_metadata_callback", None
         )
+        searcher_local = local()
+
+        def get_worker_searcher() -> YoutubeMusicSearcher:
+            if not hasattr(searcher_local, "searcher"):
+                searcher_local.searcher = YoutubeMusicSearcher()
+            return searcher_local.searcher
+
         youtube_urls = {}
         if confirmation_callback is not None and metadata_callback is not None:
             for idx, track in enumerate(album.tracks, 1):
@@ -756,18 +780,53 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     if track_result_callback:
                         track_result_callback(idx, track.name, "error")
 
-        for idx, track in enumerate(album.tracks, 1):
-            if cancellation_event and cancellation_event.is_set():
-                break
-            if confirmation_callback is not None and metadata_callback is not None:
-                if idx not in youtube_urls:
-                    continue
-            try:
-                if progress_callback:
-                    progress_callback(idx, len(album.tracks), track.name)
+        result_lock = Lock()
 
+        def download_track_at_index(idx: int, track: Track) -> None:
+            nonlocal success
+            try:
                 expected_path = self._get_output_path(
-                    track, album_artist=album.artists[0], output_format=output_format
+                    track,
+                    album_artist=album.artists[0],
+                    output_format=output_format,
+                )
+                youtube_url = youtube_urls.get(idx)
+                if (
+                    not youtube_url
+                    and not (expected_path.exists() and not overwrite_existing)
+                ):
+                    youtube_url = track.youtube_url or get_worker_searcher().search_track(
+                        track
+                    )
+                    if not youtube_url:
+                        raise ValueError(
+                            f"Not found on YouTube Music: {track.name}"
+                        )
+                if expected_path.exists() and not overwrite_existing:
+                    audio_path, updated_track = self.download_track(
+                        track=track,
+                        album_artist=album.artists[0],
+                        download_lyrics=download_lyrics,
+                        output_format=output_format,
+                        bitrate=bitrate,
+                        overwrite_existing=overwrite_existing,
+                        cancellation_event=cancellation_event,
+                        youtube_url=youtube_url,
+                    )
+                    if audio_path or expected_path.exists():
+                        with result_lock:
+                            success += 1
+                            if updated_track:
+                                album.tracks[idx - 1] = updated_track
+                        if track_result_callback:
+                            track_result_callback(idx, track.name, "completed")
+                    return
+                track_progress_callback = (
+                    lambda *_args: progress_callback(
+                        idx, len(album.tracks), track.name
+                    )
+                    if progress_callback
+                    else None
                 )
                 audio_path, updated_track = self.download_track(
                     track=track,
@@ -777,31 +836,70 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     bitrate=bitrate,
                     overwrite_existing=overwrite_existing,
                     cancellation_event=cancellation_event,
-                    **(
-                        {"youtube_url": youtube_urls[idx]}
-                        if idx in youtube_urls
-                        else {}
-                    ),
+                    progress_callback=track_progress_callback,
+                    youtube_url=youtube_url,
                 )
                 if cancellation_event and cancellation_event.is_set():
-                    break
+                    return
                 if audio_path or expected_path.exists():
-                    success += 1
-                    if updated_track:
-                        album.tracks[idx - 1] = updated_track
+                    with result_lock:
+                        success += 1
+                        if updated_track:
+                            album.tracks[idx - 1] = updated_track
                     if track_result_callback:
                         track_result_callback(idx, track.name, "completed")
                 else:
-                    failed_tracks.append(track.name)
+                    with result_lock:
+                        failed_tracks.append(track.name)
                     if track_result_callback:
                         track_result_callback(idx, track.name, "error")
             except Exception as e:
                 if cancellation_event and cancellation_event.is_set():
-                    break
+                    return
                 self.logger.error(f"Error en track {track.name}: {str(e)}")
-                failed_tracks.append(track.name)
+                with result_lock:
+                    failed_tracks.append(track.name)
                 if track_result_callback:
                     track_result_callback(idx, track.name, "error")
+
+        approval_aware = (
+            confirmation_callback is not None
+            and metadata_callback is not None
+            and approval_ready_callback is not None
+        )
+        pending_indexes = (
+            set(youtube_urls)
+            if confirmation_callback is not None and metadata_callback is not None
+            else set(range(1, len(album.tracks) + 1))
+        )
+        futures = {}
+        with ThreadPoolExecutor(
+            max_workers=min(16, len(album.tracks))
+        ) as executor:
+            while pending_indexes or futures:
+                if not (cancellation_event and cancellation_event.is_set()):
+                    for idx in sorted(tuple(pending_indexes)):
+                        if approval_aware and youtube_urls[idx] is not None:
+                            if not approval_ready_callback(
+                                album.tracks[idx - 1], youtube_urls[idx]
+                            ):
+                                continue
+                        pending_indexes.remove(idx)
+                        future = executor.submit(
+                            download_track_at_index, idx, album.tracks[idx - 1]
+                        )
+                        futures[future] = idx
+                if cancellation_event and cancellation_event.is_set():
+                    pending_indexes.clear()
+                if futures:
+                    done, _ = wait(
+                        futures, timeout=0.1, return_when=FIRST_COMPLETED
+                    )
+                    for future in done:
+                        futures.pop(future)
+                        future.result()
+                elif pending_indexes:
+                    sleep(0.1)
 
         if cancellation_event and cancellation_event.is_set():
             return success, len(album.tracks), failed_tracks
@@ -861,6 +959,9 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         confirmation_callback = getattr(
             self, "youtube_confirmation_callback", None
         )
+        approval_ready_callback = getattr(
+            self, "youtube_confirmation_ready_callback", None
+        )
         metadata_callback = getattr(
             self, "youtube_confirmation_metadata_callback", None
         )
@@ -896,54 +997,89 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 metadata_callback(index, track, youtube_url, video_info)
             return youtube_url
 
+        result_lock = Lock()
+
         def download_track_at_index(index: int, track: Track, youtube_url=None):
             nonlocal success
-            if cancellation_event and cancellation_event.is_set():
-                return
             try:
-                if progress_callback:
-                    progress_callback(index, len(playlist.tracks), track.name)
-
+                album_artist = track.album_artist[0] if track.album_artist else None
+                expected_path = self._get_output_path(
+                    track,
+                    album_artist=album_artist,
+                    output_format=output_format,
+                )
+                if not youtube_url and not (
+                    expected_path.exists() and not overwrite_existing
+                ):
+                    youtube_url = track.youtube_url or get_worker_searcher().search_track(
+                        track
+                    )
+                    if not youtube_url:
+                        raise ValueError(
+                            f"Not found on YouTube Music: {track.name}"
+                        )
+                if expected_path.exists() and not overwrite_existing:
+                    _, updated_track = self.download_track(
+                        track=track,
+                        album_artist=album_artist,
+                        output_format=output_format,
+                        bitrate=bitrate,
+                        overwrite_existing=overwrite_existing,
+                        download_lyrics=download_lyrics,
+                        cancellation_event=cancellation_event,
+                        youtube_url=youtube_url,
+                    )
+                    if updated_track:
+                        with result_lock:
+                            success += 1
+                            downloaded_tracks.append(updated_track)
+                            playlist.tracks[index - 1] = updated_track
+                        if track_result_callback:
+                            track_result_callback(index, track.name, "completed")
+                    return
+                track_progress_callback = (
+                    lambda *_args: progress_callback(
+                        index, len(playlist.tracks), track.name
+                    )
+                    if progress_callback
+                    else None
+                )
                 _, updated_track = self.download_track(
                     track=track,
-                    album_artist=(
-                        track.album_artist[0]
-                        if track.album_artist
-                        else None
-                    ),
+                    album_artist=album_artist,
                     output_format=output_format,
                     bitrate=bitrate,
                     overwrite_existing=overwrite_existing,
                     download_lyrics=download_lyrics,
                     cancellation_event=cancellation_event,
                     youtube_url=youtube_url,
+                    progress_callback=track_progress_callback,
                 )
                 if cancellation_event and cancellation_event.is_set():
                     return
                 if updated_track:
-                    success += 1
-                    downloaded_tracks.append(updated_track)
-                    playlist.tracks[index - 1] = updated_track
+                    with result_lock:
+                        success += 1
+                        downloaded_tracks.append(updated_track)
+                        playlist.tracks[index - 1] = updated_track
                     if track_result_callback:
                         track_result_callback(index, track.name, "completed")
                 else:
-                    failed_tracks.append(track.name)
+                    with result_lock:
+                        failed_tracks.append(track.name)
                     if track_result_callback:
                         track_result_callback(index, track.name, "error")
             except Exception as e:
                 if cancellation_event and cancellation_event.is_set():
                     return
                 self.logger.error(f"Error processing {track.name}: {str(e)}")
-                failed_tracks.append(track.name)
+                with result_lock:
+                    failed_tracks.append(track.name)
                 if track_result_callback:
                     track_result_callback(index, track.name, "error")
 
-        if confirmation_callback is None:
-            for idx, track in enumerate(playlist.tracks, 1):
-                if cancellation_event and cancellation_event.is_set():
-                    break
-                download_track_at_index(idx, track)
-        else:
+        youtube_urls = {}
+        if confirmation_callback is not None and metadata_callback is not None:
             with ThreadPoolExecutor(
                 max_workers=min(5, len(playlist.tracks))
             ) as executor:
@@ -951,28 +1087,103 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     executor.submit(resolve_match, idx, track)
                     for idx, track in enumerate(playlist.tracks, 1)
                 ]
-                for idx, (track, match_future) in enumerate(
-                    zip(playlist.tracks, match_futures), 1
-                ):
-                    if cancellation_event and cancellation_event.is_set():
-                        break
-                    try:
-                        youtube_url = match_future.result()
-                        if not youtube_url:
-                            raise ValueError(
-                                f"Not found on YouTube Music: {track.name}"
+                if approval_ready_callback is None:
+                    for idx, (track, match_future) in enumerate(
+                        zip(playlist.tracks, match_futures), 1
+                    ):
+                        if cancellation_event and cancellation_event.is_set():
+                            break
+                        try:
+                            youtube_url = match_future.result()
+                            if not youtube_url:
+                                raise ValueError(
+                                    f"Not found on YouTube Music: {track.name}"
+                                )
+                        except Exception as e:
+                            self.logger.error(
+                                f"Could not check YouTube match for {track.name}: {e}"
                             )
-                    except Exception as e:
-                        self.logger.error(
-                            f"Could not check YouTube match for {track.name}: {e}"
-                        )
-                        failed_tracks.append(track.name)
-                        if track_result_callback:
-                            track_result_callback(idx, track.name, "error")
-                        continue
-                    track = track.with_youtube_url(youtube_url)
-                    playlist.tracks[idx - 1] = track
-                    download_track_at_index(idx, track, youtube_url)
+                            failed_tracks.append(track.name)
+                            if track_result_callback:
+                                track_result_callback(idx, track.name, "error")
+                            continue
+                        track = track.with_youtube_url(youtube_url)
+                        playlist.tracks[idx - 1] = track
+                        download_track_at_index(idx, track, youtube_url)
+                else:
+                    match_to_index = {
+                        future: index
+                        for index, future in enumerate(match_futures, 1)
+                    }
+                    transfer_futures = {}
+                    with ThreadPoolExecutor(
+                        max_workers=min(16, len(playlist.tracks))
+                    ) as download_executor:
+                        while match_to_index or transfer_futures:
+                            if cancellation_event and cancellation_event.is_set():
+                                break
+                            if match_to_index:
+                                completed_matches, _ = wait(
+                                    match_to_index,
+                                    timeout=0.05,
+                                    return_when=FIRST_COMPLETED,
+                                )
+                                for match_future in completed_matches:
+                                    index = match_to_index.pop(match_future)
+                                    track = playlist.tracks[index - 1]
+                                    try:
+                                        youtube_url = match_future.result()
+                                        if not youtube_url:
+                                            raise ValueError(
+                                                f"Not found on YouTube Music: {track.name}"
+                                            )
+                                    except Exception as e:
+                                        self.logger.error(
+                                            f"Could not check YouTube match for {track.name}: {e}"
+                                        )
+                                        with result_lock:
+                                            failed_tracks.append(track.name)
+                                        if track_result_callback:
+                                            track_result_callback(
+                                                index, track.name, "error"
+                                            )
+                                        continue
+                                    track = track.with_youtube_url(youtube_url)
+                                    playlist.tracks[index - 1] = track
+                                    youtube_urls[index] = youtube_url
+                            for index, youtube_url in tuple(youtube_urls.items()):
+                                track = playlist.tracks[index - 1]
+                                if approval_ready_callback(track, youtube_url):
+                                    youtube_urls.pop(index)
+                                    future = download_executor.submit(
+                                        download_track_at_index,
+                                        index,
+                                        track,
+                                        youtube_url,
+                                    )
+                                    transfer_futures[future] = index
+                            if transfer_futures:
+                                completed_transfers, _ = wait(
+                                    transfer_futures,
+                                    timeout=0.05,
+                                    return_when=FIRST_COMPLETED,
+                                )
+                                for future in completed_transfers:
+                                    transfer_futures.pop(future)
+                                    future.result()
+                            elif not match_to_index and youtube_urls:
+                                sleep(0.1)
+        else:
+            futures = {}
+            with ThreadPoolExecutor(
+                max_workers=min(16, len(playlist.tracks))
+            ) as executor:
+                for index, track in enumerate(playlist.tracks, 1):
+                    futures[
+                        executor.submit(download_track_at_index, index, track)
+                    ] = index
+                for future in futures:
+                    future.result()
 
         if cancellation_event and cancellation_event.is_set():
             return success, len(playlist.tracks), failed_tracks

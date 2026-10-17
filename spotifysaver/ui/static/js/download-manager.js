@@ -375,6 +375,10 @@ class DownloadManager {
         item.confirmation_url = task.confirmation_url || null;
         item.confirmation_track_number = task.confirmation_track_number || null;
         item.confirmation_source = task.confirmation_source || null;
+        item.currentTrackStatus = task.current_track_status || null;
+        item.completedTracks = task.completed_tracks || 0;
+        item.failedTracks = task.failed_tracks || 0;
+        item.totalTracks = task.total_tracks || 0;
         item.playlistVerification = task.playlist_verification;
         item.formData = { ...item.formData, content_type: task.content_type };
         if (task.spotify_url) item.url = task.spotify_url;
@@ -504,12 +508,26 @@ class DownloadManager {
         this.uiManager.updateUI(downloadingFlag, this.queuePaused);
 
         if (active) {
-            this.uiManager.updateProgress(active.progress || 0);
             const checkingPlaylistEntries = active.playlistVerification;
             const playlistTitle = active.resolvedTitle;
+            const approvalCount = active.trackData?.tracks?.filter(
+                (track) => track.confirmation_required
+            ).length || 0;
+            const activeTrackCount = [...active.trackStates.values()]
+                .filter((state) => state === 'downloading').length;
+            const awaitingTrackApproval = approvalCount > 0 && activeTrackCount === 0;
+            const finishedTracks = active.completedTracks + active.failedTracks;
+            const displayedProgress = awaitingTrackApproval && active.totalTracks
+                ? (finishedTracks / active.totalTracks) * 100
+                : active.progress || 0;
+            this.uiManager.updateProgress(displayedProgress);
             this.uiManager.updateStatus(
-                checkingPlaylistEntries
+                awaitingTrackApproval
+                    ? `Downloaded ${active.completedTracks}/${active.totalTracks}. ${approvalCount} track${approvalCount === 1 ? '' : 's'} awaiting approval.`
+                    : checkingPlaylistEntries
                     ? `${checkingPlaylistEntries === 'rechecking' ? 'Re-verifying' : 'Checking'} YouTube playlist entries${playlistTitle ? ` for ${playlistTitle}` : ''}...`
+                    : activeTrackCount > 1
+                    ? `Downloading ${activeTrackCount} tracks from ${active.title}... ${Math.round(active.progress || 0)}%`
                     : `Downloading ${active.title}... ${Math.round(active.progress || 0)}%`,
                 'info'
             );

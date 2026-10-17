@@ -7,8 +7,10 @@ from pathlib import Path
 import pytest
 
 from spotifysaver.api.schemas import DownloadRequest, DownloadStatus
+from spotifysaver.api.config import APIConfig
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
 from spotifysaver.downloader.youtube_downloader_for_cli import YouTubeDownloaderForCLI
+from spotifysaver.download_limiter import track_download_limiter
 from spotifysaver.enums import AudioFormat
 from spotifysaver.models.album import Album
 from spotifysaver.models.playlist import Playlist
@@ -727,15 +729,20 @@ def test_album_retry_writes_matched_youtube_url_to_track_nfo(tmp_path, monkeypat
     assert nfo.findtext("./track/url") == youtube_url
 
 
-def test_album_cancellation_does_not_start_the_next_track(tmp_path, monkeypatch):
+def test_album_cancellation_does_not_start_tracks_waiting_for_a_slot(
+    tmp_path, monkeypatch
+):
     downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
-    first_track = _make_track()
+    first_track = _make_track().with_youtube_url(
+        "https://music.youtube.com/watch?v=first"
+    )
     second_track = Track(
         **{
             **first_track.__dict__,
             "number": 2,
             "name": "Track Two",
             "uri": "spotify:track:2",
+            "youtube_url": "https://music.youtube.com/watch?v=second",
         }
     )
     album = Album(
@@ -750,18 +757,26 @@ def test_album_cancellation_does_not_start_the_next_track(tmp_path, monkeypatch)
     attempted = []
 
     def cancel_during_track(**kwargs):
-        attempted.append(kwargs["track"].name)
-        cancellation_event.set()
+        with track_download_limiter.download_slot(cancellation_event) as acquired:
+            if not acquired:
+                return None, None
+            attempted.append(kwargs["track"].name)
+            cancellation_event.set()
         return None, None
 
     monkeypatch.setattr(downloader, "download_track", cancel_during_track)
 
-    result = downloader.download_album_cli(
-        album, cancellation_event=cancellation_event
-    )
+    APIConfig.set_download_limits(1, 0)
+    try:
+        result = downloader.download_album_cli(
+            album, cancellation_event=cancellation_event
+        )
+    finally:
+        APIConfig.set_download_limits(3, 0)
 
     assert result == (0, 2, [])
-    assert attempted == [first_track.name]
+    assert len(attempted) == 1
+    assert attempted[0] in {first_track.name, second_track.name}
 
 
 def test_playlist_m3u_is_created_with_local_track_paths(tmp_path):
@@ -954,15 +969,20 @@ def test_cli_track_download_keeps_matched_youtube_url(tmp_path, monkeypatch):
     assert downloaded_track.youtube_url == youtube_url
 
 
-def test_playlist_cancellation_does_not_start_the_next_track(tmp_path, monkeypatch):
+def test_playlist_cancellation_does_not_start_tracks_waiting_for_a_slot(
+    tmp_path, monkeypatch
+):
     downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
-    first_track = _make_track()
+    first_track = _make_track().with_youtube_url(
+        "https://music.youtube.com/watch?v=first"
+    )
     second_track = Track(
         **{
             **first_track.__dict__,
             "number": 2,
             "name": "Track Two",
             "uri": "spotify:track:2",
+            "youtube_url": "https://music.youtube.com/watch?v=second",
         }
     )
     playlist = Playlist(
@@ -977,18 +997,26 @@ def test_playlist_cancellation_does_not_start_the_next_track(tmp_path, monkeypat
     attempted = []
 
     def cancel_during_track(**kwargs):
-        attempted.append(kwargs["track"].name)
-        cancellation_event.set()
+        with track_download_limiter.download_slot(cancellation_event) as acquired:
+            if not acquired:
+                return None, None
+            attempted.append(kwargs["track"].name)
+            cancellation_event.set()
         return None, None
 
     monkeypatch.setattr(downloader, "download_track", cancel_during_track)
 
-    result = downloader.download_playlist_cli(
-        playlist, cancellation_event=cancellation_event
-    )
+    APIConfig.set_download_limits(1, 0)
+    try:
+        result = downloader.download_playlist_cli(
+            playlist, cancellation_event=cancellation_event
+        )
+    finally:
+        APIConfig.set_download_limits(3, 0)
 
     assert result == (0, 2, [])
-    assert attempted == [first_track.name]
+    assert len(attempted) == 1
+    assert attempted[0] in {first_track.name, second_track.name}
 
 
 def test_playlist_track_uses_album_number_for_shared_output_path(tmp_path):

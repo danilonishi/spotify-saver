@@ -217,7 +217,6 @@ def test_download_queue_skips_blocked_destination_for_available_storage(tmp_path
         assert "available-task" in download_router.active
     finally:
         download_router.active.clear()
-        download_router.APIConfig.set_active_downloads(0)
 
 
 def test_app_lifespan_initializes_storage_service_in_configured_database(tmp_path, monkeypatch):

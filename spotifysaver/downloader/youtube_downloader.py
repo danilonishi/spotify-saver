@@ -17,6 +17,7 @@ from spotifysaver.downloader.trim_silence import FFmpegTrimSilencePP
 from spotifysaver.models import Track, Album, Playlist
 from spotifysaver.enums import AudioFormat, Bitrate
 from spotifysaver.config import Config
+from spotifysaver.download_limiter import track_download_limiter
 from spotifysaver.spotlog import get_logger
 
 
@@ -477,6 +478,7 @@ class YouTubeDownloader:
         overwrite_existing: bool = True,
         cancellation_event: Optional[Event] = None,
         youtube_url: Optional[str] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
     ) -> tuple[Optional[Path], Optional[Track]]:
         """Download a track from YouTube Music with Spotify metadata.
 
@@ -522,12 +524,21 @@ class YouTubeDownloader:
             return None, None
 
         try:
-            # 1. Download the audio
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                self._add_trim_silence_postprocessor(
-                    ydl, output_format, bitrate
-                )
-                ydl.download([yt_url])
+            def download_audio() -> None:
+                if progress_callback:
+                    progress_callback(1, 1, track.name)
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    self._add_trim_silence_postprocessor(
+                        ydl, output_format, bitrate
+                    )
+                    ydl.download([yt_url])
+
+            with track_download_limiter.download_slot(
+                cancellation_event
+            ) as acquired:
+                if not acquired:
+                    return None, None
+                download_audio()
 
             if cancellation_event and cancellation_event.is_set():
                 if output_path.exists():

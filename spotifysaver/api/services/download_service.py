@@ -2,7 +2,7 @@
 
 import asyncio
 from pathlib import Path
-from threading import Event
+from threading import Event, local
 from typing import Dict, Optional, Callable, Any
 
 from yt_dlp.utils import DownloadCancelled
@@ -74,6 +74,7 @@ class DownloadService:
         self.searcher = None
         self.downloader = YouTubeDownloaderForCLI(base_dir=self.output_dir)
         self.youtube_confirmation_callback = None
+        self.youtube_confirmation_ready_callback = None
         self.youtube_confirmation_metadata_callback = None
         self.soundcloud_downloader = SoundCloudDownloader(base_dir=self.output_dir)
         self.downloader.rate_limit_provider = (
@@ -85,14 +86,14 @@ class DownloadService:
         self.downloader.trim_silence = trim_silence
         # Called as (current, total, fraction 0-1 of the current item)
         self.progress_fraction_callback: Optional[Callable[[int, int, float], None]] = None
-        self._position = (1, 1)
+        self._position = local()
         self.downloader.progress_fraction_callback = self._report_fraction
         self.soundcloud_downloader.progress_fraction_callback = self._report_fraction
 
     def _report_fraction(self, fraction: float, info: dict) -> None:
         if not self.progress_fraction_callback:
             return
-        index, total = self._position
+        index, total = getattr(self._position, "value", (1, 1))
         if info.get("playlist_index") and info.get("playlist_count"):
             index, total = int(info["playlist_index"]), int(info["playlist_count"])
         self.progress_fraction_callback(index, total, fraction)
@@ -123,7 +124,7 @@ class DownloadService:
         user_progress_callback = progress_callback
 
         def progress_callback(idx: int, total: int, name: str):
-            self._position = (idx, total)
+            self._position.value = (idx, total)
             if user_progress_callback:
                 user_progress_callback(idx, total, name)
 
@@ -316,14 +317,17 @@ class DownloadService:
         if tracks_callback:
             tracks_callback([_track_to_dict(track, getattr(track, "number", 1) or 1)])
 
-        self._position = (1, 1)
-        if progress_callback:
-            progress_callback(1, 1, track.name)
+        self._position.value = (1, 1)
 
         # Run download in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         audio_path, updated_track = await loop.run_in_executor(
-            None, self._download_track_sync, track, self.cancellation_event, track_url
+            None,
+            self._download_track_sync,
+            track,
+            self.cancellation_event,
+            track_url,
+            progress_callback,
         )
 
         return {
@@ -363,7 +367,7 @@ class DownloadService:
 
         # Create a wrapper for the progress callback
         def sync_progress_callback(idx: int, total: int, name: str):
-            self._position = (idx, total)
+            self._position.value = (idx, total)
             if progress_callback:
                 progress_callback(idx, total, name)
 
@@ -375,6 +379,9 @@ class DownloadService:
         loop = asyncio.get_event_loop()
         self.downloader.youtube_confirmation_callback = getattr(
             self, "youtube_confirmation_callback", None
+        )
+        self.downloader.youtube_confirmation_ready_callback = getattr(
+            self, "youtube_confirmation_ready_callback", None
         )
         self.downloader.youtube_confirmation_metadata_callback = getattr(
             self, "youtube_confirmation_metadata_callback", None
@@ -423,7 +430,7 @@ class DownloadService:
 
         # Create a wrapper for the progress callback
         def sync_progress_callback(idx: int, total: int, name: str):
-            self._position = (idx, total)
+            self._position.value = (idx, total)
             if progress_callback:
                 progress_callback(idx, total, name)
 
@@ -435,6 +442,9 @@ class DownloadService:
         loop = asyncio.get_event_loop()
         self.downloader.youtube_confirmation_callback = getattr(
             self, "youtube_confirmation_callback", None
+        )
+        self.downloader.youtube_confirmation_ready_callback = getattr(
+            self, "youtube_confirmation_ready_callback", None
         )
         self.downloader.youtube_confirmation_metadata_callback = getattr(
             self, "youtube_confirmation_metadata_callback", None
@@ -466,13 +476,20 @@ class DownloadService:
             "output_directory": str(output_dir),
         }
 
-    def _download_track_sync(self, track, cancellation_event=None, source_url=None):
+    def _download_track_sync(
+        self,
+        track,
+        cancellation_event=None,
+        source_url=None,
+        progress_callback=None,
+    ):
         """Synchronous track download helper."""
         result = self.downloader.download_track_cli(
             track, 
             output_format=self.output_format, 
             bitrate=self.bit_rate,
             download_lyrics=self.download_lyrics,
+            progress_callback=progress_callback,
             overwrite_existing=self.overwrite_existing,
             cancellation_event=cancellation_event,
         )

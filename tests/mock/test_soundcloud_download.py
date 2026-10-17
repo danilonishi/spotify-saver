@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from pathlib import Path
-from threading import Event
+from threading import Event, local
 
 import pytest
 
@@ -231,7 +231,7 @@ def test_soundcloud_unavailable_track_returns_matched_youtube_url(tmp_path):
     service.generate_nfo = False
     service.output_dir = str(tmp_path)
     service.cancellation_event = None
-    service._position = (1, 1)
+    service._position = local()
     youtube_url = "https://music.youtube.com/watch?v=matched123"
     service._download_track_sync = lambda source_track, *_args: (
         tmp_path / "Example Track.m4a",
@@ -307,7 +307,7 @@ def test_spotify_track_download_returns_matched_youtube_url(tmp_path):
     youtube_url = "https://music.youtube.com/watch?v=example123"
     service = object.__new__(DownloadService)
     service.cancellation_event = None
-    service._position = (1, 1)
+    service._position = local()
     service._download_track_sync = lambda *_args: (
         tmp_path / "Example Track.m4a",
         track.with_youtube_url(youtube_url),

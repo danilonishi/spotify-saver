@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import yt_dlp
 
 from spotifysaver.config import Config
+from spotifysaver.download_limiter import track_download_limiter
 from spotifysaver.downloader.image_downloader import ImageDownloader
 from spotifysaver.enums import AudioFormat, Bitrate
 from spotifysaver.metadata import MusicFileMetadata, NFOGenerator
@@ -299,15 +300,19 @@ class SoundCloudDownloader:
                 return True, track, output_path
             if cancellation_event and cancellation_event.is_set():
                 return True, track, None
-            if progress_callback:
-                progress_callback(1, 1, track.name)
-
             ydl.params["format"] = "download"
             ydl.format_selector = ydl.build_format_selector("download")
             ydl.params["outtmpl"]["default"] = str(
                 output_path.with_suffix(".%(ext)s")
             )
-            ydl.process_ie_result(info, download=True)
+            with track_download_limiter.download_slot(
+                cancellation_event
+            ) as acquired:
+                if not acquired:
+                    return False, track, None
+                if progress_callback:
+                    progress_callback(1, 1, track.name)
+                ydl.process_ie_result(info, download=True)
             if cancellation_event and cancellation_event.is_set():
                 output_path.unlink(missing_ok=True)
                 return True, track, None

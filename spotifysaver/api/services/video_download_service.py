@@ -12,6 +12,7 @@ import yt_dlp
 from ...config import Config
 from ...downloader import YouTubeDownloader
 from ...downloader.image_downloader import ImageDownloader
+from ...download_limiter import track_download_limiter
 from ...spotlog.ydd_logger import SDLogger
 from ...spotlog import get_logger
 from ..config import APIConfig
@@ -320,9 +321,6 @@ class VideoDownloadService:
             channel_dir = self.output_dir / _sanitize(channel or "Unknown Channel")
             channel_dir.mkdir(parents=True, exist_ok=True)
             channel_dirs.add(channel_dir)
-            if progress_callback:
-                progress_callback(index, total, title)
-
             prefix = f"{index:02d} - " if collection else ""
             template = str(channel_dir / f"{prefix}{_sanitize(title)}.%(ext)s")
             opts = self._ydl_opts(template)
@@ -345,8 +343,15 @@ class VideoDownloadService:
                     channel_dir,
                     f"{prefix}{_sanitize(title)}",
                 )
-                with yt_dlp.YoutubeDL(opts) as ydl:
-                    ydl.download([entry_url])
+                with track_download_limiter.download_slot(
+                    self.cancellation_event
+                ) as acquired:
+                    if not acquired:
+                        break
+                    if progress_callback:
+                        progress_callback(index, total, title)
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        ydl.download([entry_url])
                 if not video_info.get("description"):
                     metadata_opts = {
                         "quiet": True,

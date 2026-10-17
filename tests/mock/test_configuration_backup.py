@@ -236,7 +236,6 @@ def test_restore_replaces_configuration_and_preserves_destination_secrets(
 ):
     monkeypatch.setattr(APIConfig, "MAX_CONCURRENT_DOWNLOADS", 3)
     monkeypatch.setattr(APIConfig, "BANDWIDTH_LIMIT_MIB_PER_SECOND", 0)
-    monkeypatch.setattr(APIConfig, "ACTIVE_DOWNLOADS", 0)
     source, source_channels, source_dirs, _, source_security = _state(
         tmp_path, "source"
     )
@@ -372,7 +371,6 @@ def test_configuration_backup_http_round_trip_restores_changed_settings(
 ):
     monkeypatch.setattr(APIConfig, "MAX_CONCURRENT_DOWNLOADS", 3)
     monkeypatch.setattr(APIConfig, "BANDWIDTH_LIMIT_MIB_PER_SECOND", 0)
-    monkeypatch.setattr(APIConfig, "ACTIVE_DOWNLOADS", 0)
     source_app, source_channels, source_dirs, _, source_security, source_cookie = (
         _http_app(tmp_path, "http-source")
     )

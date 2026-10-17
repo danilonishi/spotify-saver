@@ -1,5 +1,9 @@
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
+from threading import Event, Lock
+from time import sleep
 from types import SimpleNamespace
 from pathlib import Path
 
@@ -17,6 +21,7 @@ from spotifysaver.api.routers.user_preferences import (
 from spotifysaver.api.services.download_limits_store import DownloadLimitsStore
 from spotifysaver.api.schemas import DownloadRequest
 from spotifysaver.downloader.youtube_downloader import YouTubeDownloader
+from spotifysaver.download_limiter import track_download_limiter
 
 
 def _request(store):
@@ -102,19 +107,22 @@ def test_download_rate_limit_is_disabled_by_zero_bandwidth_cap(monkeypatch):
     assert APIConfig.get_download_rate_limit_bytes_per_second() is None
 
 
-def test_rate_limit_accounts_for_active_jobs_when_concurrency_is_lowered(monkeypatch):
-    monkeypatch.setattr(APIConfig, "MAX_CONCURRENT_DOWNLOADS", 1)
-    monkeypatch.setattr(APIConfig, "BANDWIDTH_LIMIT_MIB_PER_SECOND", 6)
-    monkeypatch.setattr(APIConfig, "ACTIVE_DOWNLOADS", 3)
+def test_rate_limit_accounts_for_active_tracks_when_concurrency_is_lowered():
+    APIConfig.set_download_limits(3, 6)
+    with ExitStack() as stack:
+        for _ in range(3):
+            acquired = stack.enter_context(track_download_limiter.download_slot())
+            assert acquired
+        APIConfig.set_download_limits(1, 6)
+        assert APIConfig.get_download_rate_limit_bytes_per_second() == 2 * 1024 * 1024
+    APIConfig.set_download_limits(3, 0)
 
-    assert APIConfig.get_download_rate_limit_bytes_per_second() == 2 * 1024 * 1024
 
-
-def test_download_queue_does_not_start_more_than_configured_concurrency(
+def test_download_queue_job_limit_is_independent_from_track_limit(
     monkeypatch,
 ):
-    monkeypatch.setattr(APIConfig, "MAX_CONCURRENT_DOWNLOADS", 2)
-    monkeypatch.setattr(APIConfig, "ACTIVE_DOWNLOADS", 0)
+    monkeypatch.setattr(APIConfig, "MAX_CONCURRENT_DOWNLOADS", 1)
+    monkeypatch.setattr(APIConfig, "MAX_ACTIVE_DOWNLOAD_JOBS", 2)
     monkeypatch.setattr(download_router, "paused", False)
     monkeypatch.setattr(download_router, "storage_protection_service", None)
     monkeypatch.setattr(download_router, "active", set())
@@ -149,11 +157,40 @@ def test_download_queue_does_not_start_more_than_configured_concurrency(
         asyncio.run(download_router._try_start_next())
         assert download_router.active == {"one", "two"}
         assert download_router.pending == ["three"]
-        assert APIConfig.ACTIVE_DOWNLOADS == 2
         assert len(created_coroutines) == 2
     finally:
         for coroutine in created_coroutines:
             coroutine.close()
+
+
+def test_global_track_download_limiter_caps_concurrent_transfers():
+    APIConfig.set_download_limits(2, 0)
+    active = 0
+    max_active = 0
+    lock = Lock()
+
+    def transfer():
+        nonlocal active, max_active
+        with track_download_limiter.download_slot() as acquired:
+            assert acquired
+            with lock:
+                active += 1
+                max_active = max(max_active, active)
+            sleep(0.03)
+            with lock:
+                active -= 1
+
+    try:
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            list(executor.map(lambda _: transfer(), range(6)))
+        assert max_active == 2
+
+        cancelled = Event()
+        cancelled.set()
+        with track_download_limiter.download_slot(cancelled) as acquired:
+            assert not acquired
+    finally:
+        APIConfig.set_download_limits(3, 0)
 
 
 def test_audio_download_options_use_the_shared_bandwidth_cap(monkeypatch):
