@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spotifysaverdn"
-version = "0.7.5"
+version = "0.7.5.post1"
 description = "Download audio and video from YouTube Music to your media server."
 authors = [
     "Gabriel Baute <gabrielbaute@gmail.com>",
