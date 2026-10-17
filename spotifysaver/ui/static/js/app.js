@@ -63,14 +63,17 @@ class SpotifySaverUI {
                     window.sessionStorage.removeItem(handoffMediaChoiceKey);
                 } else {
                     window.sessionStorage.setItem(handoffModeKey, 'true');
-                    if (this.isSpotifyHandoffUrl(handoffUrl)) {
+                    if (
+                        this.isSpotifyHandoffUrl(handoffUrl) ||
+                        this.downloadManager.isSoundCloudTrackUrl(handoffUrl)
+                    ) {
                         window.sessionStorage.removeItem(handoffMediaChoiceKey);
                     } else {
                         window.sessionStorage.setItem(handoffMediaChoiceKey, 'true');
                     }
                 }
             } else {
-                handoffError = 'This link is not a supported Spotify or YouTube source.';
+                handoffError = 'This link is not a supported Spotify, YouTube, or SoundCloud source.';
             }
 
             if (handoffError) {
@@ -114,7 +117,8 @@ class SpotifySaverUI {
             return (
                 this.isYouTubeChannelUrl(sourceUrl) ||
                 this.downloadManager.isYouTubeTrackUrl(sourceUrl) ||
-                this.downloadManager.isYouTubeCollectionUrl(sourceUrl)
+                this.downloadManager.isYouTubeCollectionUrl(sourceUrl) ||
+                this.downloadManager.isSoundCloudTrackUrl(sourceUrl)
             );
         } catch (_error) {
             return false;
@@ -250,7 +254,9 @@ class SpotifySaverUI {
                 this.updateTabsForUrl();
                 this.saveState();
                 this.uiManager.updateStatus(
-                    'Source link ready. Choose audio or video for YouTube, review your settings, then select Download to queue it.',
+                    this.urlHandoff.requiresMediaChoice
+                        ? 'Source link ready. Choose audio or video for YouTube, review your settings, then select Download to queue it.'
+                        : 'Source link ready. Review your settings, then select Download to queue it.',
                     'info'
                 );
             }

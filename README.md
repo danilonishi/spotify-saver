@@ -34,7 +34,7 @@ Compared with the upstream baseline, this branch adds:
 - **Multiple parallel Downloads:** Useful when downloading large playlists.
 - **Channel Watcher:** Schedule channel checks and automatically download new uploads.
 - **Jellyfin library scans:** Automatically triggers Jellyfin media scan after downloads are completed.
-- **Browser extension support:** Quickly trigger downloads from spotify and youtube pages, or watch channels.
+- **Browser extension support:** Quickly trigger downloads from Spotify, YouTube, and SoundCloud pages, or watch channels.
 - **Simplified download folders:** Browse and select download folders in the web interface.
 - **Web interface improvements:** Dark mode and customizable interface.
 - **Backup and restore:** Easier to migrate the server or share configurations.
