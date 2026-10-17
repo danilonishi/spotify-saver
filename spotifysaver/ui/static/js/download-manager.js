@@ -11,6 +11,7 @@ class DownloadManager {
         this.pollTimer = null;
         this.pollInterval = 5000;
         this.mode = 'audio';
+        this.approvingAllTaskIds = new Set();
     }
 
     getFormData() {
@@ -676,6 +677,27 @@ class DownloadManager {
         } catch (error) {
             this.uiManager.updateStatus(`Could not approve YouTube download: ${error.message}`, 'error');
             this.uiManager.addLogEntry(`Could not approve YouTube download: ${error.message}`, 'error');
+        }
+    }
+
+    async approveAllYouTubeItems(taskId) {
+        const item = this.queue.find((queueItem) => queueItem.id === taskId);
+        if (!item || this.approvingAllTaskIds.has(taskId)) return;
+
+        this.approvingAllTaskIds.add(taskId);
+        item.approvingAll = true;
+        this.uiManager.renderDownloadQueue(this.queue);
+        try {
+            await this.apiClient.confirmAllYouTubeDownloads(taskId);
+            await this.pollOnce();
+            this.ensurePolling();
+        } catch (error) {
+            this.uiManager.updateStatus(`Could not approve YouTube downloads: ${error.message}`, 'error');
+            this.uiManager.addLogEntry(`Could not approve YouTube downloads: ${error.message}`, 'error');
+        } finally {
+            this.approvingAllTaskIds.delete(taskId);
+            item.approvingAll = false;
+            this.uiManager.renderDownloadQueue(this.queue);
         }
     }
 

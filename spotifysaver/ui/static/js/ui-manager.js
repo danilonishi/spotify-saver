@@ -114,6 +114,23 @@ class UIManager {
             const heading = document.createElement('span');
             heading.className = 'queue-item-heading';
             heading.appendChild(name);
+            const tracks = Array.isArray(item.trackData?.tracks)
+                ? item.trackData.tracks
+                : [];
+            const isSpotifyCollection = this.isSpotifyCollectionUrl(
+                item.url,
+                item.formData?.media_type
+            );
+            if (isSpotifyCollection && tracks.length) {
+                const pendingApprovals = tracks.filter(
+                    (track) => track.confirmation_required
+                ).length;
+                heading.appendChild(this.createApproveAllButton(
+                    item.id,
+                    pendingApprovals > 0,
+                    item.approvingAll === true
+                ));
+            }
 
             const status = document.createElement('span');
             status.className = 'queue-item-status';
@@ -190,16 +207,16 @@ class UIManager {
                 details.appendChild(errorMessage);
             }
 
-            const tracks = Array.isArray(item.trackData?.tracks)
-                ? item.trackData.tracks
+            const displayTracks = tracks.length
+                ? tracks
                 : item.trackData?.name && item.trackData?.artists
                     ? [item.trackData]
                     : [];
-            if (tracks.length) {
+            if (displayTracks.length) {
                 const trackList = document.createElement('ul');
                 trackList.className = 'queue-track-list';
 
-                tracks.forEach((track, index) => {
+                displayTracks.forEach((track, index) => {
                     const stateTrackNumber = track.playlist_position || index + 1;
                     const trackState = item.trackStates?.get(stateTrackNumber) || 'waiting';
                     const trackNumber = track.disc_number
@@ -363,6 +380,36 @@ class UIManager {
         }
         approval.appendChild(source);
         return approval;
+    }
+
+    createApproveAllButton(taskId, hasPendingApprovals, isApproving) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'queue-item-confirm-btn queue-item-approve-all clear-queue-btn';
+        button.textContent = 'Approve all';
+        button.disabled = !hasPendingApprovals || isApproving;
+        button.title = hasPendingApprovals
+            ? 'Approve all album or playlist tracks currently awaiting confirmation'
+            : 'No album or playlist tracks are awaiting confirmation';
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.onApproveAllQueueItem?.(taskId);
+        });
+        return button;
+    }
+
+    isSpotifyCollectionUrl(url, mediaType) {
+        if (mediaType === 'video') return false;
+        try {
+            const parsedUrl = new URL(url);
+            return /(^|\.)spotify\.com$/i.test(parsedUrl.hostname) &&
+                parsedUrl.pathname.split('/').some((part) =>
+                    ['album', 'playlist'].includes(part.toLowerCase())
+                );
+        } catch {
+            return false;
+        }
     }
 
     renderWatchedChannels(channels, status = {}) {

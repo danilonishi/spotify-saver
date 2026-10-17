@@ -676,6 +676,39 @@ async def confirm_youtube_download(
     return {"task_id": task_id, "status": task.status}
 
 
+@router.post("/download/{task_id}/confirm-youtube-all", status_code=202)
+async def confirm_all_youtube_downloads(task_id: str):
+    """Approve only Spotify collection tracks currently awaiting confirmation."""
+    task = tasks.get(task_id)
+    request = requests_by_task.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if request is None or not _uses_spotify_collection_confirmation(request):
+        raise HTTPException(
+            status_code=409,
+            detail="This download is not a Spotify album or playlist",
+        )
+    if task.status != "processing":
+        raise HTTPException(
+            status_code=409,
+            detail="This Spotify collection is not currently processing",
+        )
+
+    approved_track_numbers = []
+    for track_number, track in enumerate(task.tracks, start=1):
+        approval_event = track_confirmation_events.get((task_id, track_number))
+        if track.confirmation_required and approval_event is not None:
+            track.confirmation_required = False
+            approval_event.set()
+            approved_track_numbers.append(track_number)
+
+    return {
+        "task_id": task_id,
+        "approved_track_numbers": approved_track_numbers,
+        "status": task.status,
+    }
+
+
 @router.delete("/download/{task_id}")
 async def remove_download(task_id: str):
     """Remove a finished task from the server's history."""

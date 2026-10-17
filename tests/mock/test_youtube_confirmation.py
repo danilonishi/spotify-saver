@@ -298,6 +298,121 @@ def test_confirmation_endpoint_approves_an_individual_playlist_track(monkeypatch
     assert approval_event.is_set()
 
 
+def test_confirm_all_approves_only_pending_tracks_in_the_collection(monkeypatch):
+    task_id = "album-task"
+    first_event = Event()
+    second_event = Event()
+    task = DownloadStatus(
+        task_id=task_id,
+        status="processing",
+        progress=10,
+        tracks=[
+            TrackInfo(
+                name=f"Track {index}",
+                artists=["Example artist"],
+                duration=180,
+                number=index,
+                uri=f"spotify:track:{index}",
+                confirmation_required=index in {1, 3},
+            )
+            for index in (1, 2, 3)
+        ],
+    )
+    other_task_id = "other-album-task"
+    other_event = Event()
+    monkeypatch.setattr(download_router, "tasks", {task_id: task})
+    monkeypatch.setattr(
+        download_router,
+        "requests_by_task",
+        {
+            task_id: DownloadRequest(
+                spotify_url="https://open.spotify.com/album/example"
+            ),
+            other_task_id: DownloadRequest(
+                spotify_url="https://open.spotify.com/album/another"
+            ),
+        },
+    )
+    monkeypatch.setattr(
+        download_router,
+        "track_confirmation_events",
+        {
+            (task_id, 1): first_event,
+            (task_id, 3): second_event,
+            (other_task_id, 1): other_event,
+        },
+    )
+
+    result = asyncio.run(
+        download_router.confirm_all_youtube_downloads(task_id)
+    )
+
+    assert result == {
+        "task_id": task_id,
+        "approved_track_numbers": [1, 3],
+        "status": "processing",
+    }
+    assert first_event.is_set()
+    assert second_event.is_set()
+    assert other_event.is_set() is False
+    assert [track.confirmation_required for track in task.tracks] == [
+        False,
+        False,
+        False,
+    ]
+
+    late_track_event = Event()
+    task.tracks.append(
+        TrackInfo(
+            name="Fetched later",
+            artists=["Example artist"],
+            duration=180,
+            number=4,
+            uri="spotify:track:4",
+            confirmation_required=True,
+        )
+    )
+    download_router.track_confirmation_events[(task_id, 4)] = late_track_event
+    assert task.tracks[3].confirmation_required is True
+
+    next_result = asyncio.run(
+        download_router.confirm_all_youtube_downloads(task_id)
+    )
+
+    assert next_result["approved_track_numbers"] == [4]
+    assert late_track_event.is_set()
+    assert task.tracks[3].confirmation_required is False
+
+
+def test_confirm_all_does_not_approve_outside_spotify_collections(monkeypatch):
+    task_id = "single-track-task"
+    monkeypatch.setattr(
+        download_router,
+        "tasks",
+        {
+            task_id: DownloadStatus(
+                task_id=task_id,
+                status="processing",
+                progress=0,
+            )
+        },
+    )
+    monkeypatch.setattr(
+        download_router,
+        "requests_by_task",
+        {
+            task_id: DownloadRequest(
+                spotify_url="https://open.spotify.com/track/example"
+            )
+        },
+    )
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(download_router.confirm_all_youtube_downloads(task_id))
+
+    assert error.value.status_code == 409
+
+
 def test_playlist_checks_continue_during_first_approval_and_download(tmp_path, monkeypatch):
     downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
     tracks = [
@@ -399,6 +514,133 @@ def test_playlist_checks_continue_during_first_approval_and_download(tmp_path, m
     assert result == (3, 3, [])
     assert metadata_checked == {1, 2, 3}
     assert first_approval_waiting.is_set()
+
+
+def test_playlist_waiting_for_approval_does_not_report_pending_tracks_as_failed(
+    tmp_path, monkeypatch
+):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    tracks = [
+        Track(
+            number=index,
+            total_tracks=2,
+            name=f"Track {index}",
+            duration=180,
+            uri=f"spotify:track:{index}",
+            artists=["Example artist"],
+            album_artist=["Example artist"],
+            release_date="2024-01-01",
+            source_type="playlist",
+            playlist_name="Example playlist",
+            playlist_position=index,
+            album_name="Example album",
+            youtube_url=f"https://music.youtube.com/watch?v=video-{index}",
+        )
+        for index in (1, 2)
+    ]
+    playlist = Playlist(
+        name="Example playlist",
+        description="",
+        owner="owner",
+        uri="spotify:playlist:example",
+        cover_url="",
+        tracks=tracks,
+    )
+    metadata_ready = Event()
+    approved = {1: Event(), 2: Event()}
+    metadata_checked = set()
+    approval_checks = set()
+    callback_lock = Lock()
+    downloaded = []
+    first_downloaded = Event()
+
+    class FakeYoutubeDL:
+        def __init__(self, _options):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, _url, download):
+            assert download is False
+            return {"title": "Matched video", "channel": "Example channel"}
+
+    monkeypatch.setattr(
+        "spotifysaver.downloader.youtube_downloader_for_cli.yt_dlp.YoutubeDL",
+        FakeYoutubeDL,
+    )
+    monkeypatch.setattr(
+        downloader,
+        "get_playlist_dir",
+        lambda _playlist: tmp_path,
+    )
+    monkeypatch.setattr(
+        downloader,
+        "_get_output_path",
+        lambda track, **_kwargs: tmp_path / f"{track.number}.m4a",
+    )
+
+    def metadata_callback(index, _track, _url, _info):
+        with callback_lock:
+            metadata_checked.add(index)
+            if len(metadata_checked) == 2:
+                metadata_ready.set()
+
+    def approval_ready_callback(track, _url):
+        with callback_lock:
+            approval_checks.add(track.playlist_position)
+            if {1, 2}.issubset(approval_checks):
+                all_approval_checks_done.set()
+        return approved[track.playlist_position].is_set()
+
+    all_approval_checks_done = Event()
+    downloader.youtube_confirmation_callback = approval_ready_callback
+    downloader.youtube_confirmation_ready_callback = approval_ready_callback
+    downloader.youtube_confirmation_metadata_callback = metadata_callback
+
+    def download_track(**kwargs):
+        position = kwargs["track"].playlist_position
+        downloaded.append(position)
+        if position == 1:
+            first_downloaded.set()
+        return (
+            tmp_path / f"{kwargs['track'].number}.m4a",
+            kwargs["track"].with_youtube_url(kwargs["youtube_url"]),
+        )
+
+    monkeypatch.setattr(downloader, "download_track", download_track)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        result_future = executor.submit(
+            downloader.download_playlist_cli,
+            playlist,
+            cover=False,
+        )
+        try:
+            assert metadata_ready.wait(timeout=2), (
+                f"Downloader finished before metadata was observed: "
+                f"{result_future.result() if result_future.done() else 'still running'}; "
+                f"metadata: {metadata_checked}; approval checks: {approval_checks}"
+            )
+            assert all_approval_checks_done.wait(timeout=2)
+            Event().wait(0.1)
+            assert not result_future.done(), "Pending approvals must not end the task"
+            assert downloaded == []
+
+            approved[1].set()
+            assert first_downloaded.wait(timeout=2)
+            assert not result_future.done(), "The other unapproved track must remain pending"
+
+            approved[2].set()
+            assert result_future.result(timeout=2) == (2, 2, [])
+        finally:
+            for approval in approved.values():
+                approval.set()
+
+    assert downloaded == [1, 2]
 
 
 def test_album_checks_matches_and_waits_for_approval_using_collection_positions(

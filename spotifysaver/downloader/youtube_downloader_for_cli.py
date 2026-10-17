@@ -1119,7 +1119,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                     with ThreadPoolExecutor(
                         max_workers=min(16, len(playlist.tracks))
                     ) as download_executor:
-                        while match_to_index or transfer_futures:
+                        while match_to_index or youtube_urls or transfer_futures:
                             if cancellation_event and cancellation_event.is_set():
                                 break
                             if match_to_index:

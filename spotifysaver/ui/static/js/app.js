@@ -8,6 +8,8 @@ class SpotifySaverUI {
         this.uiManager.onRetryQueueItem = (taskId) => this.downloadManager.retryItem(taskId);
         this.uiManager.onConfirmQueueItem = (taskId, trackNumber) =>
             this.downloadManager.confirmYouTubeItem(taskId, trackNumber);
+        this.uiManager.onApproveAllQueueItem = (taskId) =>
+            this.downloadManager.approveAllYouTubeItems(taskId);
         this.uiManager.onOutputDirectorySelected = (kind, directory) => {
             this.persistOutputDirectoryPreference(kind, directory).catch((error) => {
                 this.uiManager.updateStatus(error.message, 'error');

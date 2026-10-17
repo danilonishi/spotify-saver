@@ -939,7 +939,9 @@ body.dark-mode .notification-toast {
 
 .queue-item-heading {
     flex: 1;
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
     min-width: 0;
 }
@@ -1013,10 +1015,10 @@ body.dark-mode .notification-toast {
     opacity: 1;
 }
 
-.queue-item-confirm-btn {
+.clear-queue-btn.queue-item-confirm-btn {
     flex: 0 0 auto;
-    min-height: 32px;
-    padding: 5px 10px;
+    min-height: 26px;
+    padding: 2px 10px;
     font-size: 13px;
 }
 

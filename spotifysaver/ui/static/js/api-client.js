@@ -466,6 +466,21 @@ class ApiClient {
         return response.json();
     }
 
+    async confirmAllYouTubeDownloads(taskId) {
+        const response = await fetch(
+            `${this.apiUrl}/download/${encodeURIComponent(taskId)}/confirm-youtube-all`,
+            {
+                method: 'POST',
+                headers: { 'Accept': 'application/json' }
+            }
+        );
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Could not approve YouTube downloads');
+        }
+        return response.json();
+    }
+
     async getAuthenticationStatus() {
         const response = await fetch(`${this.apiUrl}/auth/status`, {
             method: 'GET',
