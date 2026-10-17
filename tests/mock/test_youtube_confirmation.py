@@ -12,6 +12,7 @@ from starlette.requests import Request
 
 from spotifysaver.api.config import APIConfig
 from spotifysaver.api.routers import download as download_router
+from spotifysaver.api.routers.download import _youtube_channel_name
 from spotifysaver.api.routers.user_preferences import (
     YouTubeConfirmationUpdate,
     get_youtube_confirmation_preferences,
@@ -105,6 +106,21 @@ def test_youtube_confirmation_preferences_reject_non_boolean_values():
             confirm_matched_downloads="maybe",
             confirm_channel_watcher_downloads=False,
         )
+
+
+@pytest.mark.parametrize(
+    ("video_info", "expected", "fallback"),
+    [
+        ({"channel": "YouTube channel", "artist": "Music artist"}, "YouTube channel", ""),
+        ({"artist": "Music artist"}, "Music artist", ""),
+        ({"artists": [{"name": "Music artist"}]}, "Music artist", ""),
+        ({"artists": ["First artist", "Second artist"]}, "First artist, Second artist", ""),
+        ({}, "Unknown channel", ""),
+        ({}, "Spotify artist", "Spotify artist"),
+    ],
+)
+def test_youtube_channel_name_uses_music_metadata(video_info, expected, fallback):
+    assert _youtube_channel_name(video_info, fallback) == expected
 
 
 @pytest.mark.parametrize(

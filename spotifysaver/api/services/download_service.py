@@ -312,6 +312,7 @@ class DownloadService:
     ) -> Dict[str, Any]:
         """Download a single track."""
         track = track or self.spotify.get_track(track_url)
+        failure_messages = []
         if title_callback:
             title_callback(track.name)
         if tracks_callback:
@@ -328,6 +329,7 @@ class DownloadService:
             self.cancellation_event,
             track_url,
             progress_callback,
+            failure_messages.append,
         )
 
         return {
@@ -340,6 +342,7 @@ class DownloadService:
             "failed_track_names": [] if audio_path else [track.name],
             "total_tracks": 1,
             "output_directory": str(audio_path.parent) if audio_path else None,
+            "error_message": failure_messages[0] if failure_messages else None,
         }
 
     async def _download_album(
@@ -482,6 +485,7 @@ class DownloadService:
         cancellation_event=None,
         source_url=None,
         progress_callback=None,
+        failure_callback=None,
     ):
         """Synchronous track download helper."""
         result = self.downloader.download_track_cli(
@@ -492,6 +496,7 @@ class DownloadService:
             progress_callback=progress_callback,
             overwrite_existing=self.overwrite_existing,
             cancellation_event=cancellation_event,
+            failure_callback=failure_callback,
         )
         audio_path, updated_track = result
         if audio_path and self.generate_nfo:

@@ -117,6 +117,23 @@ class UIManager {
             const tracks = Array.isArray(item.trackData?.tracks)
                 ? item.trackData.tracks
                 : [];
+            if (
+                item.confirmation_required &&
+                item.confirmation_source !== 'channel_watcher'
+            ) {
+                const confirmationTrack = tracks.find(
+                    (track, index) =>
+                        (track.playlist_position || track.number || index + 1) ===
+                        item.confirmation_track_number
+                );
+                heading.appendChild(this.createDownloadApproval(
+                    item.id,
+                    item.confirmation_track_number,
+                    item.confirmation_title || item.title,
+                    item.confirmation_url || confirmationTrack?.youtube_url,
+                    item.confirmation_channel || confirmationTrack?.youtube_channel
+                ));
+            }
             const isSpotifyCollection = this.isSpotifyCollectionUrl(
                 item.url,
                 item.formData?.media_type
@@ -147,6 +164,11 @@ class UIManager {
                 status.textContent = 'Waiting for storage';
             } else if (item.status === 'awaiting_confirmation') {
                 status.textContent = 'Awaiting approval';
+            } else if (
+                item.status === 'failed' &&
+                item.error_message?.startsWith('No suitable YouTube Music match')
+            ) {
+                status.textContent = 'No YouTube match';
             } else if (item.status === 'downloading' && item.progress != null) {
                 status.textContent = `Downloading ${Math.round(item.progress)}%`;
             } else if (item.status === 'completed_with_errors') {
@@ -241,11 +263,14 @@ class UIManager {
                     const durationText = duration ? ` [${minutes}:${seconds}]` : '';
                     info.textContent = `${trackNumber}. ${track.youtube_title || track.name}${artistsText}${durationText}`;
                     info.title = info.textContent;
+                    const isCurrentApproval =
+                        item.confirmation_required &&
+                        item.confirmation_track_number === stateTrackNumber;
 
                     const trackContent = document.createElement('div');
                     trackContent.className = 'queue-track-content';
                     trackContent.appendChild(info);
-                    if (track.confirmation_required) {
+                    if (track.confirmation_required && !isCurrentApproval) {
                         trackContent.appendChild(this.createDownloadApproval(
                             item.id,
                             index + 1,
@@ -266,7 +291,22 @@ class UIManager {
             } else if (this.isYouTubeTrackUrl(item.url)) {
                 const youtubeDetails = document.createElement('p');
                 youtubeDetails.className = 'queue-track-empty';
-                youtubeDetails.textContent = `YouTube audio source: ${item.url}`;
+                youtubeDetails.append('YouTube audio source: ');
+                try {
+                    const youtubeUrl = new URL(item.url);
+                    if (!['http:', 'https:'].includes(youtubeUrl.protocol)) {
+                        throw new Error('YouTube source URL must use HTTP or HTTPS');
+                    }
+                    const link = document.createElement('a');
+                    link.href = youtubeUrl.href;
+                    link.textContent = item.url;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    youtubeDetails.appendChild(link);
+                } catch (error) {
+                    console.warn('Ignoring invalid YouTube audio source URL', item.url, error);
+                    youtubeDetails.append(item.url);
+                }
                 details.appendChild(youtubeDetails);
             } else {
                 const trackMessage = document.createElement('p');
@@ -292,28 +332,6 @@ class UIManager {
                 outputDirectory.textContent = `Saved to: ${item.output_directory}`;
                 details.appendChild(outputDirectory);
             }
-            if (item.output_directory && item.download_url) {
-                try {
-                    const downloadUrl = new URL(item.download_url);
-                    if (['http:', 'https:'].includes(downloadUrl.protocol)) {
-                        const source = document.createElement('p');
-                        source.className = 'queue-track-empty';
-                        source.append('Download source: ');
-                        const link = document.createElement('a');
-                        link.href = downloadUrl.href;
-                        link.textContent = item.download_url;
-                        link.target = '_blank';
-                        link.rel = 'noopener noreferrer';
-                        source.appendChild(link);
-                        details.appendChild(source);
-                    } else {
-                        console.warn('Ignoring non-HTTP download source URL', item.download_url);
-                    }
-                } catch (error) {
-                    console.warn('Ignoring invalid download source URL', item.download_url, error);
-                }
-            }
-
             entry.appendChild(details);
             list.appendChild(entry);
         });

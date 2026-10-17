@@ -969,6 +969,27 @@ def test_cli_track_download_keeps_matched_youtube_url(tmp_path, monkeypatch):
     assert downloaded_track.youtube_url == youtube_url
 
 
+def test_cli_track_without_youtube_match_reports_user_facing_reason(
+    tmp_path, monkeypatch
+):
+    downloader = YouTubeDownloaderForCLI(base_dir=str(tmp_path))
+    track = _make_track()
+    failure_messages = []
+    monkeypatch.setattr(downloader.searcher, "search_track", lambda _track: None)
+
+    downloaded_path, downloaded_track = downloader.download_track_cli(
+        track,
+        failure_callback=failure_messages.append,
+    )
+
+    assert downloaded_path is None
+    assert downloaded_track is None
+    assert failure_messages == [
+        f'No suitable YouTube Music match was found for "{track.name}". '
+        "The track may not be available on YouTube Music."
+    ]
+
+
 def test_playlist_cancellation_does_not_start_tracks_waiting_for_a_slot(
     tmp_path, monkeypatch
 ):

@@ -78,6 +78,27 @@ def _uses_spotify_collection_confirmation(request: DownloadRequest) -> bool:
     )
 
 
+def _youtube_channel_name(video_info: dict, fallback: str = "") -> str:
+    for key in ("channel", "uploader", "artist", "creator"):
+        value = video_info.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    for key in ("artists", "creators"):
+        values = video_info.get(key)
+        if isinstance(values, list):
+            names = [
+                value.strip() if isinstance(value, str) else str(value.get("name", "")).strip()
+                for value in values
+                if isinstance(value, (str, dict))
+            ]
+            names = [name for name in names if name]
+            if names:
+                return ", ".join(names)
+
+    return fallback.strip() or "Unknown channel"
+
+
 async def _park_for_youtube_confirmation(
     task_id: str,
     track_number: int,
@@ -1019,7 +1040,12 @@ async def download_task(task_id: str, request: DownloadRequest):
         task = tasks[task_id]
         loop = asyncio.get_running_loop()
 
-        def confirm_youtube_item(track_number: int, _source_title: str, youtube_url: str) -> bool:
+        def confirm_youtube_item(
+            track_number: int,
+            _source_title: str,
+            youtube_url: str,
+            fallback_channel: str = "",
+        ) -> bool:
             metadata_options = {
                 "quiet": True,
                 "skip_download": True,
@@ -1036,11 +1062,7 @@ async def download_task(task_id: str, request: DownloadRequest):
                 raise ValueError(
                     f"YouTube did not provide a title for {youtube_url}"
                 )
-            channel_name = str(
-                video_info.get("channel")
-                or video_info.get("uploader")
-                or "Unknown channel"
-            ).strip()
+            channel_name = _youtube_channel_name(video_info, fallback_channel)
 
             resumed = Event()
             confirmation_resume_events[task_id] = resumed
@@ -1065,11 +1087,10 @@ async def download_task(task_id: str, request: DownloadRequest):
             youtube_url: str,
             video_info: dict,
         ) -> None:
-            channel_name = str(
-                video_info.get("channel")
-                or video_info.get("uploader")
-                or "Unknown channel"
-            ).strip()
+            channel_name = _youtube_channel_name(
+                video_info,
+                ", ".join(getattr(track, "artists", []) or []),
+            )
             approval_event = Event()
             track_confirmation_events[(task_id, track_number)] = approval_event
             asyncio.run_coroutine_threadsafe(
@@ -1197,6 +1218,7 @@ async def download_task(task_id: str, request: DownloadRequest):
                             ),
                             track.name,
                             youtube_url,
+                            ", ".join(getattr(track, "artists", []) or []),
                         )
                     )
 
@@ -1311,7 +1333,7 @@ async def download_task(task_id: str, request: DownloadRequest):
             task.title = result.get("collection_name")
         if failed_tracks:
             failed_summary = ", ".join(failed_track_names) or f"{failed_tracks} track(s)"
-            task.error_message = (
+            task.error_message = result.get("error_message") or (
                 f"Downloaded {completed_tracks}/{task.total_tracks} tracks. "
                 f"Failed: {failed_summary}."
             )

@@ -615,6 +615,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         progress_callback: Optional[callable] = None,
         overwrite_existing: bool = False,
         cancellation_event: Optional[Event] = None,
+        failure_callback: Optional[callable] = None,
     ) -> tuple[Optional[Path], Optional[Track]]:
         """
         Download a single track with CLI progress support.
@@ -659,7 +660,12 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
             if cancellation_event and cancellation_event.is_set():
                 return None, None
             if not yt_url:
-                raise ValueError(f"Not found on YouTube Music: {track.name}")
+                if failure_callback:
+                    failure_callback(
+                        f'No suitable YouTube Music match was found for "{track.name}". '
+                        "The track may not be available on YouTube Music."
+                    )
+                return None, None
 
             audio_path, updated_track = self.download_track(
                 track=track,
@@ -678,10 +684,18 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
                 return audio_path, (updated_track or track).with_youtube_url(yt_url)
             else:
                 self.logger.warning(f"Could not download track: {track.name}")
+                if failure_callback:
+                    failure_callback(
+                        f'A YouTube Music match was found for "{track.name}", '
+                        "but SpotifySaver could not download the audio. "
+                        "Check YouTube availability and the server logs."
+                    )
                 return None, None
 
         except Exception as e:
             self.logger.error(f"Error downloading track {track.name}: {str(e)}", exc_info=True)
+            if failure_callback:
+                failure_callback(f'Could not download "{track.name}": {e}')
             return None, None
 
     def download_album_cli(
