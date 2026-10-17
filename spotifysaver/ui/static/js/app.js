@@ -20,6 +20,8 @@ class SpotifySaverUI {
         this.settingsVisible = false;
         this.isInitialized = false;
         this.retryCount = 0;
+        this.availableTabs = new Set(['audio', 'video', 'watcher']);
+        this.downloadUrlCategory = null;
         this.notificationSource = null;
         this.notificationConnectionWarningShown = false;
         this.channelWatcherManager = new ChannelWatcherManager(
@@ -152,6 +154,83 @@ class SpotifySaverUI {
         }
     }
 
+    getDownloadUrlCategory(sourceUrl) {
+        const url = sourceUrl.trim();
+        if (!url) return null;
+
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(url);
+        } catch (_error) {
+            return null;
+        }
+        if (!['http:', 'https:'].includes(parsedUrl.protocol) ||
+            parsedUrl.username || parsedUrl.password) {
+            return null;
+        }
+
+        if (
+            parsedUrl.hostname.toLowerCase() === 'open.spotify.com' &&
+            /^\/(?:intl-[a-z]{2}(?:-[a-z]{2})?\/)?(?:track|album|playlist)\/[^/]+\/?$/i.test(
+                parsedUrl.pathname
+            )
+        ) {
+            return 'spotify';
+        }
+        if (this.downloadManager.isSoundCloudTrackUrl(url)) {
+            return 'soundcloud';
+        }
+        if (this.isYouTubeChannelUrl(url)) {
+            return 'youtube-channel';
+        }
+        if (
+            this.downloadManager.isYouTubeCollectionUrl(url) ||
+            this.downloadManager.isYouTubeTrackUrl(url)
+        ) {
+            return 'youtube-media';
+        }
+        return null;
+    }
+
+    updateTabsForUrl() {
+        const url = document.getElementById('spotify-url').value;
+        const category = this.getDownloadUrlCategory(url);
+        const tabList = document.querySelector('.tabs');
+        tabList.hidden = !url.trim();
+        tabList.setAttribute('aria-hidden', String(!url.trim()));
+        let tabs = ['audio', 'video', 'watcher'];
+        if (category === 'spotify' || category === 'soundcloud') {
+            tabs = ['audio'];
+        } else if (category === 'youtube-channel') {
+            tabs = ['watcher'];
+        } else if (category === 'youtube-media') {
+            tabs = ['audio', 'video'];
+        }
+
+        const categoryChanged = category !== this.downloadUrlCategory;
+        this.downloadUrlCategory = category;
+        this.availableTabs = new Set(tabs);
+        document.querySelectorAll('.tab-button').forEach((tab) => {
+            const unavailable = !this.availableTabs.has(tab.dataset.tab);
+            tab.hidden = unavailable;
+            tab.setAttribute('aria-hidden', String(unavailable));
+        });
+
+        const currentTab = this.downloadManager.mode;
+        this.switchTab(
+            categoryChanged || !this.availableTabs.has(currentTab)
+                ? tabs[0]
+                : currentTab
+        );
+    }
+
+    isDownloadActionAvailable(category, mode) {
+        if (mode === 'audio') {
+            return ['spotify', 'soundcloud', 'youtube-media'].includes(category);
+        }
+        return mode === 'video' && category === 'youtube-media';
+    }
+
     applyUrlHandoff() {
         const handoffKey = 'spotifysaver_url_handoff';
         const handoffErrorKey = 'spotifysaver_url_handoff_error';
@@ -160,7 +239,7 @@ class SpotifySaverUI {
         if (this.urlHandoff.url) {
             if (this.isYouTubeChannelUrl(this.urlHandoff.url)) {
                 urlInput.value = this.urlHandoff.url;
-                this.switchTab('watcher');
+                this.updateTabsForUrl();
                 this.uiManager.updateStatus(
                     'Channel URL ready. Review the watcher settings, then select Watch Channel to start watching.',
                     'info'
@@ -168,7 +247,7 @@ class SpotifySaverUI {
                 urlInput.focus();
             } else {
                 urlInput.value = this.urlHandoff.url;
-                this.switchTab('audio');
+                this.updateTabsForUrl();
                 this.saveState();
                 this.uiManager.updateStatus(
                     'Source link ready. Choose audio or video for YouTube, review your settings, then select Download to queue it.',
@@ -286,6 +365,7 @@ class SpotifySaverUI {
         try {
             this.initializeEventListeners();
             this.loadPersistedState();
+            this.updateTabsForUrl();
 
             const authentication = await this.apiClient.getAuthenticationStatus();
             if (!authentication.configured) {
@@ -354,9 +434,11 @@ class SpotifySaverUI {
         stopDownloadBtn.addEventListener('click', () => this.downloadManager.stopDownload());
         clearUrlBtn.addEventListener('click', () => {
             spotifyUrl.value = '';
+            this.updateTabsForUrl();
             this.saveState();
             spotifyUrl.focus();
         });
+        spotifyUrl.addEventListener('input', () => this.updateTabsForUrl());
         this.setDarkMode(localStorage.getItem('spotifysaver_theme') === 'dark');
         themeToggleBtn.addEventListener('click', () => {
             this.setDarkMode(!document.body.classList.contains('dark-mode'));
@@ -1718,13 +1800,22 @@ class SpotifySaverUI {
     }
 
     switchTab(mode) {
+        if (!this.availableTabs.has(mode)) {
+            mode = this.availableTabs.values().next().value;
+        }
+        this.uiManager.setDownloadUrlValid(
+            this.isDownloadActionAvailable(this.downloadUrlCategory, mode)
+        );
         document.querySelectorAll('.tab-button').forEach((tab) => {
             const active = tab.dataset.tab === mode;
             tab.classList.toggle('active', active);
             tab.setAttribute('aria-selected', String(active));
         });
         document.querySelectorAll('.tab-panel').forEach((panel) => {
-            panel.classList.toggle('hidden', panel.id !== `tab-${mode}`);
+            const hidden = !document.getElementById('spotify-url').value.trim() ||
+                panel.id !== `tab-${mode}`;
+            panel.classList.toggle('hidden', hidden);
+            panel.setAttribute('aria-hidden', String(hidden));
         });
         
         document.getElementById('download-btn').classList.toggle(

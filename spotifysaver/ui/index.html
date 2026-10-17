@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpotifySaver - Save your music...</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-16-5">
+    <link rel="stylesheet" href="/static/css/styles.css?v=2026-10-17-3">
 </head>
 <body>
     <!-- Header -->
@@ -140,7 +140,7 @@
                         <button id="url-handoff-return-btn" class="output-dir-button" type="button">Back to dashboard</button>
                     </div>
 
-                    <div class="tabs" role="tablist" aria-label="Download type">
+                    <div class="tabs" role="tablist" aria-label="Download type" hidden aria-hidden="true">
                         <button id="tab-audio-btn" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tab-audio" data-tab="audio" title="Download audio from Spotify or YouTube.">Audio</button>
                         <button id="tab-video-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-video" data-tab="video" title="Download videos from YouTube.">Video</button>
                         <button id="tab-watcher-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-watcher" data-tab="watcher" title="Automatically check a channel for new uploads.">Channel Watcher</button>
@@ -510,7 +510,7 @@
                         <button id="watcher-submit-btn" class="download-btn primary-download-action" type="button" title="Add this channel to the watch list"><svg class="watcher-download-icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9M4 5a15 15 0 0 1 15 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><circle cx="4" cy="20" r="1.5" fill="currentColor" stroke="none"></circle></svg><span id="watcher-submit-label">Watch Channel</span></button>
                         <button id="watcher-cancel-btn" class="clear-queue-btn hidden" type="button" title="Discard these channel edits">Cancel</button>
                     </div>
-                    <button id="download-btn" class="download-btn primary-download-action" title="Add this download to the queue">
+                    <button id="download-btn" class="download-btn primary-download-action" title="Add this download to the queue" disabled>
                         <span class="music-note" aria-hidden="true">♫︎</span> Start Download
                     </button>
                 </details>
@@ -798,9 +798,9 @@
     <!-- Load JavaScript modules in dependency order -->
     <script src="/static/js/api-client.js?v=2026-10-17-1"></script>
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
-    <script src="/static/js/ui-manager.js?v=2026-10-17-1"></script>
+    <script src="/static/js/ui-manager.js?v=2026-10-17-2"></script>
     <script src="/static/js/download-manager.js?v=2026-10-17-1"></script>
-    <script src="/static/js/channel-watcher-manager.js?v=2026-10-17-1"></script>
-    <script src="/static/js/app.js?v=2026-10-17-2"></script>
+    <script src="/static/js/channel-watcher-manager.js?v=2026-10-17-2"></script>
+    <script src="/static/js/app.js?v=2026-10-17-6"></script>
 </body>
 </html>

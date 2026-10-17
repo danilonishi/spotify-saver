@@ -11,6 +11,7 @@ class UIManager {
         this.downloading = false;
         this.downloadButtonLabel = null;
         this.downloadButtonDisabled = false;
+        this.downloadUrlValid = false;
         this.preferredOutputDirectories = {
             audio: null,
             video: null,
@@ -25,7 +26,7 @@ class UIManager {
 
     updateDownloadButtonLabel() {
         const button = document.getElementById('download-btn');
-        button.disabled = this.downloadButtonDisabled;
+        button.disabled = this.downloadButtonDisabled || !this.downloadUrlValid;
         if (this.downloading && !this.downloadButtonLabel) {
             button.textContent = 'Enqueue Download';
             return;
@@ -49,12 +50,15 @@ class UIManager {
         this.updateDownloadButtonLabel();
     }
 
+    setDownloadUrlValid(valid) {
+        this.downloadUrlValid = valid;
+        this.updateDownloadButtonLabel();
+    }
+
     updateUI(downloading, paused = false) {
-        const downloadBtn = document.getElementById('download-btn');
         const stopDownloadBtn = document.getElementById('stop-download-btn');
         const progressContainer = document.getElementById('progress-container');
 
-        downloadBtn.disabled = false;
         this.downloading = downloading;
         this.updateDownloadButtonLabel();
         if (downloading) {

@@ -222,6 +222,10 @@ main {
     border-bottom: 2px solid #e2e8f0;
 }
 
+.tabs[hidden] {
+    display: none;
+}
+
 .tab-button {
     padding: 10px 22px;
     border: 2px solid transparent;

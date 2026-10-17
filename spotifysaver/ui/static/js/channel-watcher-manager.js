@@ -245,6 +245,7 @@ class ChannelWatcherManager {
         if (!channel) return;
         this.editingChannelId = channel.id;
         document.getElementById('spotify-url').value = channel.url;
+        this.app.updateTabsForUrl();
         document.getElementById('watcher-interval').value = channel.interval;
         document.getElementById('watcher-weekday').value = String(channel.check_weekday ?? 0);
         document.getElementById('watcher-time').value =
@@ -347,6 +348,7 @@ class ChannelWatcherManager {
     cancelEdit() {
         this.editingChannelId = null;
         document.getElementById('spotify-url').value = '';
+        this.app.updateTabsForUrl();
         document.getElementById('watcher-interval').value = 'daily';
         document.getElementById('watcher-weekday').value = '0';
         document.getElementById('watcher-time').value = '09:00';
