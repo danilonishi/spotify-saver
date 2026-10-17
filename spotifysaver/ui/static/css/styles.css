@@ -365,6 +365,7 @@ select {
 .url-input-group {
     display: flex;
     gap: 8px;
+    margin-bottom: 8px;
 }
 
 .url-input-group input[type="url"] {

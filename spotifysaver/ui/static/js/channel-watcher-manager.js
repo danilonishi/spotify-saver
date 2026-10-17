@@ -14,11 +14,6 @@ class ChannelWatcherManager {
     }
 
     bindEvents() {
-        const channelUrl = document.getElementById('watcher-url');
-        document.getElementById('watcher-clear-url-btn').addEventListener('click', () => {
-            channelUrl.value = '';
-            channelUrl.focus();
-        });
         document.getElementById('watcher-interval').addEventListener('change', () => {
             this.updateWeekdayVisibility();
         });
@@ -171,7 +166,7 @@ class ChannelWatcherManager {
     }
 
     async saveChannel() {
-        const url = document.getElementById('watcher-url').value.trim();
+        const url = document.getElementById('spotify-url').value.trim();
         const outputDir = document.getElementById('watcher-output-dir').value;
         const checkTime = document.getElementById('watcher-time').value;
         if (!url) {
@@ -249,7 +244,7 @@ class ChannelWatcherManager {
         const channel = this.channels.find((item) => item.id === channelId);
         if (!channel) return;
         this.editingChannelId = channel.id;
-        document.getElementById('watcher-url').value = channel.url;
+        document.getElementById('spotify-url').value = channel.url;
         document.getElementById('watcher-interval').value = channel.interval;
         document.getElementById('watcher-weekday').value = String(channel.check_weekday ?? 0);
         document.getElementById('watcher-time').value =
@@ -351,7 +346,7 @@ class ChannelWatcherManager {
 
     cancelEdit() {
         this.editingChannelId = null;
-        document.getElementById('watcher-url').value = '';
+        document.getElementById('spotify-url').value = '';
         document.getElementById('watcher-interval').value = 'daily';
         document.getElementById('watcher-weekday').value = '0';
         document.getElementById('watcher-time').value = '09:00';

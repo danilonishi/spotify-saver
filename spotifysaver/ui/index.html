@@ -117,6 +117,20 @@
                 <!-- Settings download section -->
                 <details id="download-settings-panel" class="form-section download-view-panel panel-details" open>
                     <summary class="panel-summary"><h2>Download</h2></summary>
+                    <div class="watcher-label-row">
+                        <label for="spotify-url">Spotify, YouTube, or SoundCloud URL:</label>
+                        <button class="watcher-tooltip" type="button" aria-label="Help: Paste a Spotify track, album, or playlist; YouTube video or playlist; or SoundCloud track URL." data-tooltip="SoundCloud tracks download directly when the artist allows downloads; Youtube videos downloads directly. Playlists, albums, and other triggers an Youtube search.">i</button>
+                    </div>
+                    <div class="url-input-group">
+                        <input
+                            type="url"
+                            id="spotify-url"
+                            placeholder="Spotify, YouTube, or SoundCloud track URL"
+                            title="Paste a Spotify track, album, or playlist; YouTube video or playlist; or SoundCloud track URL."
+                            required>
+                        <button id="clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear URL" title="Clear the URL field">Clear</button>
+                    </div>
+
                     <div id="url-handoff-notice" class="url-handoff-notice hidden" role="region" aria-label="Review download">
                         <div>
                             <h3>Review your download</h3>
@@ -130,22 +144,6 @@
                         <button id="tab-audio-btn" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tab-audio" data-tab="audio" title="Download audio from Spotify or YouTube.">Audio</button>
                         <button id="tab-video-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-video" data-tab="video" title="Download videos from YouTube.">Video</button>
                         <button id="tab-watcher-btn" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-watcher" data-tab="watcher" title="Automatically check a channel for new uploads.">Channel Watcher</button>
-                    </div>
-
-                    <div id="download-url-group" class="form-group">
-                        <div class="watcher-label-row">
-                            <label for="spotify-url">Spotify, YouTube, or SoundCloud URL:</label>
-                            <button class="watcher-tooltip" type="button" aria-label="Help: Paste a Spotify track, album, or playlist; YouTube video or playlist; or SoundCloud track URL." data-tooltip="SoundCloud tracks download directly when the artist allows downloads; otherwise SpotifySaver searches YouTube Music for the track.">i</button>
-                        </div>
-                        <div class="url-input-group">
-                            <input
-                                type="url"
-                                id="spotify-url"
-                                placeholder="Spotify, YouTube, or SoundCloud track URL"
-                                title="Paste a Spotify track, album, or playlist; YouTube video or playlist; or SoundCloud track URL."
-                                required>
-                            <button id="clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear URL" title="Clear the URL field">Clear</button>
-                        </div>
                     </div>
 
                     <div id="tab-audio" class="tab-panel" role="tabpanel" aria-labelledby="tab-audio-btn">
@@ -332,17 +330,7 @@
                     </div>
 
                     <div id="tab-watcher" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-watcher-btn">
-                        <div class="form-group">
-                            <div class="watcher-label-row">
-                                <label for="watcher-url">Channel URL:</label>
-                                <button class="watcher-tooltip" type="button" aria-label="Help: Paste the URL of the YouTube channel you want to watch. New uploads will be checked using the schedule and filters below." data-tooltip="Paste the URL of the YouTube channel you want to watch. New uploads will be checked using the schedule and filters below.">i</button>
-                            </div>
-                            <div class="url-input-group">
-                                <input type="url" id="watcher-url" placeholder="https://www.youtube.com/@channel" title="Paste the URL of the YouTube channel to watch for new uploads" required>
-                                <button id="watcher-clear-url-btn" class="url-clear-btn" type="button" aria-label="Clear channel URL" title="Clear the channel URL">Clear</button>
-                            </div>
-                        </div>
-
+                    <!-- Watcher tab content -->
                         <div class="form-group">
                             <label>Download Folder:</label>
                             <div id="watcher-media-root-display" class="media-root-display"></div>
@@ -812,7 +800,7 @@
     <script src="/static/js/state-manager.js?v=2026-09-27-2"></script>
     <script src="/static/js/ui-manager.js?v=2026-10-17-1"></script>
     <script src="/static/js/download-manager.js?v=2026-10-17-1"></script>
-    <script src="/static/js/channel-watcher-manager.js?v=2026-10-13-1"></script>
-    <script src="/static/js/app.js?v=2026-10-17-1"></script>
+    <script src="/static/js/channel-watcher-manager.js?v=2026-10-17-1"></script>
+    <script src="/static/js/app.js?v=2026-10-17-2"></script>
 </body>
 </html>

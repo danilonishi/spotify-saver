@@ -159,14 +159,13 @@ class SpotifySaverUI {
 
         if (this.urlHandoff.url) {
             if (this.isYouTubeChannelUrl(this.urlHandoff.url)) {
-                const channelUrlInput = document.getElementById('watcher-url');
-                channelUrlInput.value = this.urlHandoff.url;
+                urlInput.value = this.urlHandoff.url;
                 this.switchTab('watcher');
                 this.uiManager.updateStatus(
                     'Channel URL ready. Review the watcher settings, then select Watch Channel to start watching.',
                     'info'
                 );
-                channelUrlInput.focus();
+                urlInput.focus();
             } else {
                 urlInput.value = this.urlHandoff.url;
                 this.switchTab('audio');
@@ -183,10 +182,7 @@ class SpotifySaverUI {
         if (this.urlHandoff.focused) {
             this.enterUrlHandoffMode(this.urlHandoff.url || urlInput.value);
             if (this.urlHandoff.url) {
-                const handoffInput = this.isYouTubeChannelUrl(this.urlHandoff.url)
-                    ? document.getElementById('watcher-url')
-                    : urlInput;
-                handoffInput.focus();
+                urlInput.focus();
             }
         }
 
@@ -536,12 +532,11 @@ class SpotifySaverUI {
         // Allow starting a download with Enter
         spotifyUrl.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                this.startDownloadFromUi();
-            }
-        });
-        document.getElementById('watcher-url').addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                this.channelWatcherManager.saveChannel();
+                if (this.downloadManager.mode === 'watcher') {
+                    this.channelWatcherManager.saveChannel();
+                } else {
+                    this.startDownloadFromUi();
+                }
             }
         });
 
@@ -1731,14 +1726,7 @@ class SpotifySaverUI {
         document.querySelectorAll('.tab-panel').forEach((panel) => {
             panel.classList.toggle('hidden', panel.id !== `tab-${mode}`);
         });
-        const downloadUrlGroup = document.getElementById('download-url-group');
-        if (mode === 'audio' || mode === 'video') {
-            const activePanel = document.getElementById(`tab-${mode}`);
-            activePanel.insertBefore(downloadUrlGroup, activePanel.firstElementChild);
-            downloadUrlGroup.classList.remove('hidden');
-        } else {
-            downloadUrlGroup.classList.add('hidden');
-        }
+        
         document.getElementById('download-btn').classList.toggle(
             'hidden',
             mode === 'watcher'
