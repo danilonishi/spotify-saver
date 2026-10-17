@@ -64,6 +64,13 @@ class YouTubeDownloader:
         """Return whether a URL points to a YouTube playlist or album collection."""
         parsed_url = urlparse(url)
         hostname = (parsed_url.hostname or "").lower()
+        path = parsed_url.path.rstrip("/")
+        playlist_ids = parse_qs(parsed_url.query).get("list", [])
+        is_radio = (
+            path == "/watch"
+            and bool(playlist_ids)
+            and playlist_ids[0].upper().startswith("RD")
+        )
         collection_hosts = {
             "music.youtube.com",
             "youtube.com",
@@ -72,8 +79,9 @@ class YouTubeDownloader:
         }
         return (
             hostname in collection_hosts
-            and parsed_url.path.rstrip("/") in {"/playlist", "/watch"}
-            and bool(parse_qs(parsed_url.query).get("list"))
+            and path in {"/playlist", "/watch"}
+            and bool(playlist_ids)
+            and not is_radio
         )
 
     @staticmethod

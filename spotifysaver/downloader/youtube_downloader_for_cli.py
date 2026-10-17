@@ -436,6 +436,7 @@ class YouTubeDownloaderForCLI(YouTubeDownloader):
         ydl_opts = self._get_ydl_opts(output_template, output_format, bitrate)
         ydl_opts["windowsfilenames"] = True
         ydl_opts["overwrites"] = overwrite_existing
+        ydl_opts["noplaylist"] = True
         ydl_opts["postprocessors"].append({"key": "FFmpegMetadata"})
         self._add_cancellation_hook(ydl_opts, cancellation_event)
 

@@ -81,6 +81,12 @@ def test_youtube_collection_url_detection():
     assert YouTubeDownloader.is_youtube_collection_url(
         "https://www.youtube.com/watch?v=video-id&list=playlist-id"
     )
+    radio_url = (
+        "https://www.youtube.com/watch?v=vHPXSAw47hA&list=RDvHPXSAw47hA"
+        "&start_radio=1&pp=oAcB"
+    )
+    assert not YouTubeDownloader.is_youtube_collection_url(radio_url)
+    assert YouTubeDownloader.is_youtube_track_url(radio_url)
     assert not YouTubeDownloader.is_youtube_collection_url(
         "https://www.youtube.com/watch?v=video-id"
     )

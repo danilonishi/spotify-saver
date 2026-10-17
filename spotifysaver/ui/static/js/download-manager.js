@@ -92,9 +92,13 @@ class DownloadManager {
                 'www.youtube.com',
                 'm.youtube.com'
             ]);
+            const path = parsedUrl.pathname.replace(/\/$/, '');
+            const playlistId = parsedUrl.searchParams.get('list') || '';
+            const isRadio = path === '/watch' && playlistId.toUpperCase().startsWith('RD');
             return hosts.has(parsedUrl.hostname.toLowerCase()) &&
-                ['/playlist', '/watch'].includes(parsedUrl.pathname.replace(/\/$/, '')) &&
-                Boolean(parsedUrl.searchParams.get('list'));
+                ['/playlist', '/watch'].includes(path) &&
+                Boolean(playlistId) &&
+                !isRadio;
         } catch (_error) {
             return false;
         }
