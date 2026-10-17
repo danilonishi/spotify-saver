@@ -40,7 +40,6 @@ class SpotifySaverUI {
         const handoffKey = 'spotifysaver_url_handoff';
         const handoffErrorKey = 'spotifysaver_url_handoff_error';
         const handoffModeKey = 'spotifysaver_url_handoff_mode';
-        const handoffMediaChoiceKey = 'spotifysaver_url_handoff_media_choice';
         const currentUrl = new URL(window.location.href);
         let handoffUrl = null;
         let handoffError = null;
@@ -59,21 +58,7 @@ class SpotifySaverUI {
             } else if (this.isSupportedHandoffUrl(values[0].trim())) {
                 handoffUrl = values[0].trim();
                 window.sessionStorage.setItem(handoffKey, handoffUrl);
-                const isChannelHandoff = this.isYouTubeChannelUrl(handoffUrl);
-                if (isChannelHandoff) {
-                    window.sessionStorage.setItem(handoffModeKey, 'true');
-                    window.sessionStorage.removeItem(handoffMediaChoiceKey);
-                } else {
-                    window.sessionStorage.setItem(handoffModeKey, 'true');
-                    if (
-                        this.isSpotifyHandoffUrl(handoffUrl) ||
-                        this.downloadManager.isSoundCloudTrackUrl(handoffUrl)
-                    ) {
-                        window.sessionStorage.removeItem(handoffMediaChoiceKey);
-                    } else {
-                        window.sessionStorage.setItem(handoffMediaChoiceKey, 'true');
-                    }
-                }
+                window.sessionStorage.setItem(handoffModeKey, 'true');
             } else {
                 handoffError = 'This link is not a supported Spotify, YouTube, or SoundCloud source.';
             }
@@ -81,7 +66,6 @@ class SpotifySaverUI {
             if (handoffError) {
                 window.sessionStorage.removeItem(handoffKey);
                 window.sessionStorage.removeItem(handoffModeKey);
-                window.sessionStorage.removeItem(handoffMediaChoiceKey);
                 window.sessionStorage.setItem(handoffErrorKey, handoffError);
             } else {
                 window.sessionStorage.removeItem(handoffErrorKey);
@@ -90,13 +74,12 @@ class SpotifySaverUI {
             handoffUrl = window.sessionStorage.getItem(handoffKey);
             handoffError = window.sessionStorage.getItem(handoffErrorKey);
         }
+        window.sessionStorage.removeItem('spotifysaver_url_handoff_media_choice');
 
         return {
             url: handoffUrl,
             error: handoffError,
-            focused: window.sessionStorage.getItem(handoffModeKey) === 'true',
-            requiresMediaChoice:
-                window.sessionStorage.getItem(handoffMediaChoiceKey) === 'true'
+            focused: window.sessionStorage.getItem(handoffModeKey) === 'true'
         };
     }
 
@@ -256,9 +239,7 @@ class SpotifySaverUI {
                 this.updateTabsForUrl();
                 this.saveState();
                 this.uiManager.updateStatus(
-                    this.urlHandoff.requiresMediaChoice
-                        ? 'Source link ready. Choose audio or video for YouTube, review your settings, then select Download to queue it.'
-                        : 'Source link ready. Review your settings, then select Download to queue it.',
+                    'Source link ready. Review your settings, then select Download to queue it.',
                     'info'
                 );
             }
@@ -279,8 +260,7 @@ class SpotifySaverUI {
         this.urlHandoff = {
             url: null,
             error: null,
-            focused: this.urlHandoff.focused,
-            requiresMediaChoice: this.urlHandoff.requiresMediaChoice
+            focused: this.urlHandoff.focused
         };
     }
 
@@ -296,16 +276,13 @@ class SpotifySaverUI {
         document.body.classList.add('download-handoff-mode');
         document.getElementById('download-settings-panel').open = true;
         document.getElementById('url-handoff-notice').classList.remove('hidden');
-        const requiresMediaChoice = this.urlHandoff.requiresMediaChoice;
-        this.uiManager.setDownloadButtonState('Download', requiresMediaChoice);
+        this.uiManager.setDownloadButtonState('Download');
         document.querySelector('#url-handoff-notice h3').textContent = isChannelHandoff
             ? 'Review channel watcher'
             : 'Review your download';
         document.getElementById('url-handoff-help').textContent = isChannelHandoff
             ? 'Review the channel settings, then select Watch Channel to start watching.'
-            : requiresMediaChoice
-                ? 'Choose Audio or Video for this YouTube link before downloading.'
-                : 'Review your folder and settings, then download when ready.';
+            : 'Review your folder and settings, then download when ready.';
         document.getElementById('settings-toggle-btn').classList.add('hidden');
         document.getElementById('logout-btn').classList.add('hidden');
     }
@@ -325,29 +302,9 @@ class SpotifySaverUI {
         window.sessionStorage.removeItem('spotifysaver_url_handoff_mode');
         window.sessionStorage.removeItem('spotifysaver_url_handoff_media_choice');
         this.urlHandoff.focused = false;
-        this.urlHandoff.requiresMediaChoice = false;
-    }
-
-    confirmUrlHandoffMediaType(mode) {
-        if (!this.urlHandoff.focused || !this.urlHandoff.requiresMediaChoice ||
-            !['audio', 'video'].includes(mode)) {
-            return;
-        }
-        this.urlHandoff.requiresMediaChoice = false;
-        window.sessionStorage.removeItem('spotifysaver_url_handoff_media_choice');
-        this.uiManager.setDownloadButtonState('Download');
-        document.getElementById('url-handoff-help').textContent =
-            `You selected ${mode}. Review your folder and settings, then download when ready.`;
     }
 
     async startDownloadFromUi() {
-        if (this.urlHandoff.focused && this.urlHandoff.requiresMediaChoice) {
-            this.uiManager.updateStatus(
-                'Choose Audio or Video for this YouTube link before downloading.',
-                'warning'
-            );
-            return;
-        }
         const queued = await this.downloadManager.startDownload();
         if (queued && this.urlHandoff.focused) {
             document.body.classList.add('download-handoff-complete');
@@ -565,7 +522,6 @@ class SpotifySaverUI {
         document.querySelectorAll('.tab-button').forEach((tab) => {
             tab.addEventListener('click', () => {
                 this.switchTab(tab.dataset.tab);
-                this.confirmUrlHandoffMediaType(tab.dataset.tab);
             });
         });
         const savedTab = localStorage.getItem('spotifysaver_active_tab');
