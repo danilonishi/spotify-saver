@@ -1,23 +1,27 @@
 [tool.poetry]
-name = "spotifysaver"
+name = "spotifysaverdn"
 version = "0.7.5"
-description = "Download Spotify tracks/albums with metadata via YouTube Music (Perfect for Jellyfin libraries!)"
+description = "Download audio and video from YouTube Music to your media server."
 authors = [
     "Gabriel Baute <gabrielbaute@gmail.com>",
-    "Rafnix Guzman <rafnixg@gmail.com>"
+    "Rafnix Guzman <rafnixg@gmail.com>",
+    "Danilo Nishimura <danilonishi@gmail.com>"
 ]
 maintainers = [
     "Gabriel Baute <gabrielbaute@gmail.com>",
-    "Rafnix Guzman <rafnixg@gmail.com>"
+    "Rafnix Guzman <rafnixg@gmail.com>",
+    "Danilo Nishimura <danilonishi@gmail.com>"
 ]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/gabrielbaute/spotify-saver"
-repository = "https://github.com/gabrielbaute/spotify-saver"
-documentation = "https://deepwiki.com/gabrielbaute/spotify-saver"
+homepage = "https://github.com/danilonishi/spotify-saver"
+repository = "https://github.com/danilonishi/spotify-saver"
+documentation = "https://deepwiki.com/danilonishi/spotify-saver"
 keywords = [
     "spotify", 
+    "youtube",
     "youtube-music", 
+    "soundcloud",
     "music-downloader", 
     "jellyfin", 
     "metadata",

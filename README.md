@@ -1,7 +1,7 @@
 # SpotifySaver 🎵✨
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![PyPI Version](https://img.shields.io/pypi/v/spotifysaver?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/spotifysaver/)
+[![PyPI Version](https://img.shields.io/pypi/v/spotifysaverdn?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/spotifysaverdn/)
 [![Docker](https://img.shields.io/badge/Docker-GHCR-blue?logo=docker&logoColor=white)](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
 [![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-Auto--Build-green?logo=github)](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
 [![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-orange?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
