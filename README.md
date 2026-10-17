@@ -6,11 +6,13 @@
 [![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-Auto--Build-green?logo=github)](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
 [![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-orange?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
 [![yt-dlp](https://img.shields.io/badge/yt--dlp-2026.8.19%2B-red)](https://github.com/yt-dlp/yt-dlp)
-[![YouTube Music](https://img.shields.io/badge/YouTube_Music-API-yellow)](https://ytmusicapi.readthedocs.io/)
-[![Spotify](https://img.shields.io/badge/Spotify-API-1ED760?logo=spotify)](https://developer.spotify.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gabrielbaute/spotify-saver)
+
+[![Spotify](https://img.shields.io/badge/Spotify-API-1ED760?logo=spotify)](https://developer.spotify.com/)
+[![YouTube](https://img.shields.io/badge/Youtube-API-C00000?logo=youtube)](https://youtube.com/)
+[![YouTube Music](https://img.shields.io/badge/YouTube_Music-API-yellow)](https://ytmusicapi.readthedocs.io/)
+[![SoundCloud](https://img.shields.io/badge/Soundcloud-API-FF5500?logo=soundcloud)](https://soundcloud.com)
 
 > ⚠️This repository is a fork from gabrielbaute's SpotifySaver. It's being developed with quality of life features I missed when using his tool. You can easily see the changes made by clicking [here](https://github.com/gabrielbaute/spotify-saver/compare/main...danilonishi:spotify-saver:main).
 
@@ -132,10 +134,6 @@ Do not share the cookie file; it contains session credentials. If the cookie
 file is not present in your configured `CONFIG_DIR`, leave the setting disabled.
 
 ## 📚 Documentation
-
-The original maintainer of the repository owns a [documentation with Deepwiki](https://deepwiki.com/gabrielbaute/spotify-saver). You can consult it at all times.
-
-⚠️ The original documentation on Deepwiki does not reflect changes in this repository.
 
 The **documentation for using the API**, on the other hand, can be found in this same repository here: [API Documentation](API_IMPLEMENTATION_SUMMARY.md)
 
