@@ -2,9 +2,9 @@ blank_issues_enabled: false
 
 contact_links:
   - name: 💬 Community Questions or Ideas
-    url: https://github.com/gabrielbaute/spotify-saver/discussions
+    url: https://github.com/danilonishi/spotify-saver/discussions
     about: Use Discussions for general questions, ideas, or help from the community.
 
-  - name: 📚 Documentation & Wiki
-    url: https://github.com/gabrielbaute/spotify-saver/wiki
-    about: Check the Wiki for guides, FAQs, and usage examples.
+  - name: Issues or requests
+    url: https://github.com/danilonishi/spotify-saver/issues
+    about: Report issues or request features specific to this fork of the project.
