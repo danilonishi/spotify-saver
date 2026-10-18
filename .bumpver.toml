@@ -1,6 +1,6 @@
 [bumpver]
-current_version = "0.7.5"
-version_pattern = "MAJOR.MINOR.PATCH"
+current_version = "0.7.5.post3"
+version_pattern = "MAJOR.MINOR.PATCH.PYTAGNUM"
 commit = true
 tag = true
 push = false
