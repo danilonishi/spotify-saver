@@ -111,14 +111,16 @@ See [Docker support with auto-builds](#-docker-support)
 git clone https://github.com/danilonishi/spotify-saver.git
 cd spotify-saver
 poetry install
+poetry run spotifysaver-api
 ```
-Then proceed to [First-time sign-in](#first-time-sign-in)
+Leave the server running, then proceed to [First-time sign-in](#first-time-sign-in).
 
 ### Method 3: Pip (through Git)
 ```bash
 pip install git+https://github.com/danilonishi/spotify-saver.git
+spotifysaver-api
 ```
-Then proceed to [First-time sign-in](#first-time-sign-in)
+Leave the server running, then proceed to [First-time sign-in](#first-time-sign-in).
 
 ## 🐳 Docker Support
 
@@ -190,21 +192,24 @@ docker compose up -d
 ## First-time sign-in
 
 On first launch, SpotifySaver writes a one-time administrator setup token to
-the server logs. From the directory containing the Compose files, run:
+the server logs.
 
-```sh
-docker compose logs --tail=100 spotifysaver
-```
+| Installation Method | Step |
+|---------------------|--------------------------------|
+| Poetry / Pip | Find the token in the terminal where you started `spotifysaver-api`.|
+| Docker Compose | run ```sh docker compose logs --tail=100 spotifysaver``` from the directory containing the Compose files.|
 
 Find the line beginning `First-run administrator setup token` and enter its
-token in the setup page. If the container is restarting, use this same command
-to inspect the startup error in the logs.
+token in the setup page. If the Docker container is restarting, use the same
+command to inspect the startup error in the logs.
 
-Open SpotifySaver in your browser, enter that token, and create an administrator
-password of at least 12 characters. The token is generated again after a server
-restart until the initial password has been set, and becomes invalid once it is
-used. Do not share the logs while they contain the token. After setup, sign in
-with the password you created. Login attempts are rate-limited.
+Open `http://{Server-Address}:8000` (127.0.0.1 for localhost, IP of target machine,
+or reverse-proxy address) in your browser, enter the token, and create an
+administrator password of at least 12 characters. The token is generated again
+after a server restart until the initial password has been set, and becomes
+invalid once it is used. Do not share the logs while they contain the token.
+After setup, sign in with the password you created. Login attempts are
+rate-limited.
 
 The admin password, sessions, and Spotify app credentials are persisted in
 `CONFIG_DIR` (the `data/config` folder by default); the database is readable
