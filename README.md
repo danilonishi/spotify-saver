@@ -14,7 +14,7 @@
 [![YouTube Music](https://img.shields.io/badge/YouTube_Music-API-yellow)](https://ytmusicapi.readthedocs.io/)
 [![SoundCloud](https://img.shields.io/badge/Soundcloud-API-FF5500?logo=soundcloud)](https://soundcloud.com)
 
-> ⚠️This repository is a fork from gabrielbaute's SpotifySaver. It's being developed with quality of life features I missed when using his tool. You can easily see the changes made by clicking [here](https://github.com/gabrielbaute/spotify-saver/compare/main...danilonishi:spotify-saver:main).
+> ⚠️This repository is a fork from [gabrielbaute](https://github.com/gabrielbaute)'s SpotifySaver. It's being developed with quality of life features I missed when using his tool. You can easily see the changes made by clicking [here](https://github.com/gabrielbaute/spotify-saver/compare/main...danilonishi:spotify-saver:main).
 
 All-in-one tool for downloading content for Jellyfin or similar media servers.
 
@@ -91,12 +91,16 @@ This fork packs many more features compared to the baseline:
 | ✅ | Spotify | Set up credentials to access the Spotify API|
 | ✅ | Security | Password management|
 
+## 🤝 Contributing
+
+See the [contribution guide](.github/CONTRIBUTING.md) for project development
+instructions.
 
 # Installation
 
 ### Requirements
-- Python 3.10+
-- FFmpeg
+- Python 3.10+ and FFmpeg (for Poetry and pip installations)
+- Docker Engine/Desktop with the Compose plugin (for Docker installations)
 - [Spotify Developer Account](https://developer.spotify.com/dashboard/) (only for Spotify URL downloads)
 
 ##
@@ -104,7 +108,7 @@ This fork packs many more features compared to the baseline:
 You can install using one of the three methods listed below.
 
 ### Method 1: Docker  (recommended)
-See [Docker support with auto-builds](#-docker-support)
+See [Docker support](#-docker-support)
 
 ### Method 2: Poetry (through Git)
 ```bash
@@ -126,16 +130,18 @@ Leave the server running, then proceed to [First-time sign-in](#first-time-sign-
 
 Docker images are published to
 [GitHub Container Registry](https://github.com/danilonishi/spotify-saver/pkgs/container/spotify-saver)
-from pushes to `main` and version tags (`v*`). `latest` tracks `main`; version
-tags are also available for pinned deployments. The first successful workflow
-run creates the package. Set its visibility to **Public** in GitHub Packages
-if servers should be able to pull images without authenticating. Until the
-first publish workflow has succeeded, use the local-build override below.
+and can be used with Docker Compose. The default `latest` image is the most
+recently published version. To use a specific version, set `IMAGE_TAG` in
+`.env` to that version (for example, `0.7.6`).
 
 ### Install with Docker Compose
 
-Requirements: Docker Engine/Desktop with the Compose plugin. Clone this
-repository, then create the host folders and environment file:
+Clone this repository, then create the host folders and environment file:
+
+```sh
+git clone https://github.com/danilonishi/spotify-saver.git
+cd spotify-saver
+```
 
 In **Windows PowerShell**, run:
 
@@ -192,19 +198,20 @@ docker compose up -d
 ## First-time sign-in
 
 On first launch, SpotifySaver writes a one-time administrator setup token to
-the server logs.
+the server logs. Find it using the instructions for your installation method:
 
-| Installation Method | Step |
-|---------------------|--------------------------------|
-| Poetry / Pip | Find the token in the terminal where you started `spotifysaver-api`.|
-| Docker Compose | run ```sh docker compose logs --tail=100 spotifysaver``` from the directory containing the Compose files.|
+| Installation method | Find the setup token |
+|---------------------|----------------------|
+| Poetry | Look in the terminal where you ran `poetry run spotifysaver-api`. |
+| Pip | Look in the terminal where you ran `spotifysaver-api`. |
+| Docker Compose | From the directory containing the Compose files, run `docker compose logs --tail=100 spotifysaver`. |
 
 Find the line beginning `First-run administrator setup token` and enter its
 token in the setup page. If the Docker container is restarting, use the same
 command to inspect the startup error in the logs.
 
-Open `http://{Server-Address}:8000` (127.0.0.1 for localhost, IP of target machine,
-or reverse-proxy address) in your browser, enter the token, and create an
+Open SpotifySaver at `http://127.0.0.1:8000` on the server machine, or at the
+address configured for your reverse proxy. Enter the token and create an
 administrator password of at least 12 characters. The token is generated again
 after a server restart until the initial password has been set, and becomes
 invalid once it is used. Do not share the logs while they contain the token.
@@ -232,13 +239,6 @@ The Client Secret is stored on the server and is never returned to the browser
 after saving. The server-side security database is protected by filesystem
 permissions, not encrypted; anyone with access to the server's config files or
 Docker administrator access can read it. Keep those host files private.
-
-To build and run the checked-out source instead of pulling GHCR, add the build
-override:
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
-```
 
 ### CLI
 
@@ -289,8 +289,8 @@ Restart the SpotifySaver server after updating.
 
 ## Docker
 
-For Docker, update to the latest published `main` image by running `git pull`
-for the Compose files, then pull and start the service.
+For Docker, update to the latest published image by running `git pull` for the
+Compose files, then pull and start the service.
 
 If Caddy runs in Docker, include the Caddy override on **both** commands so the container stays attached to Caddy's shared network:
 
@@ -306,8 +306,6 @@ host), use the base Compose file:
 docker compose pull
 docker compose up -d
 ```
-
-Docker images are published as latest when changes are pushed to main. To publish a versioned release image, push a new Git tag using the vX.Y.Z format (for example, v0.7.6). The workflow publishes versioned and major/minor tags. To pin your deployment to that release, set IMAGE_TAG=0.7.6 in .env instead of using latest.
 
 Open `http://127.0.0.1:8000`. The API is also available at
 `http://127.0.0.1:8000/docs`. The port is bound to loopback only; for access
@@ -500,13 +498,7 @@ Videos are saved under a folder named for the YouTube channel or uploader within
 the selected video folder (default: `Videos`). Playlist video filenames include
 their position in the playlist, such as `01 - Video Title.mp4`.
 
-## 🤝 Contributions
-1. Fork the project
-2. Create your branch (`git checkout -b feature/new-feature`)
-3. Commit your changes (`git commit -m 'Add awesome feature'`)
-4. Push to the branch (`git push origin feature/new-feature`)
-5. Open a Pull Request
-
 ## 📄 License
 
 MIT © [TGabriel Baute](https://github.com/gabrielbaute)
+MIT © [Danilo Nishimura](https://github.com/danilonishi)
