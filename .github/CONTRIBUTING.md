@@ -1,6 +1,7 @@
-# 📘 CONTRIBUTING.md — Guide to contributing to CERCAPP
+# 📘 CONTRIBUTING.md — Guide to contributing to SpotifySaverdn
 
-Welcome to Spotifysaver. This document establishes some conventions and good practices for contributing to the project in an organized and collaborative way. Suggestions and improvements are welcome!
+This document establishes some conventions and good practices for contributing to the project in an organized and collaborative way.
+Suggestions and improvements are welcome!
 
 ---
 
@@ -18,7 +19,7 @@ Before you begin, make sure you have installed:
 
 1. **Clone the repository**:
    ```bash
-   git clone git@github.com:gabrielbaute/spotify-saver.git
+   git clone git@github.com:danilonishi/spotify-saver.git
    cd spotify-saver
    ```
 
@@ -35,7 +36,7 @@ git checkout -b ft-fix-single-track-download-error
 ```
 
 3. **Make clear and atomic commits**:
-   - Use the present tense: `Add Spotify link validation`
+   - Use the past tense: `Added Spotify link validation`
    - Avoid generic commits like `miscellaneous changes`
 
 4. **Sync with `main` before doing PR**:
@@ -57,7 +58,7 @@ Before submitting your PR:
 
 - Verify that the current flow is not broken
 - If you modify critical logic, document the changes
-- If you add features, consider writing tests (although we don't currently use unit tests, we plan to move towards testability)
+- If you add features, consider writing tests
 
 ---
 
