@@ -128,7 +128,7 @@ class UIManager {
                 );
                 heading.appendChild(this.createDownloadApproval(
                     item.id,
-                    item.confirmation_track_number,
+                    null,
                     item.confirmation_title || item.title,
                     item.confirmation_url || confirmationTrack?.youtube_url,
                     item.confirmation_channel || confirmationTrack?.youtube_channel
