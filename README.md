@@ -66,7 +66,7 @@ This fork packs many more features compared to the baseline:
 | ✅ | Playlists / Album Collections | Download and generate playlist file |
 | ✅ | Channel Watcher | Watch channel and automatically downloads new content |
 | ✅ | video with chapter markers | Not supported|
-| ❌ | Lyrics | Not supported|
+| ❌ | Lyrics | Youtube does not support Lyrics.  Captions-to-Lyrics is planned|
 | ❌ | Captions | Planned|
 ||**Spotify**||
 | ✅ | Tracks | Fetch metadata from Spotify and audio track from Youtube Music|
@@ -76,7 +76,7 @@ This fork packs many more features compared to the baseline:
 ||**Soundcloud**||
 | ✅ | Tracks | Direct download when available, Youtube Music as fallback|
 | ❌ | Playlists | Planned |
-| ❌ | Lyrics | Not supported|
+| ❌ | Lyrics | Soundcloud does not support lyrics|
 | ❌ | Artist Watcher | Planned |
 ||**Browser Extension**||
 | ✅ | API | Adapts interface when download is requested by browser extension|
