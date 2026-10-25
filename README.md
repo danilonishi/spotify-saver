@@ -214,7 +214,17 @@ If you want to run SpotifySaver behind a reverse proxy (such as Caddy, Nginx, or
        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
    }
    ```
-3. When `SSO_ENABLED=true`, SpotifySaver trusts the `Remote-User` header passed by your proxy and automatically signs the user in without displaying the local password prompt. Password management is handled by your SSO / identity provider (e.g., Authelia / lldap).
+3. Allow spotifysaver to send requests to your SSO it by adding it to its configuration. In Authelia it's ```config/configuration.yml```:
+   ```authelia
+   access_control:
+     default_policy: deny
+       rules:
+         # Allow your Spotify app domain
+         - domain: "spotify.yourdomain.com"
+         policy: "one_factor" # or "two_factor"
+   ```
+
+4. When `SSO_ENABLED=true`, SpotifySaver trusts the `Remote-User` header passed by your proxy and automatically signs the user in without displaying the local password prompt. Password management is handled by your SSO / identity provider (e.g., Authelia / lldap).
 
 Enabling SSO does not display the typical username-password fields but the  SSO login instead.
 
