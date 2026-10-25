@@ -15,12 +15,20 @@ def load_config():
     config_dir = Path.home() / ".spotify-saver"
     env_file = config_dir / ".env"
 
-    if env_file.exists():
-        load_dotenv(env_file)
-    else:
-        # Fallback: Load from project root .env (backward compatibility)
+    try:
+        if env_file.exists():
+            load_dotenv(env_file)
+            return
+    except (PermissionError, OSError):
+        pass
+
+    # Fallback: Load from project root .env (backward compatibility)
+    try:
         env_path = Path(__file__).resolve().parents[2] / ".env"
-        load_dotenv(env_path)
+        if env_path.exists():
+            load_dotenv(env_path)
+    except (PermissionError, OSError):
+        pass
 
 
 # Load configuration when module is imported
@@ -69,6 +77,12 @@ class Config:
 
     # Downloader configuration
     DOWNLOAD_TIMEOUT = os.getenv("DOWNLOAD_TIMEOUT", 10)
+
+    # SSO authentication configuration
+    SSO_ENABLED = os.getenv("SSO_ENABLED", "false").lower() == "true"
+    SSO_REMOTE_USER_HEADER = os.getenv(
+        "SSO_REMOTE_USER_HEADER", "Remote-User"
+    )
 
     @classmethod
     def validate(cls):

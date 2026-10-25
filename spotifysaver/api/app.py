@@ -55,9 +55,13 @@ def create_app() -> FastAPI:
         security_store = SecurityStore()
         setup_token = security_store.initialize()
         app.state.security_store = security_store
-        if setup_token:
+        logger.warning(
+            "Auth mode: %s",
+            "SSO (header trust)" if Config.SSO_ENABLED else "local password",
+        )
+        if setup_token and not Config.SSO_ENABLED:
             logger.warning(
-                "First-run administrator setup token (available to server log readers): %s",
+                "First-run administrator setup token: %s",
                 setup_token,
             )
         _stored_spotify_settings = security_store.get_spotify_settings()
@@ -225,6 +229,22 @@ def create_app() -> FastAPI:
 
         security_store = getattr(request.app.state, "security_store", None)
         session_token = request.cookies.get(authentication.SESSION_COOKIE)
+
+        # ── SSO trusted-header mode ──────────────────────────────────
+        if Config.SSO_ENABLED:
+            remote_user = request.headers.get(
+                Config.SSO_REMOTE_USER_HEADER, ""
+            ).strip()
+            if remote_user:
+                if security_store and not security_store.is_valid_session(session_token):
+                    token, _ = security_store.create_session()
+                    response = await call_next(request)
+                    authentication._set_session_cookie(response, request, token)
+                    return response
+                return await call_next(request)
+            return JSONResponse({"detail": "Authentication required"}, status_code=401)
+
+        # ── Local mode (existing logic) ───────────────────────────────────
         if security_store is None or not security_store.is_valid_session(session_token):
             detail = (
                 "Initial setup required"

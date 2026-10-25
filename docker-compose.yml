@@ -12,6 +12,8 @@ services:
       SPOTIFYSAVER_VIDEO_DIR: /videos
       SPOTIFYSAVER_CHANNEL_WATCHER_DB: /config/channel-watcher.sqlite3
       SPOTIFYSAVER_SECURITY_DB: /config/.spotify-saver/security.sqlite3
+      SSO_ENABLED: ${SSO_ENABLED:-false}
+      SSO_REMOTE_USER_HEADER: ${SSO_REMOTE_USER_HEADER:-Remote-User}
       YTDLP_FORMAT: ${YTDLP_FORMAT:-best[ext=m4a]/best}
       YTDLP_COOKIES_PATH: ${YTDLP_COOKIES_PATH:-}
       HOME: /config

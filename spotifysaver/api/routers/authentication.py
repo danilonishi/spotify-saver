@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
+from ...config import Config
 from ..services.security_store import SESSION_LIFETIME, SecurityStore
 
 router = APIRouter()
@@ -11,10 +12,12 @@ SESSION_COOKIE = "spotifysaver_session"
 
 class InitialSetup(BaseModel):
     setup_token: str = Field(min_length=20, max_length=100)
+    username: str = Field(default="admin", min_length=1, max_length=64)
     password: str = Field(min_length=12, max_length=256)
 
 
 class LoginCredentials(BaseModel):
+    username: str = Field(default="admin", min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=256)
 
 
@@ -56,6 +59,7 @@ async def get_authentication_status(request: Request):
         "authenticated": store.is_valid_session(
             request.cookies.get(SESSION_COOKIE)
         ),
+        "auth_mode": "sso" if Config.SSO_ENABLED else "local",
     }
 
 
@@ -67,7 +71,9 @@ async def complete_initial_setup(
     store = _store(request)
     if store.is_configured():
         raise HTTPException(status_code=409, detail="Initial setup is already complete")
-    if not store.complete_setup(settings.setup_token, settings.password):
+    if not store.complete_setup(
+        settings.setup_token, settings.password, username=settings.username
+    ):
         raise HTTPException(status_code=403, detail="Setup token is invalid or expired")
     token, expires_at = store.create_session()
     _set_session_cookie(response, request, token)
@@ -88,9 +94,9 @@ async def login(
             status_code=429,
             detail="Too many failed login attempts; try again in 15 minutes",
         )
-    if not store.verify_password(settings.password):
+    if not store.verify_password(settings.password, username=settings.username):
         store.record_login_failure(client_key)
-        raise HTTPException(status_code=401, detail="Invalid password")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
     store.clear_login_failures(client_key)
     token, expires_at = store.create_session()
     _set_session_cookie(response, request, token)

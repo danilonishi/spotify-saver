@@ -54,11 +54,19 @@ class SecurityStore:
                 """
                 CREATE TABLE IF NOT EXISTS admin_credentials (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
+                    username TEXT NOT NULL DEFAULT 'admin',
                     salt BLOB NOT NULL,
                     password_hash BLOB NOT NULL
                 )
                 """
             )
+            try:
+                connection.execute(
+                    "ALTER TABLE admin_credentials ADD COLUMN username TEXT NOT NULL DEFAULT 'admin'"
+                )
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -113,7 +121,7 @@ class SecurityStore:
                 is not None
             )
 
-    def complete_setup(self, token: str, password: str) -> bool:
+    def complete_setup(self, token: str, password: str, username: str = "admin") -> bool:
         expected = self.setup_token
         if expected is None or not hmac.compare_digest(token, expected):
             return False
@@ -122,31 +130,34 @@ class SecurityStore:
         with self._connect() as connection:
             cursor = connection.execute(
                 """
-                INSERT OR IGNORE INTO admin_credentials (id, salt, password_hash)
-                VALUES (1, ?, ?)
+                INSERT OR IGNORE INTO admin_credentials (id, username, salt, password_hash)
+                VALUES (1, ?, ?, ?)
                 """,
-                (salt, password_hash),
+                (username, salt, password_hash),
             )
             created = cursor.rowcount == 1
         if created:
             self.setup_token = None
         return created
 
-    def verify_password(self, password: str) -> bool:
+    def verify_password(self, password: str, username: Optional[str] = None) -> bool:
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT salt, password_hash FROM admin_credentials WHERE id = 1"
+                "SELECT username, salt, password_hash FROM admin_credentials WHERE id = 1"
             ).fetchone()
         if row is None:
             return False
-        actual = _password_digest(password, row[0])
-        return hmac.compare_digest(actual, row[1])
+        stored_username, salt, stored_hash = row[0], row[1], row[2]
+        if username is not None and not hmac.compare_digest(stored_username, username):
+            return False
+        actual = _password_digest(password, salt)
+        return hmac.compare_digest(actual, stored_hash)
 
     def change_password(
-        self, current_password: str, new_password: str, keep_token: Optional[str]
+        self, current_password: str, new_password: str, keep_token: Optional[str], username: Optional[str] = None
     ) -> bool:
         """Replace the password and revoke every session except ``keep_token``."""
-        if not self.verify_password(current_password):
+        if not self.verify_password(current_password, username=username):
             return False
         salt = secrets.token_bytes(16)
         password_hash = _password_digest(new_password, salt)

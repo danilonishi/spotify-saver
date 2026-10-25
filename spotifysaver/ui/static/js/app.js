@@ -333,15 +333,34 @@ class SpotifySaverUI {
             this.updateTabsForUrl();
 
             const authentication = await this.apiClient.getAuthenticationStatus();
-            if (!authentication.configured) {
-                this.showAuthentication('setup');
-                return;
-            }
-            if (!authentication.authenticated) {
-                this.showAuthentication('login');
-                return;
+            this.authMode = authentication.auth_mode || 'local';
+
+            if (this.authMode === 'sso') {
+                const pwPanel = document.getElementById('password-settings-panel');
+                if (pwPanel) {
+                    pwPanel.classList.add('hidden');
+                }
+                if (!authentication.authenticated) {
+                    this.showAuthenticationError('Authentication required. Please sign in via your single sign-on portal and refresh.');
+                    return;
+                }
+            } else {
+                if (!authentication.configured) {
+                    this.showAuthentication('setup');
+                    return;
+                }
+                if (!authentication.authenticated) {
+                    this.showAuthentication('login');
+                    return;
+                }
             }
             this.showAuthenticatedDashboard();
+            if (this.authMode === 'sso') {
+                const pwPanel = document.getElementById('password-settings-panel');
+                if (pwPanel) {
+                    pwPanel.classList.add('hidden');
+                }
+            }
             
             // Check API status with retry mechanism
             const apiAvailable = await this.apiClient.checkApiStatusWithRetry();
@@ -888,9 +907,11 @@ class SpotifySaverUI {
         status.textContent = 'Setting up administrator access...';
         status.className = 'watcher-help';
         try {
+            const username = document.getElementById('setup-username')?.value?.trim() || 'admin';
             await this.apiClient.setInitialPassword(
                 document.getElementById('setup-token').value.trim(),
-                document.getElementById('setup-password').value
+                document.getElementById('setup-password').value,
+                username
             );
             window.location.reload();
         } catch (error) {
@@ -909,7 +930,11 @@ class SpotifySaverUI {
         status.textContent = 'Signing in...';
         status.className = 'watcher-help';
         try {
-            await this.apiClient.login(document.getElementById('login-password').value);
+            const username = document.getElementById('login-username')?.value?.trim() || 'admin';
+            await this.apiClient.login(
+                username,
+                document.getElementById('login-password').value
+            );
             window.location.reload();
         } catch (error) {
             status.textContent = error.message;

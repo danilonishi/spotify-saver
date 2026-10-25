@@ -110,7 +110,7 @@ def test_authentication_endpoints_issue_and_revoke_sessions(tmp_path):
             _request(app, headers=[(b"cookie", f"spotifysaver_session={token}".encode())])
         )
     )
-    assert status == {"configured": True, "authenticated": True}
+    assert status == {"configured": True, "authenticated": True, "auth_mode": "local"}
 
     logout_response = Response()
     asyncio.run(
@@ -361,3 +361,87 @@ def test_invalid_oauth_state_does_not_consume_valid_state(tmp_path):
     assert not store.consume_oauth_state("attacker-state")
     assert store.consume_oauth_state("expected-state")
     assert not store.consume_oauth_state("expected-state")
+
+
+def test_sso_header_creates_session_and_cookie(tmp_path, monkeypatch):
+    from spotifysaver.api.app import create_app
+    from spotifysaver.config import Config
+
+    monkeypatch.setattr(Config, "SSO_ENABLED", True)
+    monkeypatch.setattr(Config, "SSO_REMOTE_USER_HEADER", "Remote-User")
+
+    app = create_app()
+    store = SecurityStore(str(tmp_path / "security.sqlite3"))
+    store.initialize()
+    app.state.security_store = store
+
+    middleware = next(
+        item
+        for item in app.user_middleware
+        if "dispatch" in item.kwargs and item.kwargs["dispatch"].__name__ == "require_authentication"
+    )
+    dispatch = middleware.kwargs["dispatch"]
+
+    async def continue_request(_request):
+        return Response("ok")
+
+    # Request with Remote-User header should succeed and set session cookie
+    request = _request(
+        app,
+        "/api/v1/queue",
+        headers=[(b"remote-user", b"testadmin")],
+    )
+    response = asyncio.run(dispatch(request, continue_request))
+
+    assert response.status_code == 200
+    assert "spotifysaver_session=" in response.headers.get("set-cookie", "")
+
+    cookie = SimpleCookie()
+    cookie.load(response.headers["set-cookie"])
+    token = cookie["spotifysaver_session"].value
+    assert store.is_valid_session(token)
+
+
+def test_sso_missing_header_returns_401(tmp_path, monkeypatch):
+    from spotifysaver.api.app import create_app
+    from spotifysaver.config import Config
+
+    monkeypatch.setattr(Config, "SSO_ENABLED", True)
+
+    app = create_app()
+    store = SecurityStore(str(tmp_path / "security.sqlite3"))
+    store.initialize()
+    app.state.security_store = store
+
+    middleware = next(
+        item
+        for item in app.user_middleware
+        if "dispatch" in item.kwargs and item.kwargs["dispatch"].__name__ == "require_authentication"
+    )
+    dispatch = middleware.kwargs["dispatch"]
+
+    async def continue_request(_request):
+        return Response("ok")
+
+    # Request without Remote-User and without session should return 401
+    request = _request(app, "/api/v1/queue")
+    response = asyncio.run(dispatch(request, continue_request))
+
+    assert response.status_code == 401
+
+
+def test_auth_status_reports_correct_auth_mode(tmp_path, monkeypatch):
+    from spotifysaver.config import Config
+
+    store = SecurityStore(str(tmp_path / "security.sqlite3"))
+    store.initialize()
+    app = SimpleNamespace(state=SimpleNamespace(security_store=store))
+
+    monkeypatch.setattr(Config, "SSO_ENABLED", False)
+    status_local = asyncio.run(get_authentication_status(_request(app)))
+    assert status_local["auth_mode"] == "local"
+
+    monkeypatch.setattr(Config, "SSO_ENABLED", True)
+    status_sso = asyncio.run(get_authentication_status(_request(app)))
+    assert status_sso["auth_mode"] == "sso"
+

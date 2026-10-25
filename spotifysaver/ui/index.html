@@ -28,16 +28,24 @@
                         from your repository folder.
                     </small>
                 </div>
+                <div class="form-group" id="setup-username-group">
+                    <label for="setup-username">Administrator username:</label>
+                    <input id="setup-username" type="text" autocomplete="username" value="admin" required>
+                </div>
                 <div class="form-group">
-                    <label for="setup-password">Create administrator password:</label>
+                    <label for="setup-password">Create password for user 'admin':</label>
                     <input id="setup-password" type="password" autocomplete="new-password" minlength="12" required>
                     <small>Use at least 12 characters. This password protects the app and its settings.</small>
                 </div>
                 <button class="download-btn" type="submit">Set password and continue</button>
             </form>
             <form id="login-form" class="hidden">
+                <div class="form-group" id="login-username-group">
+                    <label for="login-username">Username:</label>
+                    <input id="login-username" type="text" autocomplete="username" value="admin" required>
+                </div>
                 <div class="form-group">
-                    <label for="login-password">Administrator password:</label>
+                    <label for="login-password">Password:</label>
                     <input id="login-password" type="password" autocomplete="current-password" required>
                 </div>
                 <button class="download-btn" type="submit">Sign in</button>

@@ -117,14 +117,14 @@ cd spotify-saver
 poetry install
 poetry run spotifysaver-api
 ```
-Leave the server running, then proceed to [First-time sign-in](#first-time-sign-in).
+Leave the server running, then proceed to [Reverse-Proxy SSO Authentication](#reverse-proxy-sso-authentication).
 
 ### Method 3: Pip (through Git)
 ```bash
 pip install git+https://github.com/danilonishi/spotify-saver.git
 spotifysaver-api
 ```
-Leave the server running, then proceed to [First-time sign-in](#first-time-sign-in).
+Leave the server running, then proceed to [Reverse-Proxy SSO Authentication](#reverse-proxy-sso-authentication).
 
 ## 🐳 Docker Support
 
@@ -194,6 +194,29 @@ Start the published image:
 docker compose pull
 docker compose up -d
 ```
+
+## Reverse-Proxy SSO Authentication
+
+If you don't need SSO (Single Sign-on), but prefer to authenticate with username and password, proceed to [First Time Sign In](#first-time-sign-in)
+
+If you want to run SpotifySaver behind a reverse proxy (such as Caddy, Nginx, or Traefik) integrated with Authelia or another forward-auth provider, you can enable trusted-header authentication:
+
+1. In `.env` (or `.env.docker` when using Docker Compose), enable SSO:
+   ```env
+   SSO_ENABLED=true
+   # Optional: customize the remote user header name (defaults to Remote-User)
+   # SSO_REMOTE_USER_HEADER=Remote-User
+   ```
+2. In your reverse proxy (e.g. Caddy), configure forward authentication to pass `Remote-User`:
+   ```caddy
+   forward_auth MySSOContainer:MySSOPort { # i.e. "authelia:9091"
+       uri /api/verify?rd=https://auth.example.com
+       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+   }
+   ```
+3. When `SSO_ENABLED=true`, SpotifySaver trusts the `Remote-User` header passed by your proxy and automatically signs the user in without displaying the local password prompt. Password management is handled by your SSO / identity provider (e.g., Authelia / lldap).
+
+Enabling SSO does not display the typical username-password fields but the  SSO login instead.
 
 ## First-time sign-in
 
@@ -459,9 +482,9 @@ You can access at `http://127.0.0.1:8000` from the same machine or replace by yo
 - Web Interface & API: `http://{address}:8000`
 - API Documentation: `http://{address}:8000/docs`
 
-The web interface and API **require an administrator password**. On first startup,
+The web interface and API **require authentication**. By default, on first startup,
 the server logs a one-time setup token; enter it in the browser to create the
-password. Store and protect the server's configuration directory because it
+administrator password for user `admin`. Store and protect the server's configuration directory because it
 contains the password hash, Spotify credentials, and authorization tokens.
 Use **HTTPS** for remote access.
 
@@ -500,5 +523,5 @@ their position in the playlist, such as `01 - Video Title.mp4`.
 
 ## 📄 License
 
-MIT © [TGabriel Baute](https://github.com/gabrielbaute)
+MIT © [TGabriel Baute](https://github.com/gabrielbaute)<br/>
 MIT © [Danilo Nishimura](https://github.com/danilonishi)

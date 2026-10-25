@@ -493,15 +493,21 @@ class ApiClient {
         return response.json();
     }
 
-    async setInitialPassword(setupToken, password) {
+    async setInitialPassword(setupToken, password, username = 'admin') {
         return this.sendAuthenticationRequest('/auth/setup', {
             setup_token: setupToken,
+            username,
             password
         });
     }
 
-    async login(password) {
-        return this.sendAuthenticationRequest('/auth/login', { password });
+    async login(username, password) {
+        if (typeof password === 'undefined') {
+            // Backward compatibility if called with single argument
+            password = username;
+            username = 'admin';
+        }
+        return this.sendAuthenticationRequest('/auth/login', { username, password });
     }
 
     async changePassword(currentPassword, newPassword) {
