@@ -12,6 +12,7 @@ from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 from spotifysaver.config import Config
 from spotifysaver.models import Album, Track, Artist, Playlist
 from spotifysaver.spotlog import get_logger
+from spotifysaver.services.errors.errors import SpotifyAuthorizationRequired
 
 
 class SpotifyAPI:
@@ -33,7 +34,13 @@ class SpotifyAPI:
         Raises:
             ValueError: If Spotify credentials are missing or invalid
         """
-        Config.validate()  # Validate the credentials
+        if not Config.SPOTIFY_CLIENT_ID or not Config.SPOTIFY_CLIENT_SECRET:
+            raise SpotifyAuthorizationRequired(
+                "Spotify is not configured. Open Settings > Spotify, save your "
+                "Spotify app Client ID and Client Secret, then connect your account."
+            )
+
+        Config.validate()
         cache_path = Path(Config.SPOTIFY_AUTH_CACHE_PATH).expanduser()
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         auth_manager = SpotifyOAuth(
@@ -44,6 +51,11 @@ class SpotifyAPI:
             cache_path=str(cache_path),
             open_browser=Config.SPOTIFY_AUTO_OPEN_BROWSER,
         )
+        if not auth_manager.get_cached_token():
+            raise SpotifyAuthorizationRequired(
+                "Spotify account authorization is required. Open Settings > Spotify "
+                "and select Connect Spotify before downloading."
+            )
         self.sp = spotipy.Spotify(
             auth_manager=auth_manager
         )

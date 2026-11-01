@@ -35,6 +35,13 @@ class SpotifyAPIError(APIError):
     """
 
 
+class SpotifyAuthorizationRequired(SpotifyAPIError):
+    """Raised when Spotify credentials or user authorization are not configured."""
+
+    def __init__(self, message: str):
+        super().__init__(message, 400)
+
+
 class YouTubeAPIError(APIError):
     """Exception for YouTube Music API specific errors.
     

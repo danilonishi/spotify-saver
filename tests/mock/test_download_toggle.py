@@ -54,6 +54,7 @@ def test_youtube_audio_options_do_not_enable_unplayable_formats(tmp_path):
     options = downloader._get_ydl_opts(tmp_path / "audio")
 
     assert "allow_unplayable_formats" not in options
+    assert "extractor_args" not in options
 
 
 @pytest.mark.parametrize("output_format", list(AudioFormat))

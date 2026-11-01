@@ -26,6 +26,7 @@ from ..schemas import (
 from ..services import DownloadService, VideoDownloadService
 from ...downloader import SoundCloudDownloader, YouTubeDownloader
 from ...services import SpotifyAPI
+from ...services.errors.errors import SpotifyAuthorizationRequired
 from ...spotlog import get_logger
 from ..config import APIConfig
 from ...config import Config
@@ -486,6 +487,14 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
                 detail="Video downloads require a YouTube video or playlist URL.",
             )
         content_type = _content_type_for_url(spotify_url)
+        if (
+            not YouTubeDownloader.is_youtube_url(spotify_url)
+            and not SoundCloudDownloader.is_track_url(spotify_url)
+        ):
+            try:
+                SpotifyAPI()
+            except SpotifyAuthorizationRequired as e:
+                raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
         # Create initial task status
         task_status = DownloadStatus(
@@ -1013,6 +1022,9 @@ async def inspect_spotify_url(spotify_url: str):
         else:
             raise HTTPException(status_code=400, detail="Invalid Spotify URL")
 
+    except SpotifyAuthorizationRequired as e:
+        logger.info(f"Spotify setup required to inspect {spotify_url}: {e}")
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error inspecting URL {spotify_url}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
