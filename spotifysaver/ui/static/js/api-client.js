@@ -1,6 +1,5 @@
 class ApiClient {
     constructor() {
-        this.baseUrl = new URL(window.location.origin).toString();
         this.apiUrl = new URL('/api/v1', window.location.origin).toString();
         this.apiUrlHealth = new URL('/health', window.location.origin).toString();
         this.apiUrlVersion = new URL('/version', window.location.origin).toString();
@@ -30,7 +29,6 @@ class ApiClient {
                 signal: controller.signal,
                 method: 'GET',
                 mode: 'cors',
-                credentials: 'omit',
                 cache: 'no-cache'
             });
             
@@ -483,11 +481,6 @@ class ApiClient {
     }
 
     async getAuthenticationStatus() {
-        const hit_once = fetch(`${this.baseUrl}/auth`, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-            cache: 'no-cache'
-        });
         const response = await fetch(`${this.apiUrl}/auth/status`, {
             method: 'GET',
             headers: { 'Accept': 'application/json' },

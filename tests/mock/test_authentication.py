@@ -107,7 +107,8 @@ def test_authentication_endpoints_issue_and_revoke_sessions(tmp_path):
 
     status = asyncio.run(
         get_authentication_status(
-            _request(app, headers=[(b"cookie", f"spotifysaver_session={token}".encode())])
+            _request(app, headers=[(b"cookie", f"spotifysaver_session={token}".encode())]),
+            Response(),
         )
     )
     assert status == {"configured": True, "authenticated": True, "auth_mode": "local"}
@@ -438,10 +439,40 @@ def test_auth_status_reports_correct_auth_mode(tmp_path, monkeypatch):
     app = SimpleNamespace(state=SimpleNamespace(security_store=store))
 
     monkeypatch.setattr(Config, "SSO_ENABLED", False)
-    status_local = asyncio.run(get_authentication_status(_request(app)))
+    status_local = asyncio.run(get_authentication_status(_request(app), Response()))
     assert status_local["auth_mode"] == "local"
 
     monkeypatch.setattr(Config, "SSO_ENABLED", True)
-    status_sso = asyncio.run(get_authentication_status(_request(app)))
+    status_sso = asyncio.run(get_authentication_status(_request(app), Response()))
     assert status_sso["auth_mode"] == "sso"
+
+
+def test_sso_auth_status_trusts_remote_user_header(tmp_path, monkeypatch):
+    from spotifysaver.config import Config
+
+    store = SecurityStore(str(tmp_path / "security.sqlite3"))
+    store.initialize()
+    app = SimpleNamespace(state=SimpleNamespace(security_store=store))
+
+    monkeypatch.setattr(Config, "SSO_ENABLED", True)
+    monkeypatch.setattr(Config, "SSO_REMOTE_USER_HEADER", "Remote-User")
+
+    # Without the trusted header the browser is reported as signed out.
+    signed_out = asyncio.run(get_authentication_status(_request(app), Response()))
+    assert signed_out["authenticated"] is False
+
+    # With the trusted header the first page load is signed in immediately and
+    # receives the local session cookie without an extra round trip.
+    response = Response()
+    status = asyncio.run(
+        get_authentication_status(
+            _request(app, headers=[(b"remote-user", b"testadmin")]),
+            response,
+        )
+    )
+    assert status["authenticated"] is True
+
+    cookie = SimpleCookie()
+    cookie.load(response.headers["set-cookie"])
+    assert store.is_valid_session(cookie["spotifysaver_session"].value)
 

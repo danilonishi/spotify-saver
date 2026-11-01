@@ -51,14 +51,22 @@ def _set_session_cookie(response: Response, request: Request, token: str) -> Non
 
 
 @router.get("/auth/status")
-async def get_authentication_status(request: Request):
+async def get_authentication_status(request: Request, response: Response):
     """Report whether first-run setup is complete and this browser is signed in."""
     store = _store(request)
+    authenticated = store.is_valid_session(request.cookies.get(SESSION_COOKIE))
+    # In SSO mode this endpoint is public, so the middleware never creates a
+    # session here. Trust the proxy-injected header directly so the first page
+    # load (or an expired local session) still reports as signed in.
+    if Config.SSO_ENABLED and not authenticated:
+        remote_user = request.headers.get(Config.SSO_REMOTE_USER_HEADER, "").strip()
+        if remote_user:
+            token, _ = store.create_session()
+            _set_session_cookie(response, request, token)
+            authenticated = True
     return {
         "configured": store.is_configured(),
-        "authenticated": store.is_valid_session(
-            request.cookies.get(SESSION_COOKIE)
-        ),
+        "authenticated": authenticated,
         "auth_mode": "sso" if Config.SSO_ENABLED else "local",
     }
 
