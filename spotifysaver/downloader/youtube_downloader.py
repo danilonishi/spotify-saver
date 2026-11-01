@@ -212,7 +212,7 @@ class YouTubeDownloader:
             ),
             "retries": 5,
             "fragment_retries": 5,
-            "skip_unavailable_fragments": True,
+            "skip_unavailable_fragments": False,
             "force_keyframes_at_cuts": True,
         }
 
