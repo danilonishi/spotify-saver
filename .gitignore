@@ -90,6 +90,7 @@ cookies.txt
 
 # virtualenv
 .venv/
+.venv-linux/
 venv/
 ENV/
 

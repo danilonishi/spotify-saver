@@ -5,7 +5,7 @@
             "name": "Python Debugger: FastAPI",
             "type": "debugpy",
             "request": "launch",
-            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+            "python": "${command:python.interpreterPath}",
             "module": "uvicorn",
             "args": [
                 "spotifysaver.api.main:app",
@@ -19,7 +19,7 @@
             "name": "SpotifySaver CLI",
             "type": "debugpy",
             "request": "launch",
-            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+            "python": "${command:python.interpreterPath}",
             "module": "spotifysaver",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal"
